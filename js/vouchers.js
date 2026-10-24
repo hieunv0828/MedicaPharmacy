@@ -323,6 +323,15 @@ const VouchersModule = {
 
     // --- TẠO PHIẾU THU / CHI (MODAL) ---
     openCreateModal(type = 'payment', paymentMethod = 'cash') {
+        if (window.AuthModule && !AuthModule.canAccessTab('vouchers')) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền lập phiếu thu/chi. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền lập phiếu thu/chi!');
+            }
+            return;
+        }
+
         const modal = document.getElementById('modal-voucher-create');
         if (!modal) return;
 
@@ -345,7 +354,7 @@ const VouchersModule = {
         const settings = Store.getSettings();
         const pharmInput = document.getElementById('voucher-input-pharmacist');
         if (pharmInput) {
-            pharmInput.value = settings.pharmacist || 'DS. Nguyễn Thanh Dung';
+            pharmInput.value = (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || settings.pharmacist || 'DS. Nguyễn Thanh Dung';
         }
 
         // Reset các trường
@@ -632,6 +641,12 @@ const VouchersModule = {
     },
 
     exportExcel() {
+        if (window.AuthModule && !AuthModule.canAccessTab('vouchers')) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền xuất sổ quỹ thu chi!', 'warning');
+            }
+            return;
+        }
         const list = this.getFilteredVouchers();
         if (list.length === 0) {
             alert('Không có phiếu thu chi nào để xuất file!');

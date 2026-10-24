@@ -161,6 +161,7 @@ const OrdersModule = {
             return;
         }
 
+        const canCancelOrReturn = !window.AuthModule || AuthModule.canCancelOrReturnOrder();
         let html = '';
         orders.forEach((o, idx) => {
             const isCash = o.paymentMethod === 'cash';
@@ -222,18 +223,18 @@ const OrdersModule = {
                     </td>
                     <td class="py-3 px-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="OrdersModule.openOrderDetails('${o.id}')" title="Xem chi tiết" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition">
+                            <button onclick="OrdersModule.openOrderDetails('${o.id}')" title="Xem chi tiết" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition cursor-pointer">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="OrdersModule.reprintOrder('${o.id}')" title="In lại hóa đơn" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition">
+                            <button onclick="OrdersModule.reprintOrder('${o.id}')" title="In lại hóa đơn" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition cursor-pointer">
                                 <i data-lucide="printer" class="w-4 h-4"></i>
                             </button>
-                            ${!isCancelled && !isFullyReturned ? `
-                            <button onclick="OrdersModule.openReturnModal('${o.id}')" title="Khách trả thuốc & trừ quỹ tiền mặt" class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition">
+                            ${canCancelOrReturn && !isCancelled && !isFullyReturned ? `
+                            <button onclick="OrdersModule.openReturnModal('${o.id}')" title="Khách trả thuốc & trừ quỹ tiền mặt" class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition cursor-pointer">
                                 <i data-lucide="corner-down-left" class="w-4 h-4"></i>
                             </button>` : ''}
-                            ${!isCancelled ? `
-                            <button onclick="OrdersModule.openCancelModal('${o.id}')" title="Hủy hóa đơn & hoàn kho" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition">
+                            ${canCancelOrReturn && !isCancelled ? `
+                            <button onclick="OrdersModule.openCancelModal('${o.id}')" title="Hủy hóa đơn & hoàn kho" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer">
                                 <i data-lucide="x-circle" class="w-4 h-4"></i>
                             </button>` : ''}
                         </div>
@@ -262,6 +263,7 @@ const OrdersModule = {
         const isCash = order.paymentMethod === 'cash';
         const hasReturns = order.returns && order.returns.length > 0;
         const isFullyReturned = order.returnStatus === 'fully_returned';
+        const canCancelOrReturn = !window.AuthModule || AuthModule.canCancelOrReturnOrder();
         const netTotal = Math.max(0, (order.totalAmount || 0) - (order.totalRefunded || 0));
 
         let itemsHtml = '';
@@ -427,14 +429,14 @@ const OrdersModule = {
 
                 <!-- Các nút hành động nghiệp vụ -->
                 <div class="pt-3 border-t border-slate-200 flex flex-wrap justify-end gap-2">
-                    ${!order.isCancelled && !isFullyReturned ? `
-                    <button onclick="OrdersModule.openReturnModal('${order.id}')" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-lg transition flex items-center gap-1.5">
+                    ${canCancelOrReturn && !order.isCancelled && !isFullyReturned ? `
+                    <button onclick="OrdersModule.openReturnModal('${order.id}')" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="corner-down-left" class="w-4 h-4"></i>
                         <span>Trả Hàng & Hoàn Tiền Mặt</span>
                     </button>` : ''}
 
-                    ${!order.isCancelled ? `
-                    <button onclick="OrdersModule.openCancelModal('${order.id}')" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition flex items-center gap-1.5">
+                    ${canCancelOrReturn && !order.isCancelled ? `
+                    <button onclick="OrdersModule.openCancelModal('${order.id}')" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="x-circle" class="w-4 h-4"></i>
                         <span>Hủy Đơn Hàng</span>
                     </button>` : ''}
@@ -471,6 +473,15 @@ const OrdersModule = {
 
     // --- HỦY ĐƠN HÀNG (CANCEL ORDER MODAL) ---
     openCancelModal(orderId) {
+        if (window.AuthModule && !AuthModule.canCancelOrReturnOrder()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền hủy đơn hàng. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền hủy đơn hàng!');
+            }
+            return;
+        }
+
         const order = Store.getOrderById(orderId);
         if (!order || order.isCancelled) return;
 
@@ -545,6 +556,15 @@ const OrdersModule = {
 
     // --- TRẢ HÀNG & HOÀN TIỀN MẶT (RETURN ITEMS MODAL) ---
     openReturnModal(orderId) {
+        if (window.AuthModule && !AuthModule.canCancelOrReturnOrder()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền thực hiện trả hàng / hoàn tiền. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền thực hiện trả hàng / hoàn tiền!');
+            }
+            return;
+        }
+
         const order = Store.getOrderById(orderId);
         if (!order || order.isCancelled || order.returnStatus === 'fully_returned') {
             alert('Đơn hàng này không thể trả hàng (đã hủy hoặc đã trả hết).');

@@ -604,7 +604,7 @@ const POSModule = {
             customerCash: this.paymentMethod === 'cash' ? this.customerCash : 0,
             changeAmount: changeAmount,
             transferCode: transferCode,
-            pharmacist: settings.pharmacist || 'Dược sĩ bán hàng'
+            pharmacist: (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || settings.pharmacist || 'Dược sĩ bán hàng'
         };
 
         const savedOrder = Store.addOrder(newOrder);

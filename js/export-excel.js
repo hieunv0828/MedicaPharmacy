@@ -36,6 +36,12 @@ const ExportService = {
      * @param {Object} reportData
      */
     exportMonthlyRevenue(month, year, reportData) {
+        if (window.AuthModule && !AuthModule.canAccessTab('reports')) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền xuất báo cáo tài chính!', 'warning');
+            }
+            return;
+        }
         const lines = [];
         const settings = Store.getSettings();
 
@@ -170,6 +176,12 @@ const ExportService = {
      * @param {Array} medicines
      */
     exportInventory(medicines) {
+        if (window.AuthModule && !AuthModule.canViewCostPrice()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền xuất dữ liệu kho thuốc!', 'warning');
+            }
+            return;
+        }
         const lines = [];
         lines.push([
             this.csvCell('Mã Thuốc'),

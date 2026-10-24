@@ -348,6 +348,11 @@
                         const stockDisplay = (typeof AppUtils !== 'undefined' && AppUtils.formatStockUnitsDisplay) ? AppUtils.formatStockUnitsDisplay(med) : `${med.stockUnits || 0} ${med.baseUnit}`;
                         const isAvailable = (med.stockUnits || 0) > 0;
                         itemEl.className = 'combobox-option px-3.5 py-2.5 text-xs hover:bg-emerald-50/90 cursor-pointer transition border-b border-slate-100 last:border-b-0';
+                        const canViewCost = !window.AuthModule || AuthModule.canViewCostPrice();
+                        const priceLabel = canViewCost
+                            ? `<span>• Giá vốn: <b class="text-emerald-700 font-semibold font-mono">${(typeof AppUtils !== 'undefined') ? AppUtils.formatVND(med.costPrice) : med.costPrice}</b></span>`
+                            : `<span>• Giá bán: <b class="text-emerald-700 font-semibold font-mono">${(typeof AppUtils !== 'undefined') ? AppUtils.formatVND(med.priceBox) : med.priceBox}</b></span>`;
+
                         itemEl.innerHTML = `
                             <div class="flex items-start justify-between gap-3 w-full">
                                 <div class="flex-1 min-w-0">
@@ -357,7 +362,7 @@
                                     </div>
                                     <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                         ${med.activeIngredient ? `<span>Hoạt chất: <b class="text-slate-700 font-medium">${med.activeIngredient}</b></span>` : ''}
-                                        <span>• Giá vốn: <b class="text-emerald-700 font-semibold font-mono">${(typeof AppUtils !== 'undefined') ? AppUtils.formatVND(med.costPrice) : med.costPrice}</b></span>
+                                        ${priceLabel}
                                     </div>
                                 </div>
                                 <div class="shrink-0 text-right self-center">

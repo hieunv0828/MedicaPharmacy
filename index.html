@@ -61,12 +61,13 @@
 
                     <!-- Mobile only right icons -->
                     <div class="flex items-center gap-2 md:hidden">
+                        <button onclick="AuthModule.openLoginModal()" class="flex items-center gap-1.5 px-2 py-1 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border border-emerald-600 rounded-lg text-xs font-bold transition cursor-pointer" title="Đổi tài khoản">
+                            <span id="header-user-role-badge-mobile" class="px-1 py-0.2 bg-amber-400 text-slate-950 rounded text-[9px] font-black">ADMIN</span>
+                            <i data-lucide="user" class="w-3.5 h-3.5"></i>
+                        </button>
                         <button onclick="App.openMobileConnectModal()" class="p-1.5 bg-emerald-800 hover:bg-emerald-700 text-emerald-200 rounded-lg transition" title="Mã QR kết nối">
                             <i data-lucide="smartphone" class="w-4 h-4"></i>
                         </button>
-                        <div class="w-7 h-7 rounded-full bg-emerald-800 flex items-center justify-center text-emerald-200 font-bold text-xs border border-emerald-600">
-                            DS
-                        </div>
                     </div>
                 </div>
 
@@ -110,23 +111,30 @@
                     </button>
                 </nav>
 
-                <!-- Server Status & Current User / Time info (Desktop only) -->
-                <div class="hidden xl:flex items-center gap-2 text-right shrink-0">
-                    <button onclick="App.openMobileConnectModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-emerald-100 hover:text-white border border-emerald-500 rounded-xl text-xs font-bold shadow-sm transition cursor-pointer" title="Xem mã QR để mở trên điện thoại">
-                        <i data-lucide="smartphone" class="w-4 h-4 text-emerald-300"></i>
-                        <span>Kết Nối Điện Thoại</span>
+                <!-- Server Status & Current User / Role Switcher (Desktop) -->
+                <div class="hidden lg:flex items-center gap-2.5 text-right shrink-0">
+                    <button onclick="App.openMobileConnectModal()" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-800/80 hover:bg-emerald-700 text-emerald-200 hover:text-white border border-emerald-600 rounded-xl text-xs font-semibold shadow-sm transition cursor-pointer" title="Xem mã QR để mở trên điện thoại">
+                        <i data-lucide="smartphone" class="w-3.5 h-3.5 text-emerald-300"></i>
+                        <span>Kết Nối</span>
                     </button>
-                    <div id="server-status-pill" class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-800/80 text-emerald-200 border border-emerald-600 rounded-full text-xs font-semibold">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span>Máy chủ: http://medica.com</span>
-                    </div>
-                    <div class="text-xs">
-                        <div class="font-bold text-emerald-100" id="header-pharmacist">DS. Nguyễn Thanh Dung</div>
-                        <div class="text-emerald-300 text-[11px]" id="current-clock">Ca trực chính</div>
-                    </div>
-                    <div class="w-8 h-8 rounded-full bg-emerald-800 flex items-center justify-center text-emerald-200 font-bold text-xs border border-emerald-600">
-                        DS
-                    </div>
+
+                    <!-- Khung Đổi Tài Khoản / Phân Quyền Người Dùng -->
+                    <button type="button" onclick="AuthModule.openLoginModal()" class="flex items-center gap-2 px-3 py-1 bg-emerald-800 hover:bg-emerald-750 text-emerald-100 rounded-xl border border-emerald-600 shadow-sm transition text-left cursor-pointer group" title="Bấm để chuyển đổi tài khoản Admin / Staff">
+                        <div id="header-user-avatar" class="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs border border-amber-300 shrink-0">
+                            AD
+                        </div>
+                        <div class="leading-tight">
+                            <div class="flex items-center gap-1.5">
+                                <span id="header-user-name" class="font-bold text-xs text-white max-w-[140px] truncate">DS. Nguyễn Thanh Dung</span>
+                                <span id="header-user-role-badge" class="px-1.5 py-0.2 rounded text-[10px] font-black uppercase bg-amber-400 text-slate-900 border border-amber-500">ADMIN</span>
+                            </div>
+                            <div class="text-[10px] text-emerald-300 flex items-center gap-1 mt-0.5">
+                                <span id="header-user-permission-desc">Toàn quyền</span>
+                                <span class="group-hover:underline text-emerald-200 font-semibold">• Đổi TK</span>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -427,7 +435,7 @@
                     <div class="text-[11px] text-slate-400 mt-1">Hạn dưới 90 ngày</div>
                 </div>
 
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <div id="kpi-card-stock-value" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                     <div class="flex items-center justify-between text-slate-500 mb-2">
                         <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Giá Trị Tồn Kho</span>
                         <i data-lucide="circle-dollar-sign" class="w-4 h-4 text-emerald-600"></i>
@@ -459,12 +467,12 @@
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <button onclick="ExportService.exportInventory(Store.getMedicines())" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
+                    <button id="btn-export-inventory" onclick="ExportService.exportInventory(Store.getMedicines())" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
                         <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-700"></i>
                         <span>Xuất Excel Kho</span>
                     </button>
 
-                    <button onclick="InventoryModule.openAddModal()" class="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition">
+                    <button id="btn-add-medicine" onclick="InventoryModule.openAddModal()" class="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                         <span>Thêm Thuốc Mới</span>
                     </button>
@@ -481,9 +489,9 @@
                                 <th class="py-3 px-3 min-w-[220px]">Tên Thuốc & Hoạt Chất</th>
                                 <th class="py-3 px-3">Tồn Kho (Quy Đổi)</th>
                                 <th class="py-3 px-3">Giá Bán Lẻ</th>
-                                <th class="py-3 px-3">Giá Vốn Nhập</th>
+                                <th id="th-cost-price" class="py-3 px-3">Giá Vốn Nhập</th>
                                 <th class="py-3 px-3">Số Lô & Hạn Dùng</th>
-                                <th class="py-3 px-3 text-center w-24">Thao Tác</th>
+                                <th id="th-actions" class="py-3 px-3 text-center w-24">Thao Tác</th>
                             </tr>
                         </thead>
                         <tbody id="medicine-table-body" class="divide-y divide-slate-100">
@@ -2323,10 +2331,101 @@
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- MODAL 14: ĐĂNG NHẬP & PHÂN QUYỀN HỆ THỐNG -->
+    <!-- ========================================== -->
+    <div id="modal-auth-login" class="hidden fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fadeIn relative">
+            <button id="auth-modal-close-btn" onclick="AuthModule.closeLoginModal()" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="text-center pb-4 border-b border-slate-100">
+                <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-inner">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-lg font-black text-slate-900">Phân Quyền MedicaPharmacy</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Chọn tài khoản làm việc hoặc chuyển đổi vai trò</p>
+            </div>
+
+            <!-- Role Selector Tabs -->
+            <div class="grid grid-cols-2 gap-2.5 my-4">
+                <button type="button" id="auth-tab-admin" onclick="AuthModule.selectRoleTab('admin')" class="p-3 rounded-xl border-2 border-emerald-600 bg-emerald-50/70 text-emerald-950 font-bold text-xs flex flex-col items-center justify-center gap-1 transition shadow-sm">
+                    <div class="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs">AD</div>
+                    <span>Quản Trị Viên (Admin)</span>
+                    <span class="text-[10px] text-emerald-700 font-normal">Toàn quyền hệ thống</span>
+                </button>
+
+                <button type="button" id="auth-tab-staff" onclick="AuthModule.selectRoleTab('staff')" class="p-3 rounded-xl border-2 border-slate-200 bg-white text-slate-600 text-xs flex flex-col items-center justify-center gap-1 hover:border-slate-300 transition">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-black text-xs shadow-xs">NV</div>
+                    <span>Nhân Viên (Staff)</span>
+                    <span class="text-[10px] text-slate-400 font-normal">Chỉ bán hàng lẻ</span>
+                </button>
+            </div>
+
+            <form onsubmit="AuthModule.handleFormSubmit(event)" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Tài khoản</label>
+                    <div class="relative">
+                        <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input id="auth-input-username" type="text" required placeholder="admin hoặc staff" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-slate-700">Mật khẩu</label>
+                        <span class="text-[10px] text-slate-400 font-mono">(Mặc định: 123 hoặc admin/staff)</span>
+                    </div>
+                    <div class="relative">
+                        <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input id="auth-input-password" type="password" required placeholder="Nhập mật khẩu..." class="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        <button type="button" onclick="AuthModule.togglePassword()" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 p-0.5">
+                            <i id="auth-password-toggle-icon" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="auth-error-msg" class="hidden text-rose-600 bg-rose-50 border border-rose-200 p-2 rounded-lg text-xs font-semibold"></div>
+
+                <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer">
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
+                    <span>Xác Nhận Đăng Nhập</span>
+                </button>
+            </form>
+
+            <!-- Quick 1-click login for super convenience -->
+            <div class="mt-4 pt-3 border-t border-slate-100">
+                <span class="text-[11px] font-semibold text-slate-400 block mb-2 text-center uppercase tracking-wider">Đăng Nhập Nhanh 1-Chạm:</span>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="AuthModule.quickLogin('admin')" class="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer">
+                        <i data-lucide="shield" class="w-3.5 h-3.5 text-amber-600"></i>
+                        <span>Vào Admin</span>
+                    </button>
+                    <button type="button" onclick="AuthModule.quickLogin('staff')" class="py-1.5 px-2 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer">
+                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-blue-600"></i>
+                        <span>Vào Staff</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Permission comparison card -->
+            <div class="mt-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-500 space-y-1">
+                <div class="flex items-center gap-1 text-slate-700 font-bold">
+                    <i data-lucide="info" class="w-3.5 h-3.5 text-blue-600"></i>
+                    <span>Quyền hạn theo tài khoản:</span>
+                </div>
+                <p>• <b>Admin</b>: Toàn quyền quản trị kho, xem giá vốn, nhập thuốc, xem thu chi, báo cáo, hủy đơn, trả hàng, cài đặt.</p>
+                <p>• <b>Staff</b>: Chỉ bán hàng & thanh toán POS, in hóa đơn. <span class="text-rose-600 font-bold">Ẩn giá nhập, ẩn thu chi & báo cáo</span>.</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Application JavaScript Bundles -->
     <script src="js/vietqr.js"></script>
     <script src="js/sample-data.js"></script>
     <script src="js/store.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/export-excel.js"></script>
     <script src="js/searchable-select.js"></script>
     <script src="js/vouchers.js"></script>

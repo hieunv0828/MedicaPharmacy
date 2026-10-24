@@ -165,6 +165,10 @@ const InventoryModule = {
         catSelect.innerHTML = html;
     },
 
+    renderInventoryTable() {
+        this.renderMedicineTable();
+    },
+
     renderMedicineTable() {
         const tbody = document.getElementById('medicine-table-body');
         if (!tbody) return;
@@ -212,6 +216,14 @@ const InventoryModule = {
         }
 
         let html = '';
+        const canViewCost = !window.AuthModule || AuthModule.canViewCostPrice();
+        const canEdit = !window.AuthModule || AuthModule.canEditInventory();
+
+        const thCost = document.getElementById('th-cost-price');
+        if (thCost) {
+            thCost.style.display = canViewCost ? '' : 'none';
+        }
+
         medicines.forEach((m, idx) => {
             const stockStatus = AppUtils.checkStockStatus(m);
             const expiryStatus = AppUtils.checkExpiryStatus(m.expiryDate);
@@ -236,11 +248,40 @@ const InventoryModule = {
                 expiryBadge = `<span class="text-xs text-slate-600">${AppUtils.formatDate(m.expiryDate)}</span>`;
             }
 
+            const costPriceCell = canViewCost ? `
+                <td class="py-3 px-3">
+                    <div class="text-xs text-slate-600 font-medium">${AppUtils.formatVND(m.costPrice)} /${m.packUnit || 'Hộp'}</div>
+                </td>
+            ` : '';
+
+            const actionButtons = canEdit ? `
+                <div class="flex items-center justify-center gap-1.5">
+                    <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử nhập kho và bán thuốc" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition cursor-pointer">
+                        <i data-lucide="history" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="InventoryModule.openEditModal('${m.id}')" title="Sửa thông tin thuốc" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition cursor-pointer">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="InventoryModule.deleteMedicine('${m.id}')" title="Xóa thuốc" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            ` : `
+                <div class="flex items-center justify-center gap-1.5">
+                    <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử bán thuốc" class="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition cursor-pointer flex items-center gap-1">
+                        <i data-lucide="history" class="w-3.5 h-3.5"></i>
+                        <span>Lịch sử</span>
+                    </button>
+                </div>
+            `;
+
+            const nameClickAction = canEdit ? `onclick="InventoryModule.openEditModal('${m.id}')"` : `onclick="InventoryModule.openMedicineHistoryModal('${m.id}')"`;
+
             html += `
                 <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-sm">
                     <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
                     <td class="py-3 px-3">
-                        <div class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" onclick="InventoryModule.openEditModal('${m.id}')">${m.name}</div>
+                        <div class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</div>
                         <div class="text-xs text-slate-500 line-clamp-1 italic">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
                         <div class="flex items-center gap-2 mt-1">
                             <span class="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${m.category || 'Thuốc chung'}</span>
@@ -256,25 +297,13 @@ const InventoryModule = {
                         ${m.priceSub > 0 ? `<div class="text-xs text-slate-600">${AppUtils.formatVND(m.priceSub)} /${m.subUnit}</div>` : ''}
                         <div class="text-[11px] text-slate-400">${AppUtils.formatVND(m.priceBase)} /${m.baseUnit}</div>
                     </td>
-                    <td class="py-3 px-3">
-                        <div class="text-xs text-slate-600 font-medium">${AppUtils.formatVND(m.costPrice)} /${m.packUnit || 'Hộp'}</div>
-                    </td>
+                    ${costPriceCell}
                     <td class="py-3 px-3">
                         <div class="font-mono text-xs text-slate-700">${m.batchNo || '---'}</div>
                         <div class="mt-1">${expiryBadge}</div>
                     </td>
                     <td class="py-3 px-3 text-center">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử nhập kho và bán thuốc" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition">
-                                <i data-lucide="history" class="w-4 h-4"></i>
-                            </button>
-                            <button onclick="InventoryModule.openEditModal('${m.id}')" title="Sửa thông tin thuốc" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition">
-                                <i data-lucide="edit-3" class="w-4 h-4"></i>
-                            </button>
-                            <button onclick="InventoryModule.deleteMedicine('${m.id}')" title="Xóa thuốc" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
-                        </div>
+                        ${actionButtons}
                     </td>
                 </tr>
             `;
@@ -286,6 +315,15 @@ const InventoryModule = {
 
     // --- Modal Thêm / Sửa Thuốc ---
     openAddModal() {
+        if (window.AuthModule && !AuthModule.canEditInventory()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền thêm thuốc mới. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền thêm thuốc mới!');
+            }
+            return;
+        }
+
         this.currentEditingMedId = null;
         document.getElementById('modal-medicine-title').innerText = 'Thêm Thuốc Mới Vào Danh Mục';
         document.getElementById('form-medicine').reset();
@@ -307,6 +345,11 @@ const InventoryModule = {
     },
 
     openEditModal(medId) {
+        if (window.AuthModule && !AuthModule.canEditInventory()) {
+            this.openMedicineHistoryModal(medId);
+            return;
+        }
+
         const med = Store.getMedicineById(medId);
         if (!med) return;
 
@@ -391,6 +434,15 @@ const InventoryModule = {
     },
 
     deleteMedicine(id) {
+        if (window.AuthModule && !AuthModule.canEditInventory()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền xóa thuốc khỏi hệ thống. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền xóa thuốc!');
+            }
+            return;
+        }
+
         const med = Store.getMedicineById(id);
         if (!med) return;
         if (confirm(`Bạn có chắc chắn muốn xóa thuốc "${med.name}" khỏi danh mục không?`)) {
@@ -423,6 +475,15 @@ const InventoryModule = {
     },
 
     openStockInModal() {
+        if (window.AuthModule && !AuthModule.canAccessTab('stockin')) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền lập phiếu nhập kho. Chỉ Quản trị viên (Admin) mới được phép!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền lập phiếu nhập kho!');
+            }
+            return;
+        }
+
         this.editingStockInId = null;
         const titleEl = document.getElementById('modal-stockin-title');
         if (titleEl) titleEl.innerHTML = `<i data-lucide="truck" class="w-5 h-5 text-emerald-600"></i> Lập Phiếu Nhập Kho Thuốc Mới`;
@@ -454,6 +515,13 @@ const InventoryModule = {
     },
 
     openEditStockInModal(orderId) {
+        if (window.AuthModule && !AuthModule.canAccessTab('stockin')) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền chỉnh sửa phiếu nhập kho!', 'warning');
+            }
+            return;
+        }
+
         const orders = Store.getStockInOrders();
         const o = orders.find(x => x.id === orderId);
         if (!o) return;
@@ -519,6 +587,13 @@ const InventoryModule = {
 
     // --- QUẢN LÝ THÊM NHÀ CUNG CẤP MỚI ---
     openAddSupplierModal() {
+        if (window.AuthModule && !AuthModule.canEditInventory()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền thêm nhà cung cấp mới. Chỉ Admin mới được phép!', 'warning');
+            }
+            return;
+        }
+
         const modal = document.getElementById('modal-add-supplier');
         if (!modal) return;
         const autoId = 'NCC' + String(Date.now()).slice(-4);
@@ -1021,7 +1096,6 @@ const InventoryModule = {
         if (!med) return;
 
         this.currentHistoryMedId = medicineId;
-        this.currentHistoryTab = 'stockin';
 
         const modal = document.getElementById('modal-medicine-history');
         if (!modal) return;
@@ -1030,8 +1104,17 @@ const InventoryModule = {
         document.getElementById('med-history-sub').innerText = `Mã: ${med.id} • Hoạt chất: ${med.activeIngredient || '---'} • Nhóm: ${med.category || 'Thuốc chung'} • Quy cách: 1 ${med.packUnit || 'Hộp'} = ${med.packRatio} ${med.baseUnit}`;
         document.getElementById('med-history-current-stock').innerText = AppUtils.formatStockUnitsDisplay(med);
 
+        const canViewCost = !window.AuthModule || AuthModule.canViewCostPrice();
+        const tabBtnStockIn = document.getElementById('med-history-tab-btn-stockin');
+        if (tabBtnStockIn) {
+            tabBtnStockIn.style.display = canViewCost ? '' : 'none';
+        }
+
+        const initialTab = canViewCost ? 'stockin' : 'sales';
+        this.currentHistoryTab = initialTab;
+
         this.renderMedicineHistoryViews(med);
-        this.switchMedicineHistoryTab('stockin');
+        this.switchMedicineHistoryTab(initialTab);
 
         modal.classList.remove('hidden');
         const btnJump = document.getElementById('btn-med-history-jump-inventory');
@@ -1068,6 +1151,10 @@ const InventoryModule = {
     },
 
     switchMedicineHistoryTab(tab) {
+        const canViewCost = !window.AuthModule || AuthModule.canViewCostPrice();
+        if (tab === 'stockin' && !canViewCost) {
+            tab = 'sales';
+        }
         this.currentHistoryTab = tab;
         const btnStockIn = document.getElementById('med-history-tab-btn-stockin');
         const btnSales = document.getElementById('med-history-tab-btn-sales');
@@ -1122,15 +1209,24 @@ const InventoryModule = {
             }
         });
 
+        const canViewCost = !window.AuthModule || AuthModule.canViewCostPrice();
         const elTotalImport = document.getElementById('med-history-stat-imported');
         const elTotalSold = document.getElementById('med-history-stat-sold');
-        if (elTotalImport) elTotalImport.innerText = `${AppUtils.formatNumber(totalImportedUnits)} ${med.baseUnit} (${AppUtils.formatVND(totalImportCost)})`;
+        if (elTotalImport) {
+            if (canViewCost) {
+                elTotalImport.innerText = `${AppUtils.formatNumber(totalImportedUnits)} ${med.baseUnit} (${AppUtils.formatVND(totalImportCost)})`;
+            } else {
+                elTotalImport.innerText = `${AppUtils.formatNumber(totalImportedUnits)} ${med.baseUnit} (Chỉ Quản trị viên)`;
+            }
+        }
         if (elTotalSold) elTotalSold.innerText = `${AppUtils.formatNumber(totalSoldUnits)} ${med.baseUnit} (${AppUtils.formatVND(totalSalesRevenue)})`;
 
         // Render bảng Lịch sử Nhập
         const tbodyStockIn = document.getElementById('med-history-stockin-tbody');
         if (tbodyStockIn) {
-            if (stockInHistory.length === 0) {
+            if (!canViewCost) {
+                tbodyStockIn.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400 text-xs">Bạn không có quyền xem thông tin nhập kho và giá vốn. Vui lòng đăng nhập tài khoản Quản trị viên (Admin).</td></tr>';
+            } else if (stockInHistory.length === 0) {
                 tbodyStockIn.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400 text-xs">Chưa có lịch sử phiếu nhập nào cho thuốc này.</td></tr>';
             } else {
                 let html = '';

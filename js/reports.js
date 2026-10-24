@@ -233,6 +233,9 @@ const ReportsModule = {
     },
 
     loadMonthlyReport() {
+        if (window.AuthModule && !AuthModule.canAccessTab('reports')) {
+            return;
+        }
         const report = this.calculateMonthlyData(this.selectedMonth, this.selectedYear);
         this.currentReportData = report;
 

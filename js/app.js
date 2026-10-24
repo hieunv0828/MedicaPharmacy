@@ -9,6 +9,11 @@ const App = {
     init() {
         console.log('🚀 Khởi động MedicaPharmacy...');
         
+        // Khởi tạo hệ thống Phân Quyền Admin & Staff
+        if (window.AuthModule) {
+            AuthModule.init();
+        }
+
         // Khởi tạo các module
         POSModule.init();
         InventoryModule.init();
@@ -59,6 +64,15 @@ const App = {
     },
 
     switchTab(tabId) {
+        // Kiểm tra phân quyền truy cập tab
+        if (window.AuthModule && !AuthModule.canAccessTab(tabId)) {
+            this.showToast('Bạn không có quyền truy cập mục này. Chỉ dành cho Quản Trị Viên (Admin).', 'error');
+            if (this.currentTab !== 'pos') {
+                this.switchTab('pos');
+            }
+            return;
+        }
+
         this.currentTab = tabId;
 
         // Ẩn tất cả các view sections
@@ -167,24 +181,30 @@ const App = {
     loadSettingsForm() {
         const settings = Store.getSettings();
 
-        document.getElementById('settings-pharmacy-name').value = settings.pharmacyName || '';
-        document.getElementById('settings-gpp-cert').value = settings.gppCert || '';
-        document.getElementById('settings-address').value = settings.address || '';
-        document.getElementById('settings-phone').value = settings.phone || '';
-        document.getElementById('settings-pharmacist').value = settings.pharmacist || '';
-        document.getElementById('settings-receipt-note').value = settings.receiptNote || '';
-        document.getElementById('settings-receipt-thankyou').value = settings.receiptThankYou || '';
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        };
+
+        setVal('settings-pharmacy-name', settings.pharmacyName || '');
+        setVal('settings-gpp-cert', settings.gppCert || '');
+        setVal('settings-address', settings.address || '');
+        setVal('settings-phone', settings.phone || '');
+        setVal('settings-pharmacist', settings.pharmacist || '');
+        setVal('settings-receipt-note', settings.receiptNote || '');
+        setVal('settings-receipt-thankyou', settings.receiptThankYou || '');
 
         // VietQR
         if (settings.bankBin) {
-            document.getElementById('settings-bank-select').value = settings.bankBin;
+            setVal('settings-bank-select', settings.bankBin);
         }
-        document.getElementById('settings-account-no').value = settings.accountNo || '';
-        document.getElementById('settings-account-name').value = settings.accountName || '';
+        setVal('settings-account-no', settings.accountNo || '');
+        setVal('settings-account-name', settings.accountName || '');
 
         // Khổ in
-        document.getElementById('settings-print-format').value = settings.printFormat || 'k80';
-        document.getElementById('settings-sound-enabled').checked = settings.soundEnabled !== false;
+        setVal('settings-print-format', settings.printFormat || 'k80');
+        const soundEl = document.getElementById('settings-sound-enabled');
+        if (soundEl) soundEl.checked = settings.soundEnabled !== false;
 
         this.previewVietQROnSettings();
     },
