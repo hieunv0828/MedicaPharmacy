@@ -43,9 +43,13 @@
             <div class="flex flex-col md:flex-row md:items-center justify-start gap-2.5 xl:gap-4 w-full">
                 <!-- Top Brand row on Mobile, Left Brand Column on Desktop -->
                 <div class="flex items-center justify-between h-14 md:h-16 shrink-0">
-                    <div class="relative group/brand" id="header-brand-container">
+                    <div class="relative group/brand" id="header-brand-container" onmouseenter="window.AuthModule && AuthModule.saveCurrentUser()">
                         <!-- Nút bấm thương hiệu: Bấm để quay về Home (Bán Thuốc POS) • Chuột phải mở menu liên kết -->
                         <a href="index.html" 
+                           onmouseenter="window.AuthModule && AuthModule.saveCurrentUser()" 
+                           onmousedown="window.AuthModule && AuthModule.saveCurrentUser()" 
+                           oncontextmenu="window.AuthModule && AuthModule.saveCurrentUser()" 
+                           onauxclick="window.AuthModule && AuthModule.saveCurrentUser()" 
                            onclick="if(!event.ctrlKey && !event.metaKey && event.button === 0) { event.preventDefault(); App.switchTab('pos'); }" 
                            class="flex items-center gap-2.5 sm:gap-3 py-1 px-2 -ml-2 rounded-xl hover:bg-emerald-800/60 transition text-left cursor-pointer group-hover/brand:bg-emerald-800/70 select-none text-white no-underline hover:no-underline" 
                            title="Bấm để về Trang Chủ (Bán Thuốc) • Chuột phải để mở trong tab mới">

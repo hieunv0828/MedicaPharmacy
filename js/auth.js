@@ -1,8 +1,30 @@
 /**
  * MedicaPharmacy - Authentication & Role-Based Access Control (RBAC) Module
  * Quản lý tài khoản Admin (Toàn quyền) và Staff (Chỉ bán hàng & thanh toán)
- * Yêu cầu đăng nhập bắt buộc khi truy cập, không mặc định Admin
+ * Yêu cầu đăng nhập bắt buộc khi truy cập, duy trì phiên liền mạch giữa các tab
  */
+
+// Tự động kiểm tra và đồng bộ phiên 3 tầng (sessionStorage, localStorage, Cookie) ngay khi nạp script
+(function immediateSessionBootstrap() {
+    try {
+        const key = 'medica_session_user';
+        let raw = null;
+        try { raw = localStorage.getItem(key); } catch(e) {}
+        if (!raw) {
+            const m = document.cookie.match(new RegExp('(?:^|;\\s*)' + key + '=([^;]*)'));
+            if (m) raw = decodeURIComponent(m[1]);
+        }
+        if (!raw) {
+            try { raw = sessionStorage.getItem(key); } catch(e) {}
+        }
+        if (raw) {
+            try { localStorage.setItem(key, raw); } catch(e) {}
+            try { sessionStorage.setItem(key, raw); } catch(e) {}
+            const exp = new Date(Date.now() + 30 * 864e5).toUTCString();
+            document.cookie = `${key}=${encodeURIComponent(raw)}; expires=${exp}; path=/; SameSite=Lax`;
+        }
+    } catch(e) {}
+})();
 
 window.AuthModule = {
     STORAGE_KEY: 'medica_session_user',
@@ -92,45 +114,252 @@ window.AuthModule = {
         return { success: true, message: `Đã đổi mật khẩu cho tài khoản ${role.toUpperCase()} thành công!` };
     },
 
+    // Quản lý Cookie an toàn để chia sẻ phiên liền mạch giữa tất cả các tab trình duyệt
+    setCookie(name, value, days = 30) {
+        try {
+            const expires = new Date(Date.now() + days * 864e5).toUTCString();
+            document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+        } catch(e) {}
+    },
+
+    getCookie(name) {
+        try {
+            const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+            return match ? decodeURIComponent(match[1]) : null;
+        } catch(e) {
+            return null;
+        }
+    },
+
+    deleteCookie(name) {
+        try {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+        } catch(e) {}
+    },
+
+    // Đọc phiên làm việc đã lưu từ đa tầng lưu trữ: LocalStorage -> Cookie -> SessionStorage
+    getSavedSession() {
+        let raw = null;
+        try {
+            raw = localStorage.getItem(this.STORAGE_KEY);
+        } catch(e) {}
+
+        if (!raw) {
+            raw = this.getCookie(this.STORAGE_KEY);
+        }
+
+        if (!raw) {
+            try {
+                raw = sessionStorage.getItem(this.STORAGE_KEY);
+            } catch(e) {}
+        }
+
+        return raw;
+    },
+
+    // Kênh trao đổi tín hiệu tức thời giữa các tab trình duyệt (Realtime Multi-Tab Broadcast)
+    _broadcastChannel: null,
+    getBroadcastChannel() {
+        if (!this._broadcastChannel && typeof BroadcastChannel !== 'undefined') {
+            try {
+                this._broadcastChannel = new BroadcastChannel('medica_auth_channel');
+                this._broadcastChannel.onmessage = (event) => {
+                    this.handleBroadcastMessage(event.data);
+                };
+            } catch(e) {
+                console.warn('BroadcastChannel không khả dụng trên trình duyệt này:', e);
+            }
+        }
+        return this._broadcastChannel;
+    },
+
+    broadcast(data) {
+        const bc = this.getBroadcastChannel();
+        if (bc) {
+            try {
+                bc.postMessage(data);
+            } catch(e) {}
+        }
+    },
+
+    handleBroadcastMessage(data) {
+        if (!data || !data.type) return;
+
+        if (data.type === 'REQUEST_SESSION') {
+            // Tab mới vừa mở và đang hỏi xem có tab nào đang đăng nhập không
+            if (this.currentUser) {
+                this.broadcast({
+                    type: 'SESSION_RESPONSE',
+                    user: this.currentUser
+                });
+                this.saveCurrentUser();
+            }
+        } else if (data.type === 'SESSION_RESPONSE' || data.type === 'LOGIN' || data.type === 'SWITCH_USER') {
+            // Nhận tín hiệu phiên đang hoạt động từ tab khác
+            if (data.user) {
+                const users = this.getUsers();
+                const matched = users.find(u => 
+                    (data.user.id && (u.id === data.user.id || u.username === data.user.id)) ||
+                    (data.user.username && u.username.toLowerCase() === data.user.username.toLowerCase()) ||
+                    (data.user.role && u.role.toLowerCase() === data.user.role.toLowerCase())
+                ) || data.user;
+
+                this.currentUser = Object.assign({}, matched);
+                this.saveCurrentUser();
+                this.applyPermissions();
+                this.renderHeaderUserInfo();
+                this.closeLoginModal();
+            }
+        } else if (data.type === 'LOGOUT') {
+            // Một tab bất kỳ thực hiện Đăng Xuất -> toàn bộ các tab khác lập tức khóa lại
+            this.currentUser = null;
+            this.clearUserSession();
+            this.applyPermissions();
+            this.renderHeaderUserInfo();
+            this.openLoginModal(true);
+        }
+    },
+
     init() {
         console.log('🔒 Khởi tạo hệ thống Phân Quyền MedicaPharmacy...');
         
-        // Xóa sạch user lưu vĩnh viễn trong localStorage để bảo đảm an toàn
-        localStorage.removeItem('medica_current_user');
-
-        // Nạp người dùng hiện tại từ sessionStorage
+        // 1. Phục hồi phiên làm việc từ hệ thống lưu trữ liên tab (LocalStorage / Cookie / SessionStorage)
         const users = this.getUsers();
-        const savedSession = sessionStorage.getItem(this.STORAGE_KEY);
+        const savedSession = this.getSavedSession();
         if (savedSession) {
             try {
                 const parsed = JSON.parse(savedSession);
-                this.currentUser = users.find(u => u.id === parsed.id) || null;
+                this.currentUser = users.find(u => 
+                    (parsed.id && (u.id === parsed.id || u.username === parsed.id)) ||
+                    (parsed.username && u.username && u.username.toLowerCase() === parsed.username.toLowerCase()) ||
+                    (parsed.role && u.role && u.role.toLowerCase() === parsed.role.toLowerCase())
+                ) || null;
+
+                // Dự phòng nếu không khớp ID nhưng parsed có thông tin role hợp lệ
+                if (!this.currentUser && parsed && (parsed.role === 'admin' || parsed.role === 'staff')) {
+                    this.currentUser = Object.assign({}, parsed);
+                }
             } catch(e) {
                 this.currentUser = null;
             }
         } else {
-            // Mặc định lúc mới truy cập KHÔNG tự động đăng nhập Admin
             this.currentUser = null;
         }
 
+        // ĐỒNG BỘ NGƯỢC LẠI: Nếu đã có currentUser, lưu ngay vào cả 3 tầng để tab mới mở ra nhận được tức thì!
+        if (this.currentUser) {
+            this.saveCurrentUser();
+        }
+
         this.setupEventListeners();
+        this.setupMultiTabSync();
         this.applyPermissions();
         this.renderHeaderUserInfo();
 
-        // Nếu chưa đăng nhập: Luôn hiển thị màn hình đăng nhập bắt buộc
+        // Nếu chưa đăng nhập: Hiển thị màn hình đăng nhập bắt buộc và hỏi các tab đang mở khác
         if (!this.isAuthenticated()) {
             this.openLoginModal(true);
+            this.broadcast({ type: 'REQUEST_SESSION' });
         } else {
             this.closeLoginModal();
         }
     },
 
+    // Đồng bộ phiên đăng nhập giữa các tab trình duyệt trong thời gian thực
+    setupMultiTabSync() {
+        if (this._tabSyncInitialized) return;
+        this._tabSyncInitialized = true;
+
+        // Kích hoạt BroadcastChannel
+        this.getBroadcastChannel();
+
+        // 1. Lắng nghe storage event (khi localStorage được ghi/xóa từ tab khác trong cùng origin)
+        window.addEventListener('storage', (e) => {
+            if (e.key === this.STORAGE_KEY) {
+                const users = this.getUsers();
+                if (e.newValue) {
+                    try {
+                        const parsed = JSON.parse(e.newValue);
+                        this.currentUser = users.find(u => 
+                            (parsed.id && (u.id === parsed.id || u.username === parsed.id)) ||
+                            (parsed.username && u.username && u.username.toLowerCase() === parsed.username.toLowerCase()) ||
+                            (parsed.role && u.role && u.role.toLowerCase() === parsed.role.toLowerCase())
+                        ) || parsed;
+                        this.applyPermissions();
+                        this.renderHeaderUserInfo();
+                        this.closeLoginModal();
+                    } catch(err) {
+                        this.currentUser = null;
+                    }
+                } else {
+                    this.currentUser = null;
+                    this.applyPermissions();
+                    this.renderHeaderUserInfo();
+                    this.openLoginModal(true);
+                }
+            }
+        });
+
+        // 2. Lắng nghe sự kiện window focus / visibilitychange để đồng bộ khi chuyển tab
+        const syncOnActive = () => {
+            const saved = this.getSavedSession();
+            if (saved && !this.currentUser) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    const users = this.getUsers();
+                    this.currentUser = users.find(u => 
+                        (parsed.id && (u.id === parsed.id || u.username === parsed.id)) ||
+                        (parsed.username && u.username && u.username.toLowerCase() === parsed.username.toLowerCase()) ||
+                        (parsed.role && u.role && u.role.toLowerCase() === parsed.role.toLowerCase())
+                    ) || parsed;
+                    if (this.currentUser) {
+                        this.saveCurrentUser();
+                        this.applyPermissions();
+                        this.renderHeaderUserInfo();
+                        this.closeLoginModal();
+                    }
+                } catch(e) {}
+            } else if (!saved && this.currentUser) {
+                this.currentUser = null;
+                this.applyPermissions();
+                this.renderHeaderUserInfo();
+                this.openLoginModal(true);
+            }
+        };
+
+        window.addEventListener('focus', syncOnActive);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                syncOnActive();
+            }
+        });
+
+        // 3. Đảm bảo session luôn được ghi lại mỗi khi có tương tác người dùng
+        window.addEventListener('pointerdown', () => {
+            if (this.currentUser) {
+                this.saveCurrentUser();
+            }
+        }, { passive: true });
+    },
+
     saveCurrentUser() {
-        if (this.currentUser) {
-            sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.currentUser));
-        } else {
-            sessionStorage.removeItem(this.STORAGE_KEY);
+        if (!this.currentUser) return;
+        try {
+            const data = JSON.stringify(this.currentUser);
+            localStorage.setItem(this.STORAGE_KEY, data);
+            sessionStorage.setItem(this.STORAGE_KEY, data);
+            this.setCookie(this.STORAGE_KEY, data, 30);
+        } catch(e) {
+            console.error('Lỗi khi lưu phiên làm việc:', e);
         }
+    },
+
+    clearUserSession() {
+        try {
+            localStorage.removeItem(this.STORAGE_KEY);
+            sessionStorage.removeItem(this.STORAGE_KEY);
+            this.deleteCookie(this.STORAGE_KEY);
+        } catch(e) {}
     },
 
     getCurrentUser() {
@@ -195,6 +424,7 @@ window.AuthModule = {
 
         this.currentUser = Object.assign({}, userTemplate);
         this.saveCurrentUser();
+        this.broadcast({ type: 'LOGIN', user: this.currentUser });
         this.applyPermissions();
         this.renderHeaderUserInfo();
         this.closeLoginModal();
@@ -219,8 +449,9 @@ window.AuthModule = {
     },
 
     logout() {
-        sessionStorage.removeItem(this.STORAGE_KEY);
+        this.clearUserSession();
         this.currentUser = null;
+        this.broadcast({ type: 'LOGOUT' });
         this.applyPermissions();
         this.renderHeaderUserInfo();
 
