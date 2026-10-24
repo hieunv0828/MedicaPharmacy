@@ -345,7 +345,16 @@ window.AuthModule = {
         // Tên
         const nameEl = document.getElementById('header-user-name');
         if (nameEl) {
-            nameEl.innerText = isAuth ? user.fullName : 'Chưa Đăng Nhập';
+            if (!isAuth) {
+                nameEl.innerText = 'Chưa Đăng Nhập';
+                nameEl.title = 'Chưa Đăng Nhập';
+            } else if (isAdmin) {
+                nameEl.innerText = 'DS. Nguyễn Thanh Dung - DS. Nguyễn Thị Kiều';
+                nameEl.title = 'DS. Nguyễn Thanh Dung - DS. Nguyễn Thị Kiều';
+            } else {
+                nameEl.innerText = user.fullName;
+                nameEl.title = user.fullName;
+            }
         }
 
         // Huy hiệu vai trò
@@ -430,7 +439,7 @@ window.AuthModule = {
                 currentUserBox.classList.remove('hidden');
                 const curName = document.getElementById('auth-modal-current-name');
                 const curRole = document.getElementById('auth-modal-current-role');
-                if (curName) curName.innerText = this.currentUser.fullName;
+                if (curName) curName.innerText = this.isAdmin() ? 'DS. Nguyễn Thanh Dung - DS. Nguyễn Thị Kiều' : this.currentUser.fullName;
                 if (curRole) curRole.innerText = this.currentUser.roleName;
             } else {
                 currentUserBox.classList.add('hidden');

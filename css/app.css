@@ -101,4 +101,46 @@ code, .font-mono {
     }
 }
 
+/* Custom Dropdown Searchable Combobox */
+.searchable-combobox-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.combobox-dropdown {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.15) !important;
+    z-index: 100 !important;
+}
+
+.combobox-dropdown.dropdown-rich-medicine {
+    min-width: min(580px, 94vw) !important;
+    max-width: 94vw !important;
+    width: max-content !important;
+}
+
+.combobox-dropdown.dropdown-rich-supplier {
+    min-width: min(480px, 94vw) !important;
+    max-width: 94vw !important;
+    width: max-content !important;
+}
+
+.combobox-option {
+    white-space: normal !important;
+    word-break: break-word !important;
+}
+
+.combobox-option * {
+    text-overflow: unset !important;
+}
+
+@media (max-width: 640px) {
+    .combobox-dropdown.dropdown-rich-medicine,
+    .combobox-dropdown.dropdown-rich-supplier {
+        min-width: 100% !important;
+        max-width: 96vw !important;
+        width: 100% !important;
+    }
+}
+
+
 

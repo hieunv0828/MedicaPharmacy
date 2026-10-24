@@ -85,8 +85,21 @@
 
             // Menu thả xuống (Dropdown) - đặt min-width lớn để hiển thị trọn vẹn tên thuốc và thông tin tồn kho
             this.dropdown = document.createElement('div');
-            const minW = this.config.richType === 'medicine' ? 'min-w-[420px] sm:min-w-[560px]' : (this.config.richType === 'supplier' ? 'min-w-[360px] sm:min-w-[480px]' : 'min-w-full');
-            this.dropdown.className = `combobox-dropdown hidden absolute left-0 top-full mt-1 w-full ${minW} max-w-[92vw] bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-72 overflow-y-auto divide-y divide-slate-100 py-1 animate-fadeIn`;
+            this.dropdown.className = `combobox-dropdown dropdown-rich-${this.config.richType} hidden absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-72 overflow-y-auto divide-y divide-slate-100 py-1 animate-fadeIn`;
+            
+            // Cấu hình kích thước dropdown đảm bảo luôn đủ chỗ hiển thị tên thuốc đầy đủ, không bị co ép
+            if (this.config.richType === 'medicine') {
+                this.dropdown.style.minWidth = 'min(580px, 94vw)';
+                this.dropdown.style.width = 'max-content';
+                this.dropdown.style.maxWidth = '94vw';
+            } else if (this.config.richType === 'supplier') {
+                this.dropdown.style.minWidth = 'min(480px, 94vw)';
+                this.dropdown.style.width = 'max-content';
+                this.dropdown.style.maxWidth = '94vw';
+            } else {
+                this.dropdown.style.minWidth = '100%';
+                this.dropdown.style.width = '100%';
+            }
 
             this.wrapper.appendChild(inputContainer);
             this.wrapper.appendChild(this.dropdown);
@@ -249,7 +262,10 @@
             const svg = this.toggleBtn.querySelector('svg');
             if (svg) svg.classList.add('rotate-180');
 
-            // Căn lề thông minh tránh tràn mép phải màn hình
+            // Render trước danh sách items để dropdown có chiều rộng và chiều cao thực tế
+            this.renderList(this.input.value);
+
+            // Căn lề thông minh tránh tràn mép phải màn hình hoặc dialog
             this.dropdown.style.left = '0';
             this.dropdown.style.right = 'auto';
             const rect = this.dropdown.getBoundingClientRect();
@@ -258,8 +274,6 @@
                 this.dropdown.style.left = 'auto';
                 this.dropdown.style.right = '0';
             }
-
-            this.renderList(this.input.value);
         }
 
         close() {
@@ -354,45 +368,46 @@
                             : `<span>• Giá bán: <b class="text-emerald-700 font-semibold font-mono">${(typeof AppUtils !== 'undefined') ? AppUtils.formatVND(med.priceBox) : med.priceBox}</b></span>`;
 
                         itemEl.innerHTML = `
-                            <div class="flex items-start justify-between gap-3 w-full">
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex flex-wrap items-center gap-1.5">
-                                        <span class="font-bold text-slate-900 text-xs sm:text-sm text-emerald-950">${med.name}</span>
-                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">${med.packUnit || 'Hộp'}</span>
+                            <div class="w-full">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="font-bold text-slate-900 text-xs sm:text-sm text-emerald-950 flex-1 leading-snug break-words">
+                                        <span class="hover:text-emerald-700">${med.name}</span>
+                                        <span class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 inline-block align-middle">${med.packUnit || 'Hộp'}</span>
                                     </div>
-                                    <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                        ${med.activeIngredient ? `<span>Hoạt chất: <b class="text-slate-700 font-medium">${med.activeIngredient}</b></span>` : ''}
-                                        ${priceLabel}
+                                    <div class="shrink-0 text-right">
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap shadow-xs ${isAvailable ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}">
+                                            Tồn: ${stockDisplay}
+                                        </span>
                                     </div>
                                 </div>
-                                <div class="shrink-0 text-right self-center">
-                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap shadow-xs ${isAvailable ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-700 border border-rose-300'}">
-                                        Tồn: ${stockDisplay}
-                                    </span>
+                                <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 break-words">
+                                    ${med.activeIngredient ? `<span>Hoạt chất: <b class="text-slate-700 font-medium">${med.activeIngredient}</b></span>` : ''}
+                                    ${priceLabel}
+                                    ${med.batchNo ? `<span class="text-slate-400">• Lô: <b class="font-mono text-slate-600">${med.batchNo}</b></span>` : ''}
                                 </div>
                             </div>
                         `;
                     } else {
-                        itemEl.innerHTML = `<span class="font-bold text-slate-800 text-xs sm:text-sm">${item.text}</span>`;
+                        itemEl.innerHTML = `<span class="font-bold text-slate-800 text-xs sm:text-sm break-words">${item.text}</span>`;
                     }
                 } else if (this.config.richType === 'supplier' && window.Store) {
                     const sup = Store.getSuppliers().find(s => s.id === item.value);
                     if (sup) {
                         itemEl.className = 'combobox-option px-3.5 py-2.5 text-xs hover:bg-emerald-50/90 cursor-pointer transition border-b border-slate-100 last:border-b-0';
                         itemEl.innerHTML = `
-                            <div class="flex items-start justify-between gap-3 w-full">
-                                <div class="flex-1 min-w-0">
-                                    <div class="font-bold text-slate-900 text-xs sm:text-sm">${sup.name}</div>
-                                    <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-2">
-                                        ${sup.phone ? `<span>📞 <b>${sup.phone}</b></span>` : ''}
-                                        ${sup.address ? `<span class="text-slate-400">📍 ${sup.address}</span>` : ''}
-                                    </div>
+                            <div class="w-full">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="font-bold text-slate-900 text-xs sm:text-sm flex-1 leading-snug break-words">${sup.name}</div>
+                                    <span class="text-[10px] text-slate-400 font-mono font-semibold shrink-0">${sup.id}</span>
                                 </div>
-                                <span class="text-[10px] text-slate-400 font-mono font-semibold shrink-0 self-center">${sup.id}</span>
+                                <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 break-words">
+                                    ${sup.phone ? `<span>📞 <b>${sup.phone}</b></span>` : ''}
+                                    ${sup.address ? `<span class="text-slate-400">📍 ${sup.address}</span>` : ''}
+                                </div>
                             </div>
                         `;
                     } else {
-                        itemEl.innerHTML = `<span class="font-bold text-slate-800">${item.text}</span>`;
+                        itemEl.innerHTML = `<span class="font-bold text-slate-800 break-words">${item.text}</span>`;
                     }
                 } else {
                     itemEl.innerHTML = `
