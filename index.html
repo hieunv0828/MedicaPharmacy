@@ -1324,6 +1324,57 @@
                 </div>
             </div>
 
+        
+
+            <!-- Quản Lý Tài Khoản & Mật Khẩu (Chỉ Admin) -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-800">Quản Lý Mật Khẩu Đăng Nhập</h3>
+                        <p class="text-xs text-slate-500">Chỉ Quản trị viên mới có quyền đổi mật khẩu Admin và Staff. Nhân viên không thể vào được trang này.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Đổi mật khẩu Admin -->
+                    <div class="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                <span class="w-6 h-6 rounded-md bg-amber-500 text-slate-950 flex items-center justify-center font-black text-[10px]">AD</span>
+                                Mật khẩu Quản Trị Viên (Admin)
+                            </span>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Admin</label>
+                            <input id="settings-admin-new-pass" type="password" placeholder="Nhập mật khẩu Admin mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono" />
+                        </div>
+                        <button type="button" onclick="App.handleUpdateAdminPassword()" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                            <span>Lưu Mật Khẩu Admin</span>
+                        </button>
+                    </div>
+
+                    <!-- Đổi mật khẩu Staff -->
+                    <div class="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                                <span class="w-6 h-6 rounded-md bg-blue-500 text-white flex items-center justify-center font-black text-[10px]">NV</span>
+                                Mật khẩu Nhân Viên (Staff)
+                            </span>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Staff</label>
+                            <input id="settings-staff-new-pass" type="password" placeholder="Nhập mật khẩu Staff mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
+                        </div>
+                        <button type="button" onclick="App.handleUpdateStaffPassword()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                            <span>Lưu Mật Khẩu Staff</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </section>
 
     </main>
@@ -2375,7 +2426,7 @@
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="text-xs font-bold text-slate-700">Mật khẩu</label>
-                        <span class="text-[10px] text-slate-400 font-mono">(Mặc định: 123 hoặc admin/staff)</span>
+                        <span class="text-[10px] text-slate-400 font-mono">(Bảo mật tài khoản)</span>
                     </div>
                     <div class="relative">
                         <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
@@ -2393,21 +2444,6 @@
                     <span>Xác Nhận Đăng Nhập</span>
                 </button>
             </form>
-
-            <!-- Quick 1-click login for super convenience -->
-            <div class="mt-4 pt-3 border-t border-slate-100">
-                <span class="text-[11px] font-semibold text-slate-400 block mb-2 text-center uppercase tracking-wider">Đăng Nhập Nhanh 1-Chạm:</span>
-                <div class="grid grid-cols-2 gap-2">
-                    <button type="button" onclick="AuthModule.quickLogin('admin')" class="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer">
-                        <i data-lucide="shield" class="w-3.5 h-3.5 text-amber-600"></i>
-                        <span>Vào Admin</span>
-                    </button>
-                    <button type="button" onclick="AuthModule.quickLogin('staff')" class="py-1.5 px-2 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer">
-                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-blue-600"></i>
-                        <span>Vào Staff</span>
-                    </button>
-                </div>
-            </div>
 
             <!-- Permission comparison card -->
             <div class="mt-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-500 space-y-1">

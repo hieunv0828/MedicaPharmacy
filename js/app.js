@@ -331,6 +331,47 @@ const App = {
         });
     },
 
+    // --- QUẢN LÝ MẬT KHẨU TÀI KHOẢN (Chỉ Admin) ---
+    handleUpdateAdminPassword() {
+        const input = document.getElementById('settings-admin-new-pass');
+        const pass = input ? input.value.trim() : '';
+        if (!pass) {
+            this.showToast('Vui lòng nhập mật khẩu mới cho tài khoản Admin!', 'error');
+            return;
+        }
+        if (pass.length < 3) {
+            this.showToast('Mật khẩu Admin phải có ít nhất 3 ký tự!', 'error');
+            return;
+        }
+        const res = AuthModule.changePassword('admin', pass);
+        if (res.success) {
+            this.showToast(res.message, 'success');
+            if (input) input.value = '';
+        } else {
+            this.showToast(res.message, 'error');
+        }
+    },
+
+    handleUpdateStaffPassword() {
+        const input = document.getElementById('settings-staff-new-pass');
+        const pass = input ? input.value.trim() : '';
+        if (!pass) {
+            this.showToast('Vui lòng nhập mật khẩu mới cho tài khoản Staff!', 'error');
+            return;
+        }
+        if (pass.length < 3) {
+            this.showToast('Mật khẩu Staff phải có ít nhất 3 ký tự!', 'error');
+            return;
+        }
+        const res = AuthModule.changePassword('staff', pass);
+        if (res.success) {
+            this.showToast(res.message, 'success');
+            if (input) input.value = '';
+        } else {
+            this.showToast(res.message, 'error');
+        }
+    },
+
     // --- SAO LƯU & PHỤC HỒI DỮ LIỆU ---
     exportBackup() {
         const jsonStr = Store.exportBackupJSON();

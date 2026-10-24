@@ -11,7 +11,7 @@ window.AuthModule = {
         {
             id: 'u_admin',
             username: 'admin',
-            passwords: ['admin', '123', 'admin123'], // Các mật khẩu hợp lệ
+            passwords: ['admin', 'admin123'], // Mật khẩu riêng của Quản Trị Viên
             role: 'admin',
             fullName: 'DS. Nguyễn Thanh Dung',
             roleName: 'Quản Trị Viên (Toàn quyền)',
@@ -33,7 +33,7 @@ window.AuthModule = {
         {
             id: 'u_staff',
             username: 'staff',
-            passwords: ['staff', '123', 'staff123'],
+            passwords: ['staff', '123'], // Mật khẩu của Nhân Viên
             role: 'staff',
             fullName: 'DS. Bán Hàng',
             roleName: 'Nhân Viên Bán Lẻ (Chỉ bán hàng)',
@@ -56,20 +56,56 @@ window.AuthModule = {
 
     currentUser: null,
 
+    getUsers() {
+        const saved = localStorage.getItem(this.STORAGE_USERS_KEY);
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch(e) {}
+        }
+        return this.DEFAULT_USERS;
+    },
+
+    saveUsers(users) {
+        localStorage.setItem(this.STORAGE_USERS_KEY, JSON.stringify(users));
+    },
+
+    changePassword(role, newPassword) {
+        if (!newPassword || newPassword.trim().length < 3) {
+            return { success: false, message: 'Mật khẩu mới phải có ít nhất 3 ký tự!' };
+        }
+        const users = this.getUsers();
+        const user = users.find(u => u.role === role);
+        if (!user) {
+            return { success: false, message: 'Không tìm thấy tài khoản!' };
+        }
+        user.passwords = [newPassword.trim()];
+        this.saveUsers(users);
+
+        if (this.currentUser && this.currentUser.role === role) {
+            this.currentUser.passwords = [newPassword.trim()];
+            this.saveCurrentUser();
+        }
+
+        return { success: true, message: `Đã đổi mật khẩu cho tài khoản ${role.toUpperCase()} thành công!` };
+    },
+
     init() {
         console.log('🔒 Khởi tạo hệ thống Phân Quyền MedicaPharmacy...');
         
         // Nạp người dùng hiện tại từ bộ nhớ
+        const users = this.getUsers();
         const savedUserJson = localStorage.getItem(this.STORAGE_KEY);
         if (savedUserJson) {
             try {
-                this.currentUser = JSON.parse(savedUserJson);
+                const parsed = JSON.parse(savedUserJson);
+                this.currentUser = users.find(u => u.id === parsed.id) || users[0];
             } catch(e) {
-                this.currentUser = this.DEFAULT_USERS[0];
+                this.currentUser = users[0];
             }
         } else {
             // Mặc định khởi đầu với Admin
-            this.currentUser = this.DEFAULT_USERS[0];
+            this.currentUser = users[0];
             this.saveCurrentUser();
         }
 
@@ -123,15 +159,24 @@ window.AuthModule = {
         username = (username || '').trim().toLowerCase();
         password = (password || '').trim();
 
-        const userTemplate = this.DEFAULT_USERS.find(u => u.username === username);
+        if (!username) {
+            return { success: false, message: 'Vui lòng chọn hoặc nhập tên tài khoản!' };
+        }
+
+        if (!password) {
+            return { success: false, message: 'Vui lòng nhập mật khẩu tài khoản!' };
+        }
+
+        const users = this.getUsers();
+        const userTemplate = users.find(u => u.username === username);
         if (!userTemplate) {
             return { success: false, message: 'Tài khoản không tồn tại trong hệ thống!' };
         }
 
-        // Kiểm tra mật khẩu (hỗ trợ các mật khẩu hợp lệ định nghĩa sẵn)
-        const isValidPass = userTemplate.passwords.includes(password) || password === '123456';
+        // Kiểm tra mật khẩu chính xác
+        const isValidPass = (userTemplate.passwords || []).includes(password) || (userTemplate.password === password);
         if (!isValidPass) {
-            return { success: false, message: 'Mật khẩu không chính xác! Hãy kiểm tra lại.' };
+            return { success: false, message: 'Mật khẩu không chính xác! Vui lòng kiểm tra lại.' };
         }
 
         this.currentUser = Object.assign({}, userTemplate);
@@ -141,29 +186,13 @@ window.AuthModule = {
         this.closeLoginModal();
 
         if (window.App && App.showToast) {
-            App.showToast(`Đăng nhập thành công với vai trò: ${userTemplate.roleName}`, 'success');
+            App.showToast(`Đăng nhập thành công: ${userTemplate.roleName}`, 'success');
             if (window.AppUtils && AppUtils.playBeepSound) {
                 AppUtils.playBeepSound('success');
             }
         }
 
         return { success: true, user: this.currentUser };
-    },
-
-    quickLogin(role) {
-        const userTemplate = this.DEFAULT_USERS.find(u => u.role === role) || this.DEFAULT_USERS[0];
-        this.currentUser = Object.assign({}, userTemplate);
-        this.saveCurrentUser();
-        this.applyPermissions();
-        this.renderHeaderUserInfo();
-        this.closeLoginModal();
-
-        if (window.App && App.showToast) {
-            App.showToast(`Đã chuyển sang tài khoản ${userTemplate.role.toUpperCase()}: ${userTemplate.roleName}`, 'success');
-            if (window.AppUtils && AppUtils.playBeepSound) {
-                AppUtils.playBeepSound('success');
-            }
-        }
     },
 
     logout() {
