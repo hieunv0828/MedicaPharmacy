@@ -342,40 +342,43 @@ window.AuthModule = {
             }
         }
 
-        // Tên
+        // Tên & Dược sĩ hiển thị (2 dòng trên Header theo yêu cầu)
         const nameEl = document.getElementById('header-user-name');
         if (nameEl) {
             if (!isAuth) {
-                nameEl.innerText = 'Chưa Đăng Nhập';
+                nameEl.innerHTML = `
+                    <span class="font-bold text-[11px] sm:text-xs text-white whitespace-nowrap">Chưa Đăng Nhập</span>
+                    <span class="text-[10px] text-rose-300 whitespace-nowrap">Bấm để đăng nhập</span>
+                `;
                 nameEl.title = 'Chưa Đăng Nhập';
             } else if (isAdmin) {
-                nameEl.innerText = 'DS. Nguyễn Thanh Dung - DS. Nguyễn Thị Kiều';
+                nameEl.innerHTML = `
+                    <span class="font-bold text-[11px] sm:text-xs text-white whitespace-nowrap">DS. Nguyễn Thanh Dung</span>
+                    <span class="font-bold text-[11px] sm:text-xs text-emerald-200 whitespace-nowrap">DS. Nguyễn Thị Kiều</span>
+                `;
                 nameEl.title = 'DS. Nguyễn Thanh Dung - DS. Nguyễn Thị Kiều';
             } else {
-                nameEl.innerText = user.fullName;
+                nameEl.innerHTML = `
+                    <span class="font-bold text-[11px] sm:text-xs text-white whitespace-nowrap">${user.fullName || 'Dược Sĩ Bán Hàng'}</span>
+                    <span class="text-[10px] text-emerald-300 whitespace-nowrap">Nhân viên quầy • Đổi TK</span>
+                `;
                 nameEl.title = user.fullName;
             }
         }
 
-        // Huy hiệu vai trò
+        // Huy hiệu vai trò (đã có avatar AD/NV nên không cần hiển thị chữ ADMIN/STAFF trên Desktop)
         const badgeEl = document.getElementById('header-user-role-badge');
         if (badgeEl) {
-            if (!isAuth) {
-                badgeEl.innerText = 'KHÓA';
-                badgeEl.className = 'px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500/90 text-white border border-rose-400';
-            } else {
-                badgeEl.innerText = isAdmin ? 'ADMIN' : 'STAFF';
-                badgeEl.className = `px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${isAdmin ? 'bg-amber-400 text-slate-900 border border-amber-500' : 'bg-blue-400 text-slate-950 border border-blue-500'}`;
-            }
+            badgeEl.classList.add('hidden');
         }
 
-        // Mô tả quyền hạn
+        // Mô tả quyền hạn (nếu còn)
         const descEl = document.getElementById('header-user-permission-desc');
         if (descEl) {
             if (!isAuth) {
                 descEl.innerText = 'Vui lòng đăng nhập';
             } else {
-                descEl.innerText = isAdmin ? 'Toàn quyền quản trị' : 'Chỉ bán hàng & thu tiền';
+                descEl.innerText = isAdmin ? 'Toàn quyền' : 'Chỉ bán hàng';
             }
         }
 
@@ -438,9 +441,20 @@ window.AuthModule = {
             if (this.isAuthenticated()) {
                 currentUserBox.classList.remove('hidden');
                 const curName = document.getElementById('auth-modal-current-name');
+                if (curName) {
+                    if (this.isAdmin()) {
+                        curName.innerHTML = `
+                            <div class="font-bold text-slate-800 text-xs">DS. Nguyễn Thanh Dung</div>
+                            <div class="font-bold text-slate-800 text-xs mt-0.5">DS. Nguyễn Thị Kiều</div>
+                        `;
+                    } else {
+                        curName.innerHTML = `
+                            <div class="font-bold text-slate-800 text-xs">${this.currentUser.fullName || 'Nhân Viên Bán Hàng'}</div>
+                        `;
+                    }
+                }
                 const curRole = document.getElementById('auth-modal-current-role');
-                if (curName) curName.innerText = this.isAdmin() ? 'DS. Nguyễn Thanh Dung - DS. Nguyễn Thị Kiều' : this.currentUser.fullName;
-                if (curRole) curRole.innerText = this.currentUser.roleName;
+                if (curRole) curRole.remove();
             } else {
                 currentUserBox.classList.add('hidden');
             }
