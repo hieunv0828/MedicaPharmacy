@@ -360,7 +360,8 @@ const OrdersModule = {
                         <p class="text-slate-500">Khách hàng:</p>
                         <p class="font-bold text-slate-800">${order.customerName || 'Khách vãng lai'}</p>
                         <p class="text-slate-500 mt-1">Số điện thoại: <span class="font-mono text-slate-700">${order.customerPhone || '---'}</span></p>
-                        ${order.pointsEarned ? `<p class="mt-1"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">⭐ Tích lũy đơn: +${order.pointsEarned} điểm</span></p>` : ''}
+                        ${order.pointsEarned ? `<p class="mt-1"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">⭐ Tích lũy đơn: +${order.pointsEarned} điểm</span></p>` : ''}
+                        ${order.pointsUsed ? `<p class="mt-0.5"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-full">⭐ Đã dùng: -${order.pointsUsed} điểm (-${AppUtils.formatVND(order.pointsDiscount || order.pointsUsed * 1000)})</span></p>` : ''}
                     </div>
                     <div>
                         <p class="text-slate-500">Phương thức thanh toán gốc:</p>
@@ -401,6 +402,11 @@ const OrdersModule = {
                     <div class="flex justify-between text-rose-600">
                         <span>Chiết khấu / Giảm giá:</span>
                         <span>-${AppUtils.formatVND(order.discount)}</span>
+                    </div>` : ''}
+                    ${order.pointsUsed > 0 ? `
+                    <div class="flex justify-between text-amber-800 font-bold">
+                        <span>⭐ Dùng điểm tích lũy (-${order.pointsUsed} điểm):</span>
+                        <span>-${AppUtils.formatVND(order.pointsDiscount || order.pointsUsed * 1000)}</span>
                     </div>` : ''}
                     <div class="flex justify-between text-sm font-extrabold text-slate-900 border-t border-slate-200 pt-1.5">
                         <span>TỔNG THANH TOÁN BAN ĐẦU:</span>
@@ -496,6 +502,12 @@ const OrdersModule = {
         const pointsWarn = document.getElementById('cancel-order-points-warning');
         if (order.pointsEarned && order.pointsEarned > 0) {
             pointsWarn.innerText = `⚠️ Lưu ý: Thu hồi lại ${order.pointsEarned} điểm tích lũy của khách từ đơn này.`;
+            if (order.pointsUsed && order.pointsUsed > 0) {
+                pointsWarn.innerText += ` Đồng thời hoàn trả lại ${order.pointsUsed} điểm khách đã sử dụng.`;
+            }
+            pointsWarn.classList.remove('hidden');
+        } else if (order.pointsUsed && order.pointsUsed > 0) {
+            pointsWarn.innerText = `⚠️ Lưu ý: Hoàn trả lại ${order.pointsUsed} điểm khách đã sử dụng cho đơn này.`;
             pointsWarn.classList.remove('hidden');
         } else {
             pointsWarn.classList.add('hidden');

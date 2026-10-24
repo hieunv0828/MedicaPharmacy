@@ -516,6 +516,12 @@ class DataStore {
             });
         }
 
+        // Xử lý trừ điểm tích lũy đã dùng (1 điểm = 1.000đ)
+        const ptsUsed = parseInt(order.pointsUsed) || 0;
+        if (order.customerPhone && ptsUsed > 0) {
+            this.adjustCustomerPoints(order.customerPhone, -ptsUsed, `Dùng điểm thanh toán đơn ${order.id}`);
+        }
+
         // Tích điểm cho khách hàng: Hóa đơn >= 100.000đ = 1 điểm, >= 200.000đ = 2 điểm...
         const pointsEarned = this.calculatePoints(order.totalAmount);
         order.pointsEarned = pointsEarned;
@@ -579,6 +585,11 @@ class DataStore {
         // Trừ lại điểm tích lũy của khách hàng nếu đơn này từng được cộng điểm
         if (order.customerPhone && order.pointsEarned > 0) {
             this.deductPointsFromCustomer(order.customerPhone, order.pointsEarned, order.totalAmount);
+        }
+
+        // Hoàn lại điểm tích lũy nếu đơn hàng này từng dùng điểm
+        if (order.customerPhone && order.pointsUsed > 0) {
+            this.adjustCustomerPoints(order.customerPhone, order.pointsUsed, `Hoàn lại điểm do hủy đơn ${order.id}`);
         }
 
         // Đánh dấu hủy phiếu thu tương ứng trong Sổ Thu Chi

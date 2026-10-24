@@ -306,6 +306,29 @@
                                 </div>
                             </div>
 
+                            <!-- DÙNG ĐIỂM TÍCH LŨY (1 ĐIỂM = 1.000Đ) -->
+                            <div class="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5 transition">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="flex items-center gap-1.5 font-bold text-amber-950">
+                                        <span class="w-4 h-4 rounded bg-amber-500 text-white flex items-center justify-center text-[10px] font-black shadow-xs">⭐</span>
+                                        <span>Dùng điểm tích lũy:</span>
+                                    </span>
+                                    <div class="flex items-center gap-1">
+                                        <input id="pos-points-used-input" type="number" min="0" value="0" placeholder="0"
+                                               class="w-20 text-right text-xs font-bold text-amber-800 bg-white border border-amber-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                                        <span class="text-[11px] text-amber-800 font-semibold">điểm</span>
+                                        <button type="button" id="pos-btn-use-all-points" onclick="POSModule.useMaxPoints()"
+                                                class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer" title="Dùng tối đa số điểm của khách cho đơn này">
+                                            Dùng Hết
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center text-[11px] text-amber-900">
+                                    <span id="pos-points-rate-hint" class="text-[10px] text-slate-500 italic">Quy đổi: 1 điểm = 1.000đ</span>
+                                    <span id="pos-points-discount-text" class="font-bold text-rose-600">-0 đ</span>
+                                </div>
+                            </div>
+
                             <!-- Tổng số tiền phải trả -->
                             <div class="bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-100 flex items-center justify-between">
                                 <div>

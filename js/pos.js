@@ -8,6 +8,8 @@ const POSModule = {
     cart: [],
     paymentMethod: 'cash', // 'cash' hoặc 'transfer'
     discount: 0,
+    pointsUsed: 0, // Điểm tích lũy sử dụng (1 điểm = 1000đ)
+    POINT_VALUE: 1000, // 1 điểm = 1.000 VNĐ
     customerCash: 0,
     customerInfo: {
         name: '',
@@ -65,6 +67,14 @@ const POSModule = {
                 const val = parseFloat(e.target.value.replace(/[^0-9]/g, '')) || 0;
                 this.discount = val;
                 this.updateTotals();
+            });
+        }
+
+        // Ô nhập số điểm tích lũy cần sử dụng (1 điểm = 1.000đ)
+        const pointsUsedInput = document.getElementById('pos-points-used-input');
+        if (pointsUsedInput) {
+            pointsUsedInput.addEventListener('input', (e) => {
+                this.handlePointsUsedChange(e.target.value);
             });
         }
 
@@ -479,22 +489,100 @@ const POSModule = {
         return this.cart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
     },
 
+    calculatePointsDiscount() {
+        return (this.pointsUsed || 0) * this.POINT_VALUE;
+    },
+
     calculateTotalAmount() {
         const sub = this.calculateSubTotal();
-        return Math.max(0, sub - (this.discount || 0));
+        const discount = this.discount || 0;
+        const pointsDiscount = this.calculatePointsDiscount();
+        return Math.max(0, sub - discount - pointsDiscount);
+    },
+
+    getMaxUsablePoints() {
+        const phone = document.getElementById('pos-customer-phone')?.value.trim();
+        if (!phone) return 0;
+        const cust = Store.getCustomerByPhone(phone);
+        if (!cust || !cust.points || cust.points <= 0) return 0;
+
+        const subTotal = this.calculateSubTotal();
+        const directDiscount = this.discount || 0;
+        const maxMoneyCanDiscount = Math.max(0, subTotal - directDiscount);
+        const maxPointsByOrder = Math.floor(maxMoneyCanDiscount / this.POINT_VALUE);
+
+        return Math.max(0, Math.min(cust.points, maxPointsByOrder));
+    },
+
+    handlePointsUsedChange(rawVal) {
+        const maxPoints = this.getMaxUsablePoints();
+        let val = parseInt(String(rawVal).replace(/[^0-9]/g, '')) || 0;
+        if (val > maxPoints) {
+            val = maxPoints;
+        }
+        if (val < 0) val = 0;
+
+        this.pointsUsed = val;
+        const input = document.getElementById('pos-points-used-input');
+        if (input && input.value != val) {
+            input.value = val;
+        }
+
+        this.updateTotals();
+    },
+
+    useMaxPoints() {
+        const phone = document.getElementById('pos-customer-phone')?.value.trim();
+        if (!phone) {
+            alert('Vui lòng nhập Số điện thoại hoặc bấm "Chọn KH" để áp dụng tích điểm.');
+            document.getElementById('pos-customer-phone')?.focus();
+            return;
+        }
+        const cust = Store.getCustomerByPhone(phone);
+        if (!cust || !cust.points || cust.points <= 0) {
+            alert(`Khách hàng ${cust ? cust.name : phone} hiện đang có 0 điểm tích lũy.`);
+            return;
+        }
+
+        const maxPoints = this.getMaxUsablePoints();
+        if (maxPoints <= 0) {
+            alert('Đơn hàng không còn số tiền nào để giảm trừ điểm.');
+            return;
+        }
+
+        this.pointsUsed = maxPoints;
+        const input = document.getElementById('pos-points-used-input');
+        if (input) input.value = maxPoints;
+
+        this.updateTotals();
+        if (window.App && App.showToast) {
+            App.showToast(`Đã áp dụng tối đa ${maxPoints} điểm (-${AppUtils.formatVND(maxPoints * this.POINT_VALUE)})`, 'info');
+        }
     },
 
     updateTotals() {
         const subTotal = this.calculateSubTotal();
         const totalAmount = this.calculateTotalAmount();
+        const pointsDiscount = this.calculatePointsDiscount();
 
         const elSubTotal = document.getElementById('pos-subtotal');
         const elTotalAmount = document.getElementById('pos-total-amount');
         const elCartCount = document.getElementById('pos-cart-count');
+        const elPtsDiscountText = document.getElementById('pos-points-discount-text');
 
         if (elSubTotal) elSubTotal.innerText = AppUtils.formatVND(subTotal);
         if (elTotalAmount) elTotalAmount.innerText = AppUtils.formatVND(totalAmount);
         if (elCartCount) elCartCount.innerText = `${this.cart.length} món`;
+
+        if (elPtsDiscountText) {
+            if (this.pointsUsed > 0) {
+                elPtsDiscountText.innerText = `-${AppUtils.formatVND(pointsDiscount)}`;
+                elPtsDiscountText.className = 'font-bold text-rose-600';
+            } else {
+                elPtsDiscountText.innerText = '-0 đ';
+                elPtsDiscountText.className = 'font-bold text-slate-400';
+            }
+        }
 
         if (this.paymentMethod === 'cash') {
             this.calculateChange();
@@ -514,6 +602,9 @@ const POSModule = {
         const elPointsThisOrder = document.getElementById('pos-points-this-order');
         const elCustStatus = document.getElementById('pos-points-cust-status');
         const elCurrBalance = document.getElementById('pos-points-curr-balance');
+        const elRateHint = document.getElementById('pos-points-rate-hint');
+        const pointsInput = document.getElementById('pos-points-used-input');
+        const btnUseMax = document.getElementById('pos-btn-use-all-points');
 
         if (elPointsThisOrder) {
             elPointsThisOrder.innerText = `+${pointsEarned} điểm`;
@@ -521,19 +612,85 @@ const POSModule = {
 
         if (!phone) {
             if (elCustStatus) elCustStatus.innerHTML = 'Tích điểm: <b>100.000đ = +1 điểm</b>';
-            if (elCurrBalance) elCurrBalance.innerText = 'Nhập SĐT để cộng dồn điểm cho khách';
+            if (elCurrBalance) elCurrBalance.innerText = 'Nhập SĐT để dùng điểm & cộng dồn cho khách';
+            if (elRateHint) elRateHint.innerText = 'Quy đổi: 1 điểm = 1.000đ';
+            if (pointsInput) {
+                pointsInput.disabled = true;
+                pointsInput.classList.add('bg-slate-100', 'cursor-not-allowed');
+                if (this.pointsUsed > 0) {
+                    this.pointsUsed = 0;
+                    pointsInput.value = 0;
+                }
+            }
+            if (btnUseMax) {
+                btnUseMax.disabled = true;
+                btnUseMax.classList.add('opacity-50', 'cursor-not-allowed');
+            }
             return;
         }
 
         const cust = Store.getCustomerByPhone(phone);
         if (cust) {
-            const tier = Store.getCustomerTier(cust.points);
-            const nextTotal = (cust.points || 0) + pointsEarned;
-            if (elCustStatus) elCustStatus.innerHTML = `Khách: <b class="text-slate-900">${cust.name}</b> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span>`;
-            if (elCurrBalance) elCurrBalance.innerHTML = `Điểm hiện có: <b class="text-amber-800 font-bold">${cust.points} điểm</b> (Sau đơn này: <b class="text-emerald-700 font-bold">${nextTotal} điểm</b>)`;
+            const custPoints = cust.points || 0;
+            const tier = Store.getCustomerTier(custPoints);
+            const nextTotal = Math.max(0, custPoints - this.pointsUsed) + pointsEarned;
+
+            if (elCustStatus) {
+                elCustStatus.innerHTML = `Khách: <b class="text-slate-900">${cust.name}</b> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span>`;
+            }
+
+            if (custPoints > 0) {
+                if (elCurrBalance) {
+                    elCurrBalance.innerHTML = `Điểm hiện có: <b class="text-amber-800 font-bold">${custPoints} điểm</b> (Sau đơn: <b class="text-emerald-700 font-bold">${nextTotal} điểm</b>)`;
+                }
+                if (elRateHint) {
+                    elRateHint.innerHTML = `Khách có <b class="text-amber-800 font-bold">${custPoints} điểm</b> (Tối đa: <b class="text-emerald-700 font-bold">${AppUtils.formatVND(custPoints * this.POINT_VALUE)}</b>)`;
+                }
+                if (pointsInput) {
+                    pointsInput.disabled = false;
+                    pointsInput.classList.remove('bg-slate-100', 'cursor-not-allowed');
+                    pointsInput.max = custPoints;
+                }
+                if (btnUseMax) {
+                    btnUseMax.disabled = false;
+                    btnUseMax.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            } else {
+                if (elCurrBalance) {
+                    elCurrBalance.innerHTML = `Điểm hiện có: <b class="text-slate-600">0 điểm</b> (Sau đơn: <b class="text-emerald-700 font-bold">+${pointsEarned} điểm</b>)`;
+                }
+                if (elRateHint) {
+                    elRateHint.innerText = 'Khách có 0 điểm (1 điểm = 1.000đ)';
+                }
+                if (pointsInput) {
+                    pointsInput.disabled = true;
+                    pointsInput.classList.add('bg-slate-100', 'cursor-not-allowed');
+                    if (this.pointsUsed > 0) {
+                        this.pointsUsed = 0;
+                        pointsInput.value = 0;
+                    }
+                }
+                if (btnUseMax) {
+                    btnUseMax.disabled = true;
+                    btnUseMax.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
         } else {
             if (elCustStatus) elCustStatus.innerHTML = `Khách mới: <b class="font-mono text-slate-800">${phone}</b>`;
             if (elCurrBalance) elCurrBalance.innerHTML = `Tích lũy đơn đầu tiên: <b class="text-emerald-700 font-bold">+${pointsEarned} điểm</b> khi thanh toán`;
+            if (elRateHint) elRateHint.innerText = 'Khách mới: 0 điểm (1 điểm = 1.000đ)';
+            if (pointsInput) {
+                pointsInput.disabled = true;
+                pointsInput.classList.add('bg-slate-100', 'cursor-not-allowed');
+                if (this.pointsUsed > 0) {
+                    this.pointsUsed = 0;
+                    pointsInput.value = 0;
+                }
+            }
+            if (btnUseMax) {
+                btnUseMax.disabled = true;
+                btnUseMax.classList.add('opacity-50', 'cursor-not-allowed');
+            }
         }
     },
 
@@ -600,6 +757,8 @@ const POSModule = {
             })),
             subTotal: subTotal,
             discount: this.discount || 0,
+            pointsUsed: this.pointsUsed || 0,
+            pointsDiscount: this.calculatePointsDiscount(),
             totalAmount: totalAmount,
             customerCash: this.paymentMethod === 'cash' ? this.customerCash : 0,
             changeAmount: changeAmount,
@@ -627,8 +786,16 @@ const POSModule = {
     resetAfterCheckout() {
         this.cart = [];
         this.discount = 0;
+        this.pointsUsed = 0;
         this.customerCash = 0;
         document.getElementById('pos-discount-input').value = 0;
+        const ptsInput = document.getElementById('pos-points-used-input');
+        if (ptsInput) ptsInput.value = 0;
+        const ptsText = document.getElementById('pos-points-discount-text');
+        if (ptsText) {
+            ptsText.innerText = '-0 đ';
+            ptsText.className = 'font-bold text-slate-400';
+        }
         document.getElementById('pos-cash-received').value = '';
         document.getElementById('pos-customer-name').value = '';
         document.getElementById('pos-customer-phone').value = '';
@@ -720,6 +887,11 @@ const POSModule = {
                         <span>Chiết khấu/Giảm giá:</span>
                         <span>-${AppUtils.formatVND(order.discount)}</span>
                     </div>` : ''}
+                    ${order.pointsUsed > 0 ? `
+                    <div class="flex justify-between text-amber-800 font-bold">
+                        <span>Dùng điểm (-${order.pointsUsed} điểm):</span>
+                        <span>-${AppUtils.formatVND(order.pointsDiscount || order.pointsUsed * 1000)}</span>
+                    </div>` : ''}
                     <div class="flex justify-between text-sm font-extrabold pt-1 border-t border-slate-200">
                         <span>TỔNG CỘNG:</span>
                         <span class="text-base font-bold text-slate-900">${AppUtils.formatVND(order.totalAmount)}</span>
@@ -743,21 +915,26 @@ const POSModule = {
                     </div>`}
                 </div>
 
-                <!-- Khối Tích Điểm Khách Hàng (100.000đ = +1 điểm) -->
+                <!-- Khối Tích Điểm Khách Hàng (100.000đ = +1 điểm | 1 điểm = 1.000đ) -->
                 ${order.customerPhone ? `
                 <div class="my-2 py-1.5 px-2 bg-slate-50 border border-dashed border-slate-300 rounded text-center text-xs">
                     <div class="font-extrabold uppercase text-slate-800 text-[11px] flex items-center justify-center gap-1">
                         <span>⭐ TÍCH ĐIỂM KHÁCH HÀNG ⭐</span>
                     </div>
-                    <div class="flex justify-between text-slate-700 text-xs mt-1">
+                    ${order.pointsUsed > 0 ? `
+                    <div class="flex justify-between text-rose-700 text-xs mt-1 font-semibold">
+                        <span>Điểm dùng đơn này:</span>
+                        <span>-${order.pointsUsed} điểm</span>
+                    </div>` : ''}
+                    <div class="flex justify-between text-slate-700 text-xs ${order.pointsUsed > 0 ? 'mt-0.5' : 'mt-1'}">
                         <span>Điểm cộng đơn này:</span>
                         <span class="font-bold text-emerald-700">+${order.pointsEarned || 0} điểm</span>
                     </div>
-                    <div class="flex justify-between text-slate-700 text-xs mt-0.5">
-                        <span>Tổng điểm tích lũy:</span>
+                    <div class="flex justify-between text-slate-700 text-xs mt-0.5 border-t border-slate-200 pt-0.5">
+                        <span>Tổng điểm còn lại:</span>
                         <span class="font-bold text-slate-900">${order.customerPointsTotal || 0} điểm</span>
                     </div>
-                    <div class="text-[9px] text-slate-500 italic mt-0.5">(Quy tắc: Cứ mỗi 100.000đ = +1 điểm)</div>
+                    <div class="text-[9px] text-slate-500 italic mt-0.5">(Quy tắc: Cứ mỗi 100.000đ = +1 điểm | 1 điểm = 1.000đ)</div>
                 </div>` : ''}
 
                 <!-- Lời dặn dò chân trang -->
