@@ -1,10 +1,11 @@
 /**
  * MedicaPharmacy - Authentication & Role-Based Access Control (RBAC) Module
  * Quản lý tài khoản Admin (Toàn quyền) và Staff (Chỉ bán hàng & thanh toán)
+ * Yêu cầu đăng nhập bắt buộc khi truy cập, không mặc định Admin
  */
 
 window.AuthModule = {
-    STORAGE_KEY: 'medica_current_user',
+    STORAGE_KEY: 'medica_session_user',
     STORAGE_USERS_KEY: 'medica_system_users',
 
     DEFAULT_USERS: [
@@ -55,6 +56,7 @@ window.AuthModule = {
     ],
 
     currentUser: null,
+    _listenersInitialized: false,
 
     getUsers() {
         const saved = localStorage.getItem(this.STORAGE_USERS_KEY);
@@ -93,50 +95,62 @@ window.AuthModule = {
     init() {
         console.log('🔒 Khởi tạo hệ thống Phân Quyền MedicaPharmacy...');
         
-        // Nạp người dùng hiện tại từ bộ nhớ
+        // Xóa sạch user lưu vĩnh viễn trong localStorage để bảo đảm an toàn
+        localStorage.removeItem('medica_current_user');
+
+        // Nạp người dùng hiện tại từ sessionStorage
         const users = this.getUsers();
-        const savedUserJson = localStorage.getItem(this.STORAGE_KEY);
-        if (savedUserJson) {
+        const savedSession = sessionStorage.getItem(this.STORAGE_KEY);
+        if (savedSession) {
             try {
-                const parsed = JSON.parse(savedUserJson);
-                this.currentUser = users.find(u => u.id === parsed.id) || users[0];
+                const parsed = JSON.parse(savedSession);
+                this.currentUser = users.find(u => u.id === parsed.id) || null;
             } catch(e) {
-                this.currentUser = users[0];
+                this.currentUser = null;
             }
         } else {
-            // Mặc định khởi đầu với Admin
-            this.currentUser = users[0];
-            this.saveCurrentUser();
+            // Mặc định lúc mới truy cập KHÔNG tự động đăng nhập Admin
+            this.currentUser = null;
         }
 
+        this.setupEventListeners();
         this.applyPermissions();
         this.renderHeaderUserInfo();
+
+        // Nếu chưa đăng nhập: Luôn hiển thị màn hình đăng nhập bắt buộc
+        if (!this.isAuthenticated()) {
+            this.openLoginModal(true);
+        } else {
+            this.closeLoginModal();
+        }
     },
 
     saveCurrentUser() {
         if (this.currentUser) {
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.currentUser));
+            sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.currentUser));
         } else {
-            localStorage.removeItem(this.STORAGE_KEY);
+            sessionStorage.removeItem(this.STORAGE_KEY);
         }
     },
 
     getCurrentUser() {
-        if (!this.currentUser) {
-            this.currentUser = this.DEFAULT_USERS[0];
-        }
         return this.currentUser;
     },
 
+    isAuthenticated() {
+        return !!this.currentUser;
+    },
+
     isAdmin() {
-        return this.getCurrentUser()?.role === 'admin';
+        return this.isAuthenticated() && this.currentUser?.role === 'admin';
     },
 
     isStaff() {
-        return this.getCurrentUser()?.role === 'staff';
+        return this.isAuthenticated() && this.currentUser?.role === 'staff';
     },
 
     canAccessTab(tabId) {
+        if (!this.isAuthenticated()) return false;
         if (this.isAdmin()) return true;
         // Staff chỉ được vào pos, inventory, orders
         const allowedTabs = ['pos', 'inventory', 'orders'];
@@ -144,15 +158,15 @@ window.AuthModule = {
     },
 
     canViewCostPrice() {
-        return this.getCurrentUser()?.permissions?.canViewCostPrice === true;
+        return this.isAuthenticated() && this.currentUser?.permissions?.canViewCostPrice === true;
     },
 
     canEditInventory() {
-        return this.getCurrentUser()?.permissions?.canEditInventory === true;
+        return this.isAuthenticated() && this.currentUser?.permissions?.canEditInventory === true;
     },
 
     canCancelOrReturnOrder() {
-        return this.getCurrentUser()?.permissions?.canCancelOrReturnOrder === true;
+        return this.isAuthenticated() && this.currentUser?.permissions?.canCancelOrReturnOrder === true;
     },
 
     login(username, password) {
@@ -185,6 +199,15 @@ window.AuthModule = {
         this.renderHeaderUserInfo();
         this.closeLoginModal();
 
+        // Chuyển tab phù hợp sau khi đăng nhập
+        if (window.App) {
+            if (this.isStaff()) {
+                App.switchTab('pos');
+            } else if (!App.currentTab || App.currentTab === '') {
+                App.switchTab('pos');
+            }
+        }
+
         if (window.App && App.showToast) {
             App.showToast(`Đăng nhập thành công: ${userTemplate.roleName}`, 'success');
             if (window.AppUtils && AppUtils.playBeepSound) {
@@ -196,31 +219,48 @@ window.AuthModule = {
     },
 
     logout() {
+        sessionStorage.removeItem(this.STORAGE_KEY);
+        this.currentUser = null;
+        this.applyPermissions();
+        this.renderHeaderUserInfo();
+
+        if (window.App && App.showToast) {
+            App.showToast('Đã đăng xuất tài khoản.', 'info');
+        }
+
         this.openLoginModal(true);
     },
 
     // --- ÁP DỤNG QUYỀN HẠN LÊN TOÀN BỘ GIAO DIỆN ---
     applyPermissions() {
+        const isAuth = this.isAuthenticated();
         const isAdmin = this.isAdmin();
-        const user = this.getCurrentUser();
+        const user = this.currentUser;
 
-        console.log(`🔐 Đang áp dụng quyền hạn cho: [${user.role.toUpperCase()}] ${user.fullName}`);
+        console.log(`🔐 Đang áp dụng quyền hạn: ${isAuth ? `[${user.role.toUpperCase()}] ${user.fullName}` : 'CHƯA ĐĂNG NHẬP'}`);
 
         // 1. Điều chỉnh thanh Menu Tabs
         const forbiddenTabsForStaff = ['stockin', 'vouchers', 'reports', 'settings'];
-        forbiddenTabsForStaff.forEach(tabKey => {
+        const allNavTabs = ['pos', 'inventory', 'stockin', 'orders', 'vouchers', 'reports', 'settings'];
+
+        allNavTabs.forEach(tabKey => {
             const btns = document.querySelectorAll(`.nav-tab-btn[data-tab="${tabKey}"]`);
             btns.forEach(btn => {
-                if (isAdmin) {
-                    btn.classList.remove('hidden');
-                } else {
+                if (!isAuth) {
+                    btn.classList.add('opacity-40', 'pointer-events-none');
+                } else if (isAdmin) {
+                    btn.classList.remove('hidden', 'opacity-40', 'pointer-events-none');
+                } else if (forbiddenTabsForStaff.includes(tabKey)) {
                     btn.classList.add('hidden');
+                    btn.classList.remove('opacity-40', 'pointer-events-none');
+                } else {
+                    btn.classList.remove('hidden', 'opacity-40', 'pointer-events-none');
                 }
             });
         });
 
-        // Nếu người dùng đang đứng ở tab bị cấm, tự động chuyển về Bán Hàng (POS)
-        if (!isAdmin && window.App) {
+        // Nếu người dùng đang đứng ở tab bị cấm hoặc chưa đăng nhập, tự động chuyển về Bán Hàng (POS)
+        if (isAuth && !isAdmin && window.App) {
             if (forbiddenTabsForStaff.includes(App.currentTab)) {
                 App.switchTab('pos');
             }
@@ -286,40 +326,79 @@ window.AuthModule = {
     },
 
     renderHeaderUserInfo() {
-        const user = this.getCurrentUser();
-        const isAdmin = user.role === 'admin';
+        const isAuth = this.isAuthenticated();
+        const user = this.currentUser;
+        const isAdmin = user?.role === 'admin';
 
         // Avatar
         const avatarEl = document.getElementById('header-user-avatar');
         if (avatarEl) {
-            avatarEl.innerText = user.avatar;
-            avatarEl.className = `w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm ${isAdmin ? 'bg-amber-600 border border-amber-300' : 'bg-blue-600 border border-blue-300'}`;
+            if (!isAuth) {
+                avatarEl.innerHTML = '<i data-lucide="lock" class="w-4 h-4 text-slate-300"></i>';
+                avatarEl.className = 'w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-slate-700 text-slate-300 border border-slate-600 shrink-0';
+            } else {
+                avatarEl.innerText = user.avatar;
+                avatarEl.className = `w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm ${isAdmin ? 'bg-amber-600 border border-amber-300' : 'bg-blue-600 border border-blue-300'}`;
+            }
         }
 
         // Tên
         const nameEl = document.getElementById('header-user-name');
         if (nameEl) {
-            nameEl.innerText = user.fullName;
+            nameEl.innerText = isAuth ? user.fullName : 'Chưa Đăng Nhập';
         }
 
         // Huy hiệu vai trò
         const badgeEl = document.getElementById('header-user-role-badge');
         if (badgeEl) {
-            badgeEl.innerText = isAdmin ? 'ADMIN' : 'STAFF';
-            badgeEl.className = `px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${isAdmin ? 'bg-amber-400 text-slate-900 border border-amber-500' : 'bg-blue-400 text-slate-950 border border-blue-500'}`;
+            if (!isAuth) {
+                badgeEl.innerText = 'KHÓA';
+                badgeEl.className = 'px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500/90 text-white border border-rose-400';
+            } else {
+                badgeEl.innerText = isAdmin ? 'ADMIN' : 'STAFF';
+                badgeEl.className = `px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${isAdmin ? 'bg-amber-400 text-slate-900 border border-amber-500' : 'bg-blue-400 text-slate-950 border border-blue-500'}`;
+            }
         }
 
         // Mô tả quyền hạn
         const descEl = document.getElementById('header-user-permission-desc');
         if (descEl) {
-            descEl.innerText = isAdmin ? 'Toàn quyền quản trị' : 'Chỉ bán hàng & thu tiền';
+            if (!isAuth) {
+                descEl.innerText = 'Vui lòng đăng nhập';
+            } else {
+                descEl.innerText = isAdmin ? 'Toàn quyền quản trị' : 'Chỉ bán hàng & thu tiền';
+            }
         }
 
         // Mobile badge
         const mobileBadge = document.getElementById('header-user-role-badge-mobile');
         if (mobileBadge) {
-            mobileBadge.innerText = isAdmin ? 'ADMIN' : 'STAFF';
-            mobileBadge.className = `px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${isAdmin ? 'bg-amber-400 text-slate-950' : 'bg-blue-400 text-slate-950'}`;
+            if (!isAuth) {
+                mobileBadge.innerText = 'KHÓA';
+                mobileBadge.className = 'px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-slate-600 text-white';
+            } else {
+                mobileBadge.innerText = isAdmin ? 'ADMIN' : 'STAFF';
+                mobileBadge.className = `px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${isAdmin ? 'bg-amber-400 text-slate-950' : 'bg-blue-400 text-slate-950'}`;
+            }
+        }
+
+        // Nút Đăng Xuất trên Header
+        const headerLogoutBtn = document.getElementById('header-logout-btn');
+        if (headerLogoutBtn) {
+            if (isAuth) {
+                headerLogoutBtn.classList.remove('hidden');
+            } else {
+                headerLogoutBtn.classList.add('hidden');
+            }
+        }
+
+        const headerLogoutMobile = document.getElementById('header-logout-btn-mobile');
+        if (headerLogoutMobile) {
+            if (isAuth) {
+                headerLogoutMobile.classList.remove('hidden');
+            } else {
+                headerLogoutMobile.classList.add('hidden');
+            }
         }
 
         if (window.lucide) lucide.createIcons();
@@ -330,6 +409,11 @@ window.AuthModule = {
         const modal = document.getElementById('modal-auth-login');
         if (!modal) return;
 
+        // Nếu chưa đăng nhập thì LUÔN là chế độ bắt buộc (forced)
+        if (!this.isAuthenticated()) {
+            isForced = true;
+        }
+
         const closeBtn = document.getElementById('auth-modal-close-btn');
         if (closeBtn) {
             if (isForced) {
@@ -339,24 +423,55 @@ window.AuthModule = {
             }
         }
 
+        // Hiển thị khung thông tin tài khoản hiện tại kèm nút Đăng Xuất (nếu đã đăng nhập)
+        const currentUserBox = document.getElementById('auth-modal-current-user-box');
+        if (currentUserBox) {
+            if (this.isAuthenticated()) {
+                currentUserBox.classList.remove('hidden');
+                const curName = document.getElementById('auth-modal-current-name');
+                const curRole = document.getElementById('auth-modal-current-role');
+                if (curName) curName.innerText = this.currentUser.fullName;
+                if (curRole) curRole.innerText = this.currentUser.roleName;
+            } else {
+                currentUserBox.classList.add('hidden');
+            }
+        }
+
+        // Cập nhật tiêu đề modal
+        const titleEl = document.getElementById('auth-modal-title');
+        const subEl = document.getElementById('auth-modal-subtitle');
+        if (titleEl) {
+            titleEl.innerText = this.isAuthenticated() ? 'Chuyển Đổi Tài Khoản' : 'Đăng Nhập Hệ Thống';
+        }
+        if (subEl) {
+            subEl.innerText = this.isAuthenticated() ? 'Chọn tài khoản làm việc hoặc chuyển đổi vai trò' : 'Vui lòng chọn tài khoản và nhập mật khẩu để vào làm việc';
+        }
+
         // Reset form
         const user = this.getCurrentUser();
+        const defaultRole = user ? user.role : 'staff';
         const inputUser = document.getElementById('auth-input-username');
         const inputPass = document.getElementById('auth-input-password');
         const errorEl = document.getElementById('auth-error-msg');
 
-        if (inputUser) inputUser.value = user.username || 'admin';
+        if (inputUser) inputUser.value = defaultRole;
         if (inputPass) inputPass.value = '';
         if (errorEl) errorEl.classList.add('hidden');
 
-        this.selectRoleTab(user.role || 'admin');
+        this.selectRoleTab(defaultRole);
 
         modal.classList.remove('hidden');
-        if (inputPass) inputPass.focus();
+        setTimeout(() => {
+            if (inputPass) inputPass.focus();
+        }, 100);
         if (window.lucide) lucide.createIcons();
     },
 
     closeLoginModal() {
+        if (!this.isAuthenticated()) {
+            // TUYỆT ĐỐI không cho đóng modal nếu chưa đăng nhập
+            return;
+        }
         document.getElementById('modal-auth-login')?.classList.add('hidden');
     },
 
@@ -418,5 +533,34 @@ window.AuthModule = {
             if (icon) icon.setAttribute('data-lucide', 'eye');
         }
         if (window.lucide) lucide.createIcons();
+    },
+
+    setupEventListeners() {
+        if (this._listenersInitialized) return;
+        this._listenersInitialized = true;
+
+        // Bắt phím Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (!this.isAuthenticated()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                } else {
+                    this.closeLoginModal();
+                }
+            }
+        });
+
+        // Bắt click vào backdrop modal
+        const modal = document.getElementById('modal-auth-login');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    if (this.isAuthenticated()) {
+                        this.closeLoginModal();
+                    }
+                }
+            });
+        }
     }
 };

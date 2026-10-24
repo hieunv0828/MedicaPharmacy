@@ -43,6 +43,11 @@ const App = {
         this.checkStartupAlerts();
         this.updateHeaderPharmacist();
         Store.on('settings:changed', () => this.updateHeaderPharmacist());
+
+        // Đồng bộ phân quyền sau khi các module khởi tạo xong
+        if (window.AuthModule) {
+            AuthModule.applyPermissions();
+        }
     },
 
     updateHeaderPharmacist() {
@@ -66,9 +71,14 @@ const App = {
     switchTab(tabId) {
         // Kiểm tra phân quyền truy cập tab
         if (window.AuthModule && !AuthModule.canAccessTab(tabId)) {
-            this.showToast('Bạn không có quyền truy cập mục này. Chỉ dành cho Quản Trị Viên (Admin).', 'error');
-            if (this.currentTab !== 'pos') {
-                this.switchTab('pos');
+            if (!AuthModule.isAuthenticated()) {
+                this.showToast('Vui lòng đăng nhập để sử dụng hệ thống.', 'warning');
+                AuthModule.openLoginModal(true);
+            } else {
+                this.showToast('Bạn không có quyền truy cập mục này. Chỉ dành cho Quản Trị Viên (Admin).', 'error');
+                if (this.currentTab !== 'pos') {
+                    this.switchTab('pos');
+                }
             }
             return;
         }
