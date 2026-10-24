@@ -244,7 +244,7 @@ window.AuthModule = {
         const allNavTabs = ['pos', 'inventory', 'stockin', 'orders', 'vouchers', 'reports', 'settings'];
 
         allNavTabs.forEach(tabKey => {
-            const btns = document.querySelectorAll(`.nav-tab-btn[data-tab="${tabKey}"]`);
+            const btns = document.querySelectorAll(`.nav-tab-btn[data-tab="${tabKey}"], .brand-dropdown-item[data-tab="${tabKey}"]`);
             btns.forEach(btn => {
                 if (!isAuth) {
                     btn.classList.add('opacity-40', 'pointer-events-none');

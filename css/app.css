@@ -142,5 +142,23 @@ code, .font-mono {
     }
 }
 
+/* Header Brand Quick Menu on Hover */
+.header-brand-menu {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(4px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+
+#header-brand-container:hover .header-brand-menu,
+#header-brand-container:focus-within .header-brand-menu {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
+}
+
+
 
 

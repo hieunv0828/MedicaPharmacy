@@ -43,17 +43,119 @@
             <div class="flex flex-col md:flex-row md:items-center justify-start gap-2.5 xl:gap-4 w-full">
                 <!-- Top Brand row on Mobile, Left Brand Column on Desktop -->
                 <div class="flex items-center justify-between h-14 md:h-16 shrink-0">
-                    <div class="flex items-center gap-2.5 sm:gap-3">
-                        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-inner font-bold text-lg sm:text-xl shrink-0">
-                            <i data-lucide="cross" class="w-5 h-5 sm:w-6 sm:h-6"></i>
-                        </div>
-                        <div>
-                            <div class="font-extrabold text-base sm:text-lg tracking-wide flex items-center gap-1.5 sm:gap-2">
-                                <span>MEDICA PHARMACY</span>
-                                <span class="text-[9px] sm:text-[10px] bg-emerald-700 text-emerald-200 px-1.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">GPP</span>
+                    <div class="relative group/brand" id="header-brand-container">
+                        <!-- Nút bấm thương hiệu: Bấm để quay về Home (Bán Thuốc POS) • Chuột phải mở menu liên kết -->
+                        <a href="index.html" 
+                           onclick="if(!event.ctrlKey && !event.metaKey && event.button === 0) { event.preventDefault(); App.switchTab('pos'); }" 
+                           class="flex items-center gap-2.5 sm:gap-3 py-1 px-2 -ml-2 rounded-xl hover:bg-emerald-800/60 transition text-left cursor-pointer group-hover/brand:bg-emerald-800/70 select-none text-white no-underline hover:no-underline" 
+                           title="Bấm để về Trang Chủ (Bán Thuốc) • Chuột phải để mở trong tab mới">
+                            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-inner font-bold text-lg sm:text-xl shrink-0 group-hover/brand:scale-105 transition-transform duration-200">
+                                <i data-lucide="cross" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                             </div>
-                            <div class="text-xs text-emerald-300 font-light hidden sm:flex items-center gap-2">
-                                <span>Hệ Thống Quản Lý Bán Thuốc & Doanh Số</span>
+                            <div>
+                                <div class="font-extrabold text-base sm:text-lg tracking-wide flex items-center gap-1.5 sm:gap-2">
+                                    <span class="group-hover/brand:text-emerald-200 transition-colors">MEDICA PHARMACY</span>
+                                    <span class="text-[9px] sm:text-[10px] bg-emerald-700 text-emerald-200 px-1.5 py-0.5 rounded-full uppercase tracking-wider font-semibold">GPP</span>
+                                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-emerald-400 group-hover/brand:text-emerald-200 group-hover/brand:rotate-180 transition-transform duration-200"></i>
+                                </div>
+                                <div class="text-xs text-emerald-300 font-light hidden sm:flex items-center gap-2">
+                                    <span>Hệ Thống Quản Lý Bán Thuốc & Doanh Số</span>
+                                </div>
+                            </div>
+                        </a>
+
+                        <!-- Box Menu Hiển Thị Khi Trỏ Chuột Vào MEDICA PHARMACY -->
+                        <div class="header-brand-menu absolute left-0 top-full pt-1.5 w-64 z-50">
+                            <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100 py-1 text-slate-800">
+                                <div class="px-3.5 py-2 bg-slate-50/90 flex items-center justify-between border-b border-slate-100">
+                                    <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Danh Mục Chức Năng</span>
+                                    <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.2 rounded">Menu Nhanh</span>
+                                </div>
+
+                                <div class="p-1.5 space-y-0.5">
+                                    <!-- 1. Bán Thuốc -->
+                                    <button type="button" onclick="App.switchTab('pos')" data-tab="pos" 
+                                            class="brand-dropdown-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition text-left cursor-pointer group/item">
+                                        <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover/item:scale-110 transition-transform">
+                                            <i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-xs flex items-center justify-between">
+                                                <span>Bán Thuốc</span>
+                                                <span class="text-[9px] font-mono text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">F4</span>
+                                            </div>
+                                            <div class="text-[10px] text-slate-400">Điểm bán lẻ POS & In hóa đơn</div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 2. Kho Thuốc -->
+                                    <button type="button" onclick="App.switchTab('inventory')" data-tab="inventory" 
+                                            class="brand-dropdown-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition text-left cursor-pointer group/item">
+                                        <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 group-hover/item:scale-110 transition-transform">
+                                            <i data-lucide="boxes" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-xs">Kho Thuốc</div>
+                                            <div class="text-[10px] text-slate-400">Danh mục thuốc & Tồn kho</div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 3. Nhập Thuốc -->
+                                    <button type="button" onclick="App.switchTab('stockin')" data-tab="stockin" 
+                                            class="brand-dropdown-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition text-left cursor-pointer group/item">
+                                        <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover/item:scale-110 transition-transform">
+                                            <i data-lucide="truck" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-xs">Nhập Thuốc</div>
+                                            <div class="text-[10px] text-slate-400">Lập phiếu nhập từ NCC</div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 4. Hóa Đơn -->
+                                    <button type="button" onclick="App.switchTab('orders')" data-tab="orders" 
+                                            class="brand-dropdown-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition text-left cursor-pointer group/item">
+                                        <div class="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover/item:scale-110 transition-transform">
+                                            <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-xs">Hóa Đơn</div>
+                                            <div class="text-[10px] text-slate-400">Lịch sử đơn bán & Trả hàng</div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 5. Sổ Thu Chi -->
+                                    <button type="button" onclick="App.switchTab('vouchers')" data-tab="vouchers" 
+                                            class="brand-dropdown-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition text-left cursor-pointer group/item">
+                                        <div class="w-7 h-7 rounded-lg bg-yellow-100 text-yellow-800 flex items-center justify-center shrink-0 group-hover/item:scale-110 transition-transform">
+                                            <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-xs">Sổ Thu Chi</div>
+                                            <div class="text-[10px] text-slate-400">Quản lý quỹ tiền mặt & CK</div>
+                                        </div>
+                                    </button>
+
+                                    <!-- 6. Báo Cáo -->
+                                    <button type="button" onclick="App.switchTab('reports')" data-tab="reports" 
+                                            class="brand-dropdown-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition text-left cursor-pointer group/item">
+                                        <div class="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 group-hover/item:scale-110 transition-transform">
+                                            <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-bold text-xs">Báo Cáo</div>
+                                            <div class="text-[10px] text-slate-400">Báo cáo doanh số & Lợi nhuận</div>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                <div class="p-1.5 bg-slate-50/80">
+                                    <button type="button" onclick="App.switchTab('pos')" 
+                                            class="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer">
+                                        <i data-lucide="home" class="w-3.5 h-3.5"></i>
+                                        <span>Quay Về Trang Chủ (Home)</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
