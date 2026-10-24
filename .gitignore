@@ -1,0 +1,13 @@
+# Temporary & Log files
+*.log
+tools/*.log
+test_*.txt
+test_*.html
+
+# External large binaries (can be downloaded when setting up remote tunnel)
+tools/cloudflared.exe
+tools/ngrok.exe
+
+# OS generated files
+Thumbs.db
+.DS_Store

@@ -1,0 +1,658 @@
+/**
+ * MedicaPharmacy - Vouchers & Cash Flow Management Module
+ * Quản lý Sổ Quỹ Thu Chi (Phiếu Thu / Phiếu Chi Tiền Mặt & Chuyển Khoản)
+ */
+
+const VouchersModule = {
+    currentTab: 'all', // 'all', 'receipt' (Thu), 'payment' (Chi)
+    paymentFilter: 'all', // 'all', 'cash', 'transfer'
+    timeFilter: 'this_month', // 'all', 'today', 'yesterday', 'last_7_days', 'this_month', 'custom'
+    dateFrom: '',
+    dateTo: '',
+    searchKeyword: '',
+    currentPrintingVoucher: null,
+
+    // Danh mục thu / chi chuẩn nhà thuốc
+    categories: {
+        payment: [
+            'Chi tiền hàng Nhà Cung Cấp',
+            'Chi trả tiền thuê mặt bằng',
+            'Chi điện nước & internet',
+            'Chi lương & thưởng nhân viên',
+            'Chi văn phòng phẩm & túi đựng',
+            'Chi sửa chữa & bảo trì thiết bị',
+            'Chi tiếp khách & ngoại giao',
+            'Chi nộp thuế / phí nhà nước',
+            'Chi khác...'
+        ],
+        receipt: [
+            'Thu nợ khách hàng',
+            'Thu hoàn tiền từ Nhà Cung Cấp',
+            'Thu thanh lý vỏ hộp & bao bì',
+            'Thu hoàn ứng nhân viên',
+            'Thu khác...'
+        ]
+    },
+
+    init() {
+        this.bindEvents();
+        this.renderSummaryCards();
+        this.renderVouchersTable();
+
+        Store.on('vouchers:changed', () => {
+            this.renderSummaryCards();
+            this.renderVouchersTable();
+        });
+
+        Store.on('orders:changed', () => {
+            this.renderSummaryCards();
+        });
+
+        Store.on('stockin:changed', () => {
+            this.renderSummaryCards();
+        });
+    },
+
+    bindEvents() {
+        const searchInput = document.getElementById('vouchers-search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchKeyword = e.target.value.trim().toLowerCase();
+                this.renderVouchersTable();
+            });
+        }
+
+        const timeSel = document.getElementById('vouchers-time-filter');
+        if (timeSel) {
+            timeSel.addEventListener('change', (e) => {
+                this.timeFilter = e.target.value;
+                const customDiv = document.getElementById('vouchers-custom-dates');
+                if (customDiv) {
+                    if (e.target.value === 'custom') {
+                        customDiv.classList.remove('hidden');
+                    } else {
+                        customDiv.classList.add('hidden');
+                    }
+                }
+                this.renderSummaryCards();
+                this.renderVouchersTable();
+            });
+        }
+
+        const dateFrom = document.getElementById('vouchers-date-from');
+        if (dateFrom) {
+            dateFrom.addEventListener('change', (e) => {
+                this.dateFrom = e.target.value;
+                this.renderSummaryCards();
+                this.renderVouchersTable();
+            });
+        }
+
+        const dateTo = document.getElementById('vouchers-date-to');
+        if (dateTo) {
+            dateTo.addEventListener('change', (e) => {
+                this.dateTo = e.target.value;
+                this.renderSummaryCards();
+                this.renderVouchersTable();
+            });
+        }
+    },
+
+    setTab(tab) {
+        this.currentTab = tab;
+
+        const btnAll = document.getElementById('tab-btn-vouchers-all');
+        const btnReceipt = document.getElementById('tab-btn-vouchers-receipt');
+        const btnPayment = document.getElementById('tab-btn-vouchers-payment');
+
+        const activeClass = ['border-emerald-600', 'text-emerald-700', 'font-bold'];
+        const inactiveClass = ['border-transparent', 'text-slate-500', 'font-medium'];
+
+        [btnAll, btnReceipt, btnPayment].forEach(b => {
+            b?.classList.remove(...activeClass);
+            b?.classList.add(...inactiveClass);
+        });
+
+        if (tab === 'all') btnAll?.classList.add(...activeClass);
+        if (tab === 'receipt') btnReceipt?.classList.add(...activeClass);
+        if (tab === 'payment') btnPayment?.classList.add(...activeClass);
+
+        this.renderVouchersTable();
+    },
+
+    setPaymentFilter(method) {
+        this.paymentFilter = method;
+
+        const btnAll = document.getElementById('filter-voucher-method-all');
+        const btnCash = document.getElementById('filter-voucher-method-cash');
+        const btnTransfer = document.getElementById('filter-voucher-method-transfer');
+
+        const activeClass = ['bg-slate-800', 'text-white'];
+        const inactiveClass = ['bg-slate-100', 'text-slate-600', 'hover:bg-slate-200'];
+
+        [btnAll, btnCash, btnTransfer].forEach(b => {
+            b?.classList.remove(...activeClass);
+            b?.classList.add(...inactiveClass);
+        });
+
+        if (method === 'all') btnAll?.classList.add(...activeClass);
+        if (method === 'cash') btnCash?.classList.add(...activeClass);
+        if (method === 'transfer') btnTransfer?.classList.add(...activeClass);
+
+        this.renderVouchersTable();
+    },
+
+    renderSummaryCards() {
+        const summary = Store.getCashFlowSummary(this.timeFilter, this.dateFrom, this.dateTo);
+
+        const elCash = document.getElementById('voucher-stat-cash-balance');
+        const elBank = document.getElementById('voucher-stat-bank-balance');
+        const elIn = document.getElementById('voucher-stat-period-in');
+        const elOut = document.getElementById('voucher-stat-period-out');
+        const elNet = document.getElementById('voucher-stat-period-net');
+
+        if (elCash) elCash.innerText = AppUtils.formatVND(summary.cashBalance);
+        if (elBank) elBank.innerText = AppUtils.formatVND(summary.bankBalance);
+        if (elIn) elIn.innerText = AppUtils.formatVND(summary.periodIncome);
+        if (elOut) elOut.innerText = AppUtils.formatVND(summary.periodExpense);
+        if (elNet) {
+            elNet.innerText = AppUtils.formatVND(summary.periodNet);
+            if (summary.periodNet >= 0) {
+                elNet.className = 'text-base sm:text-lg font-black text-emerald-700 font-mono';
+            } else {
+                elNet.className = 'text-base sm:text-lg font-black text-rose-700 font-mono';
+            }
+        }
+
+        // Cập nhật số lượng trên các tab
+        const vouchers = Store.getVouchers();
+        const badgeAll = document.getElementById('badge-vouchers-all');
+        const badgeReceipt = document.getElementById('badge-vouchers-receipt');
+        const badgePayment = document.getElementById('badge-vouchers-payment');
+
+        if (badgeAll) badgeAll.innerText = vouchers.length;
+        if (badgeReceipt) badgeReceipt.innerText = vouchers.filter(v => v.type === 'receipt').length;
+        if (badgePayment) badgePayment.innerText = vouchers.filter(v => v.type === 'payment').length;
+    },
+
+    getFilteredVouchers() {
+        let vouchers = Store.getVouchers();
+
+        // 1. Lọc theo Tab (Tất cả / Thu / Chi)
+        if (this.currentTab === 'receipt') {
+            vouchers = vouchers.filter(v => v.type === 'receipt');
+        } else if (this.currentTab === 'payment') {
+            vouchers = vouchers.filter(v => v.type === 'payment');
+        }
+
+        // 2. Lọc theo Phương thức (Tiền mặt / Chuyển khoản)
+        if (this.paymentFilter === 'cash') {
+            vouchers = vouchers.filter(v => v.paymentMethod === 'cash');
+        } else if (this.paymentFilter === 'transfer') {
+            vouchers = vouchers.filter(v => v.paymentMethod === 'transfer');
+        }
+
+        // 3. Lọc theo thời gian
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yestStr = yesterday.toISOString().slice(0, 10);
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const monthPrefix = now.toISOString().slice(0, 7);
+
+        if (this.timeFilter === 'today') {
+            vouchers = vouchers.filter(v => v.createdAt && v.createdAt.startsWith(todayStr));
+        } else if (this.timeFilter === 'yesterday') {
+            vouchers = vouchers.filter(v => v.createdAt && v.createdAt.startsWith(yestStr));
+        } else if (this.timeFilter === 'last_7_days') {
+            vouchers = vouchers.filter(v => new Date(v.createdAt) >= sevenDaysAgo);
+        } else if (this.timeFilter === 'this_month') {
+            vouchers = vouchers.filter(v => v.createdAt && v.createdAt.startsWith(monthPrefix));
+        } else if (this.timeFilter === 'custom') {
+            if (this.dateFrom) vouchers = vouchers.filter(v => v.createdAt && v.createdAt.slice(0, 10) >= this.dateFrom);
+            if (this.dateTo) vouchers = vouchers.filter(v => v.createdAt && v.createdAt.slice(0, 10) <= this.dateTo);
+        }
+
+        // 4. Tìm kiếm từ khóa
+        if (this.searchKeyword) {
+            const q = this.searchKeyword;
+            vouchers = vouchers.filter(v => 
+                (v.id && v.id.toLowerCase().includes(q)) ||
+                (v.targetName && v.targetName.toLowerCase().includes(q)) ||
+                (v.category && v.category.toLowerCase().includes(q)) ||
+                (v.note && v.note.toLowerCase().includes(q)) ||
+                (v.pharmacist && v.pharmacist.toLowerCase().includes(q))
+            );
+        }
+
+        return vouchers;
+    },
+
+    renderVouchersTable() {
+        const tbody = document.getElementById('vouchers-table-tbody');
+        if (!tbody) return;
+
+        const list = this.getFilteredVouchers();
+        if (list.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-10 text-slate-400">
+                        <i data-lucide="wallet" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                        Không có phiếu thu / chi nào thỏa mãn điều kiện lọc.
+                    </td>
+                </tr>
+            `;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        let html = '';
+        list.forEach((v, idx) => {
+            const isReceipt = v.type === 'receipt';
+            const isCash = v.paymentMethod === 'cash';
+
+            let typeBadge = '';
+            if (v.isCancelled) {
+                typeBadge = '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-600 border border-slate-300 line-through">ĐÃ HỦY</span>';
+            } else if (isReceipt) {
+                typeBadge = '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"><i data-lucide="arrow-down-left" class="w-3.5 h-3.5"></i> PHIẾU THU</span>';
+            } else {
+                typeBadge = '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300"><i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i> PHIẾU CHI</span>';
+            }
+
+            const methodBadge = isCash
+                ? '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i data-lucide="banknote" class="w-3 h-3"></i> Tiền mặt</span>'
+                : '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"><i data-lucide="qr-code" class="w-3 h-3"></i> Chuyển khoản</span>';
+
+            const amountHtml = isReceipt
+                ? `<span class="font-extrabold text-emerald-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">+${AppUtils.formatVND(v.amount)}</span>`
+                : `<span class="font-extrabold text-rose-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">-${AppUtils.formatVND(v.amount)}</span>`;
+
+            const refBadge = v.refId ? `<div class="text-[10px] font-mono text-emerald-700 font-semibold mt-0.5">Ref: ${v.refId}</div>` : '';
+
+            html += `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-xs ${v.isCancelled ? 'opacity-50' : ''}">
+                    <td class="py-3 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="py-3 px-3 font-mono font-bold text-slate-800">
+                        <span class="hover:text-emerald-700 cursor-pointer" onclick="VouchersModule.viewVoucherDetail('${v.id}')">${v.id}</span>
+                        <div class="text-[11px] text-slate-400 font-sans font-normal">${AppUtils.formatDateTime(v.createdAt)}</div>
+                        ${refBadge}
+                    </td>
+                    <td class="py-3 px-3 text-center">${typeBadge}</td>
+                    <td class="py-3 px-3">${methodBadge}</td>
+                    <td class="py-3 px-3 font-semibold text-slate-800">
+                        ${v.category || '---'}
+                        ${v.note ? `<div class="text-[11px] text-slate-500 font-normal italic line-clamp-1" title="${v.note}">${v.note}</div>` : ''}
+                    </td>
+                    <td class="py-3 px-3">
+                        <div class="font-bold text-slate-800">${v.targetName || '---'}</div>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">${this.formatTargetType(v.targetType)}</div>
+                    </td>
+                    <td class="py-3 px-3 text-right">${amountHtml}</td>
+                    <td class="py-3 px-3 text-center">
+                        ${v.isAccounting !== false ? 
+                            '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Được tính vào kết quả kinh doanh">Hạch toán KD</span>' : 
+                            '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500" title="Chi phí ngoài bảng">Ngoại bảng</span>'}
+                    </td>
+                    <td class="py-3 px-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="VouchersModule.printVoucher('${v.id}')" title="In phiếu" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition">
+                                <i data-lucide="printer" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="VouchersModule.deleteVoucherConfirm('${v.id}')" title="Xóa phiếu" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+        if (window.lucide) lucide.createIcons();
+    },
+
+    formatTargetType(t) {
+        if (t === 'supplier') return 'Nhà cung cấp';
+        if (t === 'customer') return 'Khách hàng';
+        if (t === 'employee') return 'Nhân viên';
+        return 'Đối tác khác';
+    },
+
+    // --- TẠO PHIẾU THU / CHI (MODAL) ---
+    openCreateModal(type = 'payment', paymentMethod = 'cash') {
+        const modal = document.getElementById('modal-voucher-create');
+        if (!modal) return;
+
+        this.setModalType(type);
+        this.setModalPaymentMethod(paymentMethod);
+
+        // Đặt ngày giờ hiện tại
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const timeInput = document.getElementById('voucher-input-time');
+        if (timeInput) {
+            timeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        // Đặt người lập phiếu
+        const settings = Store.getSettings();
+        const pharmInput = document.getElementById('voucher-input-pharmacist');
+        if (pharmInput) {
+            pharmInput.value = settings.pharmacist || 'DS. Nguyễn Thanh Dung';
+        }
+
+        // Reset các trường
+        const elAmt = document.getElementById('voucher-input-amount');
+        if (elAmt) elAmt.value = '';
+        const elTarget = document.getElementById('voucher-input-target-name');
+        if (elTarget) elTarget.value = '';
+        const elNote = document.getElementById('voucher-input-note');
+        if (elNote) elNote.value = '';
+        const elAcc = document.getElementById('voucher-input-accounting');
+        if (elAcc) elAcc.checked = true;
+
+        this.updateTargetSuggestions();
+
+        if (window.SearchableSelect) {
+            SearchableSelect.init('voucher-input-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn loại thu / chi...' });
+            SearchableSelect.refresh('voucher-input-category');
+        }
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeCreateModal() {
+        document.getElementById('modal-voucher-create')?.classList.add('hidden');
+        if (window.SearchableSelect) {
+            SearchableSelect.closeAll();
+        }
+    },
+
+    setModalType(type) {
+        const titleEl = document.getElementById('voucher-modal-title');
+        const method = this.getModalPaymentMethod();
+        const methodText = method === 'cash' ? 'tiền mặt' : 'chuyển khoản';
+
+        const lblType = document.getElementById('voucher-label-type');
+        const lblPerson = document.getElementById('voucher-label-person');
+        const lblTarget = document.getElementById('voucher-label-target');
+        const lblTargetName = document.getElementById('voucher-label-target-name');
+
+        if (type === 'receipt') {
+            if (titleEl) titleEl.innerText = `Tạo phiếu thu ${methodText}`;
+            if (lblType) lblType.innerText = 'Loại thu *';
+            if (lblPerson) lblPerson.innerText = 'Người thu';
+            if (lblTarget) lblTarget.innerText = 'Đối tượng nộp';
+            if (lblTargetName) lblTargetName.innerText = 'Tên người nộp';
+            document.getElementById('voucher-type-receipt-btn')?.classList.add('bg-emerald-600', 'text-white');
+            document.getElementById('voucher-type-receipt-btn')?.classList.remove('bg-slate-100', 'text-slate-600');
+            document.getElementById('voucher-type-payment-btn')?.classList.remove('bg-rose-600', 'text-white');
+            document.getElementById('voucher-type-payment-btn')?.classList.add('bg-slate-100', 'text-slate-600');
+        } else {
+            if (titleEl) titleEl.innerText = `Tạo phiếu chi ${methodText}`;
+            if (lblType) lblType.innerText = 'Loại chi *';
+            if (lblPerson) lblPerson.innerText = 'Người chi';
+            if (lblTarget) lblTarget.innerText = 'Đối tượng nhận';
+            if (lblTargetName) lblTargetName.innerText = 'Tên người nhận';
+            document.getElementById('voucher-type-payment-btn')?.classList.add('bg-rose-600', 'text-white');
+            document.getElementById('voucher-type-payment-btn')?.classList.remove('bg-slate-100', 'text-slate-600');
+            document.getElementById('voucher-type-receipt-btn')?.classList.remove('bg-emerald-600', 'text-white');
+            document.getElementById('voucher-type-receipt-btn')?.classList.add('bg-slate-100', 'text-slate-600');
+        }
+
+        // Cập nhật dropdown loại thu/chi (kết hợp danh mục mặc định và danh mục tùy chỉnh do người dùng thêm)
+        const sel = document.getElementById('voucher-input-category');
+        if (sel) {
+            const defaultList = this.categories[type] || [];
+            const customList = (typeof Store.getCustomCategories === 'function') ? (Store.getCustomCategories()[type] || []) : [];
+            const allCategories = Array.from(new Set([...defaultList, ...customList]));
+
+            let html = '<option value="">-- Chọn loại ' + (type === 'receipt' ? 'thu' : 'chi') + ' --</option>';
+            allCategories.forEach(c => {
+                html += `<option value="${c}">${c}</option>`;
+            });
+            html += `<option value="__custom__" class="font-bold text-blue-600">+ Thêm loại ${type === 'receipt' ? 'thu' : 'chi'} mới...</option>`;
+            sel.innerHTML = html;
+            if (window.SearchableSelect) {
+                SearchableSelect.refresh('voucher-input-category');
+            }
+        }
+
+        this.currentModalType = type;
+    },
+
+    promptAddCategory() {
+        const type = this.currentModalType || 'payment';
+        const typeName = type === 'receipt' ? 'thu' : 'chi';
+        const newCat = prompt(`Nhập tên loại ${typeName} mới:`);
+        if (newCat && newCat.trim()) {
+            const added = Store.addCustomCategory(type, newCat.trim());
+            this.setModalType(type);
+            const sel = document.getElementById('voucher-input-category');
+            if (sel) sel.value = added;
+            App.showToast(`Đã thêm loại ${typeName} mới: "${added}"`, 'success');
+        } else {
+            const sel = document.getElementById('voucher-input-category');
+            if (sel && sel.value === '__custom__') sel.value = '';
+        }
+    },
+
+    setModalPaymentMethod(method) {
+        const btnCash = document.getElementById('voucher-method-cash-btn');
+        const btnTransfer = document.getElementById('voucher-method-transfer-btn');
+
+        if (method === 'cash') {
+            btnCash?.classList.add('bg-amber-600', 'text-white');
+            btnCash?.classList.remove('bg-slate-100', 'text-slate-600');
+            btnTransfer?.classList.remove('bg-blue-600', 'text-white');
+            btnTransfer?.classList.add('bg-slate-100', 'text-slate-600');
+        } else {
+            btnTransfer?.classList.add('bg-blue-600', 'text-white');
+            btnTransfer?.classList.remove('bg-slate-100', 'text-slate-600');
+            btnCash?.classList.remove('bg-amber-600', 'text-white');
+            btnCash?.classList.add('bg-slate-100', 'text-slate-600');
+        }
+
+        this.currentModalMethod = method;
+        this.setModalType(this.currentModalType || 'payment');
+    },
+
+    getModalPaymentMethod() {
+        return this.currentModalMethod || 'cash';
+    },
+
+    updateTargetSuggestions() {
+        const targetType = document.getElementById('voucher-input-target-type')?.value || 'other';
+        const datalist = document.getElementById('voucher-targets-datalist');
+        if (!datalist) return;
+
+        let suggestions = [];
+        if (targetType === 'supplier') {
+            const suppliers = Store.getSuppliers();
+            suggestions = suppliers.map(s => s.name);
+        } else if (targetType === 'customer') {
+            const customers = Store.getCustomers();
+            suggestions = customers.map(c => `${c.name} (${c.phone})`);
+        } else if (targetType === 'employee') {
+            const settings = Store.getSettings();
+            suggestions = [settings.pharmacist || 'DS. Nguyễn Thanh Dung', 'Nhân viên ca sáng', 'Nhân viên ca tối'];
+        }
+
+        datalist.innerHTML = suggestions.map(s => `<option value="${s}">`).join('');
+    },
+
+    saveVoucher(andPrint = false) {
+        const type = this.currentModalType || 'payment';
+        const paymentMethod = this.currentModalMethod || 'cash';
+        const category = document.getElementById('voucher-input-category')?.value;
+        const timeVal = document.getElementById('voucher-input-time')?.value;
+        const pharmacist = document.getElementById('voucher-input-pharmacist')?.value.trim();
+        const targetType = document.getElementById('voucher-input-target-type')?.value;
+        const targetName = document.getElementById('voucher-input-target-name')?.value.trim();
+        const amountRaw = document.getElementById('voucher-input-amount')?.value;
+        const amount = parseFloat(amountRaw.toString().replace(/\D/g, '')) || 0;
+        const note = document.getElementById('voucher-input-note')?.value.trim();
+        const isAccounting = document.getElementById('voucher-input-accounting')?.checked;
+
+        if (!category) {
+            alert('Vui lòng chọn loại thu / chi!');
+            return;
+        }
+
+        if (amount <= 0) {
+            alert('Vui lòng nhập số tiền lớn hơn 0!');
+            return;
+        }
+
+        const voucher = {
+            type,
+            paymentMethod,
+            category,
+            targetType,
+            targetName: targetName || 'Khác',
+            amount,
+            note,
+            isAccounting: isAccounting !== false,
+            pharmacist: pharmacist || 'admin',
+            createdAt: timeVal ? new Date(timeVal).toISOString() : new Date().toISOString()
+        };
+
+        const saved = Store.addVoucher(voucher);
+        this.closeCreateModal();
+
+        App.showToast(`Đã tạo thành công phiếu ${type === 'receipt' ? 'thu' : 'chi'}: ${saved.id}`, 'success');
+        AppUtils.playBeepSound('success');
+
+        if (andPrint) {
+            this.printVoucher(saved.id);
+        }
+    },
+
+    // --- IN PHIẾU THU / PHIẾU CHI ---
+    printVoucher(voucherId) {
+        const vouchers = Store.getVouchers();
+        const v = vouchers.find(x => x.id === voucherId);
+        if (!v) return;
+
+        this.currentPrintingVoucher = v;
+        const modal = document.getElementById('modal-voucher-print');
+        const container = document.getElementById('voucher-print-content');
+        if (!modal || !container) return;
+
+        const isReceipt = v.type === 'receipt';
+        const settings = Store.getSettings();
+
+        container.innerHTML = `
+            <div class="receipt-paper k80-width bg-white text-slate-900 mx-auto p-4 shadow-lg font-sans text-xs">
+                <div class="text-center pb-2 border-b border-dashed border-slate-300">
+                    <div class="font-extrabold text-sm uppercase">${settings.pharmacyName || 'MEDICA PHARMACY'}</div>
+                    <div class="text-[10px] text-slate-500">${settings.address || ''}</div>
+                    <div class="text-[10px] text-slate-500">Hotline: ${settings.phone || ''}</div>
+                </div>
+
+                <div class="text-center my-3">
+                    <div class="font-black text-base uppercase text-slate-800">${isReceipt ? 'PHIẾU THU TIỀN' : 'PHIẾU CHI TIỀN'}</div>
+                    <div class="text-[11px] font-mono font-bold text-slate-600">Số: ${v.id}</div>
+                    <div class="text-[10px] text-slate-400">${AppUtils.formatDateTime(v.createdAt)}</div>
+                </div>
+
+                <div class="space-y-1.5 border-t border-b border-dashed border-slate-300 py-2 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">${isReceipt ? 'Người nộp tiền:' : 'Người nhận tiền:'}</span>
+                        <span class="font-bold text-slate-800">${v.targetName || '---'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Đối tượng:</span>
+                        <span>${this.formatTargetType(v.targetType)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Hình thức:</span>
+                        <span class="font-semibold">${v.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Lý do ${isReceipt ? 'thu' : 'chi'}:</span>
+                        <span class="font-medium text-right">${v.category}</span>
+                    </div>
+                    ${v.note ? `
+                    <div class="text-[11px] text-slate-600 italic">
+                        Ghi chú: ${v.note}
+                    </div>` : ''}
+                    <div class="flex justify-between items-baseline pt-2 border-t border-slate-200">
+                        <span class="font-extrabold text-slate-800">SỐ TIỀN:</span>
+                        <span class="font-black text-base ${isReceipt ? 'text-emerald-700' : 'text-rose-700'}">${AppUtils.formatVND(v.amount)}</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 text-center text-[10px] text-slate-600 pt-3">
+                    <div>
+                        <p class="font-bold uppercase">${isReceipt ? 'Người nộp' : 'Người nhận'}</p>
+                        <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
+                        <div class="h-10"></div>
+                        <p class="font-semibold">${v.targetName || ''}</p>
+                    </div>
+                    <div>
+                        <p class="font-bold uppercase">Người lập phiếu</p>
+                        <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
+                        <div class="h-10"></div>
+                        <p class="font-semibold">${v.pharmacist || ''}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    executePrint() {
+        window.print();
+    },
+
+    closePrintModal() {
+        document.getElementById('modal-voucher-print')?.classList.add('hidden');
+    },
+
+    deleteVoucherConfirm(voucherId) {
+        if (confirm(`Bạn có chắc chắn muốn xóa phiếu ${voucherId} khỏi sổ quỹ?`)) {
+            Store.deleteVoucher(voucherId);
+            App.showToast(`Đã xóa phiếu ${voucherId}.`, 'info');
+        }
+    },
+
+    viewVoucherDetail(voucherId) {
+        this.printVoucher(voucherId);
+    },
+
+    exportExcel() {
+        const list = this.getFilteredVouchers();
+        if (list.length === 0) {
+            alert('Không có phiếu thu chi nào để xuất file!');
+            return;
+        }
+
+        let csv = '\uFEFFMã Phiếu,Thời Gian,Phân Loại,Phương Thức,Danh Mục / Lý Do,Người Nhận/Nộp,Đối Tượng,Số Tiền,Hạch Toán KD,Người Lập,Ghi Chú\n';
+        list.forEach(v => {
+            const typeStr = v.type === 'receipt' ? 'Phiếu Thu' : 'Phiếu Chi';
+            const methodStr = v.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản';
+            const accStr = v.isAccounting !== false ? 'Có' : 'Không';
+            csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${v.targetName || ''}","${this.formatTargetType(v.targetType)}",${v.amount},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `So_Quy_Thu_Chi_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+    }
+};
+
+window.VouchersModule = VouchersModule;
+
