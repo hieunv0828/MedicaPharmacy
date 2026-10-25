@@ -330,8 +330,51 @@
 
             if (matched.length === 0) {
                 const emptyEl = document.createElement('div');
-                emptyEl.className = 'px-3 py-4 text-center text-xs text-slate-400 italic';
-                emptyEl.innerText = `Không tìm thấy kết quả phù hợp với "${query}"`;
+                emptyEl.className = 'px-4 py-3.5 text-center text-xs text-slate-500';
+
+                const safeQuery = (query || '').replace(/"/g, '&quot;');
+                if (this.select.id === 'stockin-medicine-select' || this.config.richType === 'medicine') {
+                    emptyEl.innerHTML = `
+                        <div class="italic text-slate-400 mb-2">Không tìm thấy thuốc khớp với "<b>${safeQuery}</b>"</div>
+                        <button type="button" class="btn-quick-add-med inline-flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer">
+                            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+                            <span>Thêm Thuốc Mới Này Vào Kho</span>
+                        </button>
+                    `;
+                    const btn = emptyEl.querySelector('.btn-quick-add-med');
+                    if (btn) {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.close();
+                            if (window.InventoryModule && typeof InventoryModule.openMedicineModalFromStockIn === 'function') {
+                                InventoryModule.openMedicineModalFromStockIn(query);
+                            }
+                        });
+                    }
+                } else if (this.select.id === 'stockin-supplier' || this.config.richType === 'supplier') {
+                    emptyEl.innerHTML = `
+                        <div class="italic text-slate-400 mb-2">Không tìm thấy NCC khớp với "<b>${safeQuery}</b>"</div>
+                        <button type="button" class="btn-quick-add-sup inline-flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer">
+                            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+                            <span>Thêm Nhà Cung Cấp Mới</span>
+                        </button>
+                    `;
+                    const btn = emptyEl.querySelector('.btn-quick-add-sup');
+                    if (btn) {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.close();
+                            if (window.InventoryModule && typeof InventoryModule.openAddSupplierModal === 'function') {
+                                InventoryModule.openAddSupplierModal(query);
+                            }
+                        });
+                    }
+                } else {
+                    emptyEl.innerText = `Không tìm thấy kết quả phù hợp với "${query}"`;
+                }
+
                 this.dropdown.appendChild(emptyEl);
                 return;
             }

@@ -1,5 +1,6 @@
 # Temporary & Log files
 *.log
+*.bak
 tools/*.log
 test_*.txt
 test_*.html

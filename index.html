@@ -1725,7 +1725,13 @@
                     <span class="text-xs font-bold text-emerald-900 uppercase tracking-wider block">Thêm Mặt Hàng Vào Phiếu:</span>
                     <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
                         <div class="sm:col-span-5">
-                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Chọn thuốc</label>
+                            <div class="flex items-center justify-between mb-0.5">
+                                <label class="block text-[11px] font-semibold text-slate-600">Chọn thuốc *</label>
+                                <button type="button" onclick="InventoryModule.openMedicineModalFromStockIn()" class="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 cursor-pointer transition" title="Thêm thuốc mới vào danh mục kho">
+                                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                                    <span>Thêm Thuốc Mới</span>
+                                </button>
+                            </div>
                             <select id="stockin-medicine-select" onchange="InventoryModule.onStockInMedicineChange()"
                                     class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-semibold">
                                 <!-- Populated -->

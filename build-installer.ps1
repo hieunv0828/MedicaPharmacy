@@ -17,7 +17,7 @@ if (!(Test-Path $csc)) {
 
 # 1. Bien dich MedicaServer.exe
 Write-Host "[1/4] Bien dich may chu MedicaServer.exe moi nhat..." -ForegroundColor Cyan
-& $csc /target:winexe /platform:anycpu /out:"$root\MedicaServer.new.exe" "$root\server\MedicaServer.cs" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll | Out-Null
+& $csc /target:winexe /platform:anycpu /out:"$root\MedicaServer.new.exe" "$root\server\MedicaServer.cs" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Web.Extensions.dll | Out-Null
 if (Test-Path "$root\MedicaServer.new.exe") {
     # Thu thay the MedicaServer.exe neu khong bi khoa
     try {

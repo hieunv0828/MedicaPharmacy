@@ -26,6 +26,7 @@ const InventoryModule = {
     editingStockInId: null,
     pendingReturnStockInId: null,
     returnStockInPaymentMethod: 'cash',
+    addingMedicineFromStockIn: false,
 
     init() {
         this.renderCategoryFilter();
@@ -401,8 +402,66 @@ const InventoryModule = {
         document.getElementById('modal-medicine').classList.remove('hidden');
     },
 
+    // Mở modal Thêm Thuốc Mới nhanh từ Phiếu Nhập Kho
+    openMedicineModalFromStockIn(initialKeyword = '') {
+        if (window.AuthModule && !AuthModule.canEditInventory()) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền thêm thuốc mới. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else {
+                alert('Chỉ Admin mới có quyền thêm thuốc mới!');
+            }
+            return;
+        }
+
+        this.addingMedicineFromStockIn = true;
+        this.currentEditingMedId = null;
+
+        const modal = document.getElementById('modal-medicine');
+        if (!modal) return;
+        // Đặt z-index cao hơn modal phiếu nhập kho để hiển thị trọn vẹn ở trên
+        modal.style.zIndex = '70';
+
+        document.getElementById('modal-medicine-title').innerText = 'Thêm Thuốc Mới Vào Kho (Cho Phiếu Nhập)';
+        document.getElementById('form-medicine').reset();
+        document.getElementById('med-id').value = '';
+
+        // Nạp nhóm thuốc & nhà cung cấp
+        this.populateCategoryOptions('med-category');
+        this.populateSupplierOptions('med-supplier');
+
+        if (window.SearchableSelect) {
+            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm dược lý...' });
+            SearchableSelect.init('med-supplier', { richType: 'supplier', placeholder: '🔍 Tìm hoặc chọn nhà cung cấp...' });
+            SearchableSelect.refresh('med-category');
+            SearchableSelect.refresh('med-supplier');
+        }
+
+        // Tự động điền NCC đang chọn ở phiếu nhập kho nếu có
+        const stockInSupId = document.getElementById('stockin-supplier')?.value;
+        if (stockInSupId) {
+            const medSup = document.getElementById('med-supplier');
+            if (medSup) {
+                medSup.value = stockInSupId;
+                if (window.SearchableSelect) SearchableSelect.refresh('med-supplier');
+            }
+        }
+
+        // Nếu người dùng có từ khóa đang gõ dở, điền vào tên thuốc
+        if (initialKeyword && typeof initialKeyword === 'string') {
+            document.getElementById('med-name').value = initialKeyword.trim();
+        }
+
+        modal.classList.remove('hidden');
+        document.getElementById('med-name').focus();
+    },
+
     closeMedicineModal() {
-        document.getElementById('modal-medicine').classList.add('hidden');
+        const modal = document.getElementById('modal-medicine');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.zIndex = '';
+        }
+        this.addingMedicineFromStockIn = false;
     },
 
     saveMedicineFromForm(e) {
@@ -437,9 +496,26 @@ const InventoryModule = {
             usageDefault: document.getElementById('med-usage-default').value.trim()
         };
 
-        Store.saveMedicine(medData);
+        const savedMed = Store.saveMedicine(medData);
+        const wasAddingFromStockIn = this.addingMedicineFromStockIn;
         this.closeMedicineModal();
         AppUtils.playBeepSound('beep');
+
+        // Nếu đang thêm từ phiếu nhập kho, tự động chọn thuốc vừa thêm vào phiếu nhập
+        if (wasAddingFromStockIn && savedMed) {
+            this.populateStockInMedicineSelector();
+            if (window.SearchableSelect) {
+                SearchableSelect.refresh('stockin-medicine-select');
+            }
+            const sel = document.getElementById('stockin-medicine-select');
+            if (sel) {
+                sel.value = savedMed.id;
+                this.onStockInMedicineChange();
+            }
+            if (window.App && typeof App.showToast === 'function') {
+                App.showToast(`Đã thêm thuốc "${savedMed.name}" vào danh mục và chọn vào phiếu nhập!`, 'success');
+            }
+        }
     },
 
     deleteMedicine(id) {
@@ -595,7 +671,7 @@ const InventoryModule = {
     },
 
     // --- QUẢN LÝ THÊM NHÀ CUNG CẤP MỚI ---
-    openAddSupplierModal() {
+    openAddSupplierModal(initialName = '') {
         if (window.AuthModule && !AuthModule.canEditInventory()) {
             if (window.AppUtils && AppUtils.showToast) {
                 AppUtils.showToast('Bạn không có quyền thêm nhà cung cấp mới. Chỉ Admin mới được phép!', 'warning');
@@ -605,18 +681,24 @@ const InventoryModule = {
 
         const modal = document.getElementById('modal-add-supplier');
         if (!modal) return;
+        modal.style.zIndex = '70';
         const autoId = 'NCC' + String(Date.now()).slice(-4);
         const inputId = document.getElementById('supplier-input-id');
         if (inputId) inputId.value = autoId;
-        document.getElementById('supplier-input-name').value = '';
+        document.getElementById('supplier-input-name').value = initialName || '';
         document.getElementById('supplier-input-phone').value = '';
         document.getElementById('supplier-input-address').value = '';
         document.getElementById('supplier-input-note').value = '';
         modal.classList.remove('hidden');
+        document.getElementById('supplier-input-name')?.focus();
     },
 
     closeAddSupplierModal() {
-        document.getElementById('modal-add-supplier')?.classList.add('hidden');
+        const modal = document.getElementById('modal-add-supplier');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.zIndex = '';
+        }
     },
 
     saveNewSupplier() {

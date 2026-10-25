@@ -6,9 +6,11 @@ using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading;
 using System.Diagnostics;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Web.Script.Serialization;
 using Microsoft.Win32;
 
 namespace MedicaPharmacy
@@ -490,31 +492,21 @@ namespace MedicaPharmacy
                         {
                             if (method == "GET")
                             {
-                                byte[] dbBytes;
-                                lock (_dbLock)
-                                {
-                                    if (!File.Exists(_dbFile)) InitDatabaseIfEmpty();
-                                    dbBytes = File.ReadAllBytes(_dbFile);
-                                }
+                                string dbJson = GetFullDatabaseJson();
+                                byte[] dbBytes = Encoding.UTF8.GetBytes(dbJson);
                                 SendResponse(stream, 200, "application/json; charset=utf-8", dbBytes);
                             }
                             else if (method == "POST")
                             {
-                                if (!string.IsNullOrEmpty(body) && body.Trim().StartsWith("{"))
+                                bool saved = SaveFullDatabase(body);
+                                if (saved)
                                 {
-                                    lock (_dbLock)
-                                    {
-                                        string temp = _dbFile + ".tmp";
-                                        File.WriteAllText(temp, body, Encoding.UTF8);
-                                        if (File.Exists(_dbFile)) File.Delete(_dbFile);
-                                        File.Move(temp, _dbFile);
-                                    }
-                                    string ok = "{\"success\":true,\"message\":\"Lưu dữ liệu máy chủ thành công\"}";
+                                    string ok = "{\"success\":true,\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}";
                                     SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(ok));
                                 }
                                 else
                                 {
-                                    SendResponse(stream, 400, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":false}"));
+                                    SendResponse(stream, 400, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":false,\"message\":\"Dữ liệu không hợp lệ\"}"));
                                 }
                             }
                             return;
@@ -585,11 +577,276 @@ namespace MedicaPharmacy
 
         private void InitDatabaseIfEmpty()
         {
-            if (!File.Exists(_dbFile))
+            lock (_dbLock)
             {
-                string initialJson = "{\"medicines\":[],\"orders\":[],\"stockInOrders\":[],\"suppliers\":[],\"settings\":{}}";
-                File.WriteAllText(_dbFile, initialJson, Encoding.UTF8);
+                MigrateSingleDatabaseIfPresent();
+                string medFile = Path.Combine(_dataDir, "medicines.json");
+                if (!File.Exists(medFile))
+                {
+                    string initialJson = "{\"medicines\":[],\"orders\":[],\"stockInOrders\":[],\"suppliers\":[],\"customers\":[],\"vouchers\":[],\"settings\":{}}";
+                    SaveFullDatabaseInternal(initialJson);
+                }
             }
+        }
+
+        private void MigrateSingleDatabaseIfPresent()
+        {
+            string singleDb = Path.Combine(_dataDir, "database.json");
+            string medFile = Path.Combine(_dataDir, "medicines.json");
+
+            // Nếu đã có medicines.json thì hệ thống đã chuyển sang chế độ phân vùng modular
+            if (File.Exists(medFile)) return;
+
+            if (File.Exists(singleDb))
+            {
+                try
+                {
+                    string content = File.ReadAllText(singleDb, Encoding.UTF8);
+                    if (!string.IsNullOrEmpty(content) && content.Trim().StartsWith("{"))
+                    {
+                        SaveFullDatabaseInternal(content);
+                        // Đổi tên file đơn cũ thành .bak để an toàn tuyệt đối
+                        string bak = singleDb + ".bak";
+                        if (File.Exists(bak)) File.Delete(bak);
+                        File.Move(singleDb, bak);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    try { File.AppendAllText(Path.Combine(_webRoot, "migrate_err.txt"), ex.ToString()); } catch { }
+                }
+            }
+        }
+
+        private string GetFullDatabaseJson()
+        {
+            lock (_dbLock)
+            {
+                MigrateSingleDatabaseIfPresent();
+
+                var fullDb = new Dictionary<string, object>();
+                fullDb["settings"] = ReadJsonFile(Path.Combine(_dataDir, "settings.json"), new Dictionary<string, object>());
+                fullDb["medicines"] = ReadJsonFile(Path.Combine(_dataDir, "medicines.json"), new ArrayList());
+                fullDb["suppliers"] = ReadJsonFile(Path.Combine(_dataDir, "suppliers.json"), new ArrayList());
+                fullDb["customers"] = ReadJsonFile(Path.Combine(_dataDir, "customers.json"), new ArrayList());
+                fullDb["settingsHistory"] = ReadJsonFile(Path.Combine(_dataDir, "settings_history.json"), new ArrayList());
+
+                fullDb["orders"] = ReadPartitionedList("orders_*.json");
+                fullDb["stockInOrders"] = ReadPartitionedList("stockin_*.json");
+                fullDb["vouchers"] = ReadPartitionedList("vouchers_*.json");
+
+                fullDb["lastUpdated"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+
+                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                return serializer.Serialize(fullDb);
+            }
+        }
+
+        private bool SaveFullDatabase(string body)
+        {
+            if (string.IsNullOrEmpty(body) || !body.Trim().StartsWith("{")) return false;
+            lock (_dbLock)
+            {
+                return SaveFullDatabaseInternal(body);
+            }
+        }
+
+        private bool SaveFullDatabaseInternal(string body)
+        {
+            try
+            {
+                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                Dictionary<string, object> dict = serializer.Deserialize<Dictionary<string, object>>(body);
+                if (dict == null) return false;
+
+                // 1. Danh mục & cài đặt thường trực
+                if (dict.ContainsKey("settings") && dict["settings"] != null)
+                {
+                    WriteAtomicJson(Path.Combine(_dataDir, "settings.json"), serializer.Serialize(dict["settings"]));
+                }
+
+                if (dict.ContainsKey("medicines") && dict["medicines"] != null)
+                {
+                    WriteAtomicJson(Path.Combine(_dataDir, "medicines.json"), serializer.Serialize(dict["medicines"]));
+                }
+
+                if (dict.ContainsKey("suppliers") && dict["suppliers"] != null)
+                {
+                    WriteAtomicJson(Path.Combine(_dataDir, "suppliers.json"), serializer.Serialize(dict["suppliers"]));
+                }
+
+                if (dict.ContainsKey("customers") && dict["customers"] != null)
+                {
+                    WriteAtomicJson(Path.Combine(_dataDir, "customers.json"), serializer.Serialize(dict["customers"]));
+                }
+
+                if (dict.ContainsKey("settingsHistory") && dict["settingsHistory"] != null)
+                {
+                    WriteAtomicJson(Path.Combine(_dataDir, "settings_history.json"), serializer.Serialize(dict["settingsHistory"]));
+                }
+
+                string curYear = DateTime.Now.Year.ToString();
+
+                // 2. Phân vùng Đơn bán hàng (Orders) theo từng năm
+                if (dict.ContainsKey("orders") && dict["orders"] is ArrayList)
+                {
+                    var list = (ArrayList)dict["orders"];
+                    var byYear = new Dictionary<string, List<object>>();
+
+                    foreach (var item in list)
+                    {
+                        string y = curYear;
+                        if (item is Dictionary<string, object>)
+                        {
+                            var d = (Dictionary<string, object>)item;
+                            if (d.ContainsKey("createdAt")) y = ExtractYear(d["createdAt"], curYear);
+                            else if (d.ContainsKey("date")) y = ExtractYear(d["date"], curYear);
+                        }
+                        if (!byYear.ContainsKey(y)) byYear[y] = new List<object>();
+                        byYear[y].Add(item);
+                    }
+
+                    if (byYear.Count == 0) byYear[curYear] = new List<object>();
+
+                    foreach (var kvp in byYear)
+                    {
+                        string fPath = Path.Combine(_dataDir, string.Format("orders_{0}.json", kvp.Key));
+                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                    }
+                }
+
+                // 3. Phân vùng Phiếu nhập kho (Stock-in) theo từng năm
+                if (dict.ContainsKey("stockInOrders") && dict["stockInOrders"] is ArrayList)
+                {
+                    var list = (ArrayList)dict["stockInOrders"];
+                    var byYear = new Dictionary<string, List<object>>();
+
+                    foreach (var item in list)
+                    {
+                        string y = curYear;
+                        if (item is Dictionary<string, object>)
+                        {
+                            var d = (Dictionary<string, object>)item;
+                            if (d.ContainsKey("createdAt")) y = ExtractYear(d["createdAt"], curYear);
+                            else if (d.ContainsKey("date")) y = ExtractYear(d["date"], curYear);
+                        }
+                        if (!byYear.ContainsKey(y)) byYear[y] = new List<object>();
+                        byYear[y].Add(item);
+                    }
+
+                    if (byYear.Count == 0) byYear[curYear] = new List<object>();
+
+                    foreach (var kvp in byYear)
+                    {
+                        string fPath = Path.Combine(_dataDir, string.Format("stockin_{0}.json", kvp.Key));
+                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                    }
+                }
+
+                // 4. Phân vùng Sổ quỹ thu chi (Vouchers) theo từng năm
+                if (dict.ContainsKey("vouchers") && dict["vouchers"] is ArrayList)
+                {
+                    var list = (ArrayList)dict["vouchers"];
+                    var byYear = new Dictionary<string, List<object>>();
+
+                    foreach (var item in list)
+                    {
+                        string y = curYear;
+                        if (item is Dictionary<string, object>)
+                        {
+                            var d = (Dictionary<string, object>)item;
+                            if (d.ContainsKey("createdAt")) y = ExtractYear(d["createdAt"], curYear);
+                            else if (d.ContainsKey("date")) y = ExtractYear(d["date"], curYear);
+                        }
+                        if (!byYear.ContainsKey(y)) byYear[y] = new List<object>();
+                        byYear[y].Add(item);
+                    }
+
+                    if (byYear.Count == 0) byYear[curYear] = new List<object>();
+
+                    foreach (var kvp in byYear)
+                    {
+                        string fPath = Path.Combine(_dataDir, string.Format("vouchers_{0}.json", kvp.Key));
+                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                try { File.AppendAllText(Path.Combine(_webRoot, "save_err.txt"), ex.ToString()); } catch { }
+                return false;
+            }
+        }
+
+        private void WriteAtomicJson(string path, string json)
+        {
+            string temp = path + ".tmp";
+            File.WriteAllText(temp, json, Encoding.UTF8);
+            if (File.Exists(path)) File.Delete(path);
+            File.Move(temp, path);
+        }
+
+        private object ReadJsonFile(string path, object defaultVal)
+        {
+            if (!File.Exists(path)) return defaultVal;
+            try
+            {
+                string content = File.ReadAllText(path, Encoding.UTF8);
+                if (string.IsNullOrEmpty(content)) return defaultVal;
+                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                return serializer.Deserialize<object>(content) ?? defaultVal;
+            }
+            catch
+            {
+                return defaultVal;
+            }
+        }
+
+        private List<object> ReadPartitionedList(string pattern)
+        {
+            var allItems = new List<object>();
+            var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+            try
+            {
+                string[] files = Directory.GetFiles(_dataDir, pattern);
+                Array.Sort(files);
+                foreach (string file in files)
+                {
+                    try
+                    {
+                        string content = File.ReadAllText(file, Encoding.UTF8);
+                        if (!string.IsNullOrEmpty(content))
+                        {
+                            var list = serializer.Deserialize<ArrayList>(content);
+                            if (list != null)
+                            {
+                                foreach (var item in list) allItems.Add(item);
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return allItems;
+        }
+
+        private string ExtractYear(object dateVal, string defaultYear)
+        {
+            if (dateVal == null) return defaultYear;
+            string s = dateVal.ToString().Trim();
+            if (s.Length >= 4)
+            {
+                string y = s.Substring(0, 4);
+                int yInt;
+                if (int.TryParse(y, out yInt) && yInt >= 2000 && yInt <= 2100)
+                {
+                    return y;
+                }
+            }
+            return defaultYear;
         }
 
         private List<string> GetLocalIPv4Addresses()
