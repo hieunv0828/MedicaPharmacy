@@ -21,6 +21,9 @@ const App = {
         if (window.VouchersModule) {
             VouchersModule.init();
         }
+        if (window.BarcodePrinterModule) {
+            BarcodePrinterModule.init();
+        }
         ReportsModule.init();
         this.initSettingsModule();
         this.setupNavigation();

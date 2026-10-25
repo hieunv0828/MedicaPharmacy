@@ -256,6 +256,9 @@ const InventoryModule = {
 
             const actionButtons = canEdit ? `
                 <div class="flex items-center justify-center gap-1.5">
+                    <button onclick="BarcodePrinterModule.openForMedicine('${m.id}')" title="In tem mã vạch dán hộp" class="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition cursor-pointer">
+                        <i data-lucide="scan" class="w-4 h-4"></i>
+                    </button>
                     <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử nhập kho và bán thuốc" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition cursor-pointer">
                         <i data-lucide="history" class="w-4 h-4"></i>
                     </button>
@@ -268,6 +271,10 @@ const InventoryModule = {
                 </div>
             ` : `
                 <div class="flex items-center justify-center gap-1.5">
+                    <button onclick="BarcodePrinterModule.openForMedicine('${m.id}')" title="In tem mã vạch dán hộp" class="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition cursor-pointer flex items-center gap-1">
+                        <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                        <span>In Tem</span>
+                    </button>
                     <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử bán thuốc" class="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition cursor-pointer flex items-center gap-1">
                         <i data-lucide="history" class="w-3.5 h-3.5"></i>
                         <span>Lịch sử</span>
@@ -787,6 +794,13 @@ const InventoryModule = {
             AppUtils.playBeepSound('success');
             this.closeStockInModal();
             App.showToast(`Đã hoàn tất nhập kho phiếu ${saved.id} (${paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})! Tồn kho đã tự động cộng dồn.`, 'success');
+
+            // Tự động hỏi / mở in tem mã vạch dán hộp cho các mặt hàng vừa nhập
+            if (window.BarcodePrinterModule) {
+                setTimeout(() => {
+                    BarcodePrinterModule.promptPrintAfterStockIn(saved);
+                }, 400);
+            }
         }
     },
 
@@ -958,11 +972,15 @@ const InventoryModule = {
                     <td class="py-3 px-3 text-right font-bold text-slate-800">${AppUtils.formatVND(o.totalAmount)}</td>
                     <td class="py-3 px-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Xem chi tiết" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1">
+                            <button onclick="BarcodePrinterModule.openForStockInOrder('${o.id}')" title="In tem mã vạch dán hộp (104x22mm)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                                <span>In Tem</span>
+                            </button>
+                            <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Xem chi tiết" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                                 <span>Chi tiết</span>
                             </button>
-                            <button onclick="InventoryModule.openEditStockInModal('${o.id}')" title="Chỉnh sửa phiếu nhập kho" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1">
+                            <button onclick="InventoryModule.openEditStockInModal('${o.id}')" title="Chỉnh sửa phiếu nhập kho" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                                 <span>Sửa</span>
                             </button>
@@ -1078,6 +1096,14 @@ const InventoryModule = {
         const btnEdit = document.getElementById('btn-edit-from-stockin-detail');
         if (btnEdit) {
             btnEdit.onclick = () => this.openEditStockInModal(orderId);
+        }
+        const btnPrintBarcode = document.getElementById('btn-print-barcode-from-stockin-detail');
+        if (btnPrintBarcode) {
+            btnPrintBarcode.onclick = () => {
+                if (window.BarcodePrinterModule) {
+                    BarcodePrinterModule.openForStockInOrder(orderId);
+                }
+            };
         }
         if (window.lucide) lucide.createIcons();
     },

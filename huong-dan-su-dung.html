@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hướng Dẫn Sử Dụng - Phần Mềm Quản Lý Nhà Thuốc MedicaPharmacy GPP</title>
+    <!-- Tailwind CSS (Offline local) -->
+    <script src="vendor/tailwind.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        medical: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="vendor/lucide.min.js"></script>
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-break { page-break-before: always; }
+            .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+            .border { border-color: #cbd5e1 !important; }
+        }
+        html { scroll-behavior: smooth; }
+        .guide-section { scroll-margin-top: 5rem; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- HEADER CỐ ĐỊNH -->
+    <header class="bg-emerald-900 text-white shadow-lg sticky top-0 z-50 border-b border-emerald-800 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Brand -->
+                <div class="flex items-center gap-3">
+                    <a href="index.html" class="flex items-center gap-2.5 text-white no-underline hover:text-emerald-200 transition">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-inner font-bold text-xl">
+                            <i data-lucide="cross" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="font-extrabold text-base sm:text-lg tracking-wide flex items-center gap-2">
+                                <span>MEDICA PHARMACY</span>
+                                <span class="text-[10px] bg-emerald-700 text-emerald-200 px-1.5 py-0.5 rounded-full uppercase font-bold">GPP</span>
+                            </div>
+                            <div class="text-[11px] text-emerald-300 font-light">Tài Liệu Hướng Dẫn Sử Dụng Chuẩn</div>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Ô tìm kiếm nhanh nội dung hướng dẫn -->
+                <div class="hidden md:flex items-center flex-1 max-w-md mx-6">
+                    <div class="relative w-full">
+                        <i data-lucide="search" class="w-4 h-4 text-emerald-300 absolute left-3.5 top-3"></i>
+                        <input type="text" id="guide-search" oninput="searchGuide()" placeholder="Tìm kiếm chức năng: bán thuốc, tích điểm, nhập kho, in hóa đơn..." 
+                               class="w-full pl-10 pr-4 py-2 bg-emerald-950/60 border border-emerald-700/80 rounded-xl text-xs text-white placeholder-emerald-300/70 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-emerald-950">
+                    </div>
+                </div>
+
+                <!-- Nút thao tác -->
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <button onclick="window.print()" class="px-3 py-2 bg-emerald-800/80 hover:bg-emerald-700 text-emerald-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-emerald-700">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">In / Xuất PDF</span>
+                    </button>
+                    <a href="index.html" class="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm no-underline">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                        <span>Vào Phần Mềm</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- BANNER TIÊU ĐỀ -->
+    <div class="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 text-white py-8 sm:py-12 border-b border-emerald-900 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div class="space-y-2">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 border border-emerald-500/40 text-emerald-200 text-xs font-semibold">
+                        <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+                        <span>Cẩm Nang Vận Hành Toàn Diện 2026</span>
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
+                        Hướng Dẫn Sử Dụng MedicaPharmacy
+                    </h1>
+                    <p class="text-emerald-100 text-xs sm:text-sm max-w-2xl leading-relaxed">
+                        Tài liệu chi tiết hướng dẫn nhân viên và dược sĩ quản trị khai thác tối đa các tính năng bán hàng POS, quản lý kho thuốc chuẩn GPP, tích điểm khách hàng, thu chi và báo cáo doanh thu.
+                    </p>
+                </div>
+                <!-- Card tóm tắt tài khoản -->
+                <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-xs space-y-2 min-w-[280px]">
+                    <div class="font-bold text-emerald-200 flex items-center gap-1.5 border-b border-white/15 pb-2">
+                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-300"></i>
+                        <span>Tài Khoản Đăng Nhập Mặc Định:</span>
+                    </div>
+                    <div class="space-y-1.5 text-slate-100">
+                        <div class="flex items-center justify-between">
+                            <span>👑 <b>Quản Trị (Admin)</b>:</span>
+                            <code class="bg-black/30 px-2 py-0.5 rounded font-mono text-amber-300">admin / admin</code>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>💼 <b>Nhân Viên (Staff)</b>:</span>
+                            <code class="bg-black/30 px-2 py-0.5 rounded font-mono text-cyan-300">staff / 123</code>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-emerald-200/80 pt-1 italic">* Dược sĩ có thể đổi mật khẩu trong mục Cài Đặt</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NỘI DUNG CHÍNH (SIDEBAR + MAIN CONTENT) -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            
+            <!-- SIDEBAR MỤC LỤC NHANH (STICKY) -->
+            <aside class="lg:col-span-1 no-print">
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto space-y-1.5 text-xs font-medium">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1 flex items-center gap-1.5">
+                        <i data-lucide="list" class="w-3.5 h-3.5"></i>
+                        <span>Mục Lục Hướng Dẫn</span>
+                    </div>
+                    
+                    <a href="#sec-auth" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">1</span>
+                        <span>Đăng Nhập & Phân Quyền</span>
+                    </a>
+                    <a href="#sec-pos" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">2</span>
+                        <span>Bán Thuốc & Thu Ngân (POS)</span>
+                    </a>
+                    <a href="#sec-points" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-[10px]">3</span>
+                        <span>Tích Điểm & Trừ Tiền (1đ=1.000đ)</span>
+                    </a>
+                    <a href="#sec-inventory" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">4</span>
+                        <span>Quản Lý Kho Thuốc & Cảnh Báo</span>
+                    </a>
+                    <a href="#sec-stockin" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">5</span>
+                        <span>Nhập Thuốc Từ Nhà Cung Cấp</span>
+                    </a>
+                    <a href="#sec-orders" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">6</span>
+                        <span>Đơn Hàng & Đổi Trả / In Lại</span>
+                    </a>
+                    <a href="#sec-vouchers" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">7</span>
+                        <span>Sổ Thu Chi Quỹ Tiền Mặt</span>
+                    </a>
+                    <a href="#sec-reports" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">8</span>
+                        <span>Báo Cáo & Phân Tích Lợi Nhuận</span>
+                    </a>
+                    <a href="#sec-settings" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">9</span>
+                        <span>Cài Đặt VietQR & Sao Lưu</span>
+                    </a>
+                    <a href="#sec-shortcuts" class="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition">
+                        <span class="w-5 h-5 rounded-md bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-[10px]">10</span>
+                        <span>Bảng Phím Tắt Thao Tác Nhanh</span>
+                    </a>
+
+                    <div class="pt-4 border-t border-slate-100 text-[11px] text-slate-500 space-y-2">
+                        <div class="bg-emerald-50 text-emerald-800 p-2.5 rounded-xl border border-emerald-200">
+                            <b>💡 Mẹo nhỏ:</b> Nhấp chuột vào logo <b>MEDICA PHARMACY</b> để về trang Bán Thuốc, hoặc rê chuột để mở nhanh menu điều hướng.
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- KHUNG NỘI DUNG CHÍNH -->
+            <main class="lg:col-span-3 space-y-10">
+
+                <!-- PHẦN 1: ĐĂNG NHẬP & PHÂN QUYỀN -->
+                <section id="sec-auth" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">1</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Đăng Nhập & Phân Quyền Vai Trò (RBAC)</h2>
+                            <p class="text-xs text-slate-500">Bảo mật hệ thống nhà thuốc với 2 cấp độ quyền hạn riêng biệt</p>
+                        </div>
+                    </div>
+
+                    <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                        MedicaPharmacy yêu cầu đăng nhập bắt buộc khi truy cập để đảm bảo tính an toàn dữ liệu, chống thất thoát doanh số và bảo vệ thông tin giá vốn nhập hàng.
+                    </p>
+
+                    <!-- So sánh 2 vai trò -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <!-- Quản trị viên -->
+                        <div class="border-2 border-emerald-600/30 bg-emerald-50/40 rounded-2xl p-4 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black text-xs uppercase">Quản Trị Viên (Admin)</span>
+                                <span class="text-xs font-mono font-bold text-emerald-800">DS. Thanh Dung & DS. Thị Kiều</span>
+                            </div>
+                            <ul class="text-xs text-slate-700 space-y-1.5 list-disc list-inside">
+                                <li><b>Toàn quyền hệ thống</b>: Xem & quản lý tất cả các tab.</li>
+                                <li><b>Xem giá vốn & Lợi nhuận</b>: Nắm rõ giá nhập, tỷ suất sinh lời.</li>
+                                <li><b>Nhập thuốc kho</b>: Lập phiếu nhập từ nhà cung cấp.</li>
+                                <li><b>Sổ Thu Chi & Báo Cáo</b>: Quản lý dòng tiền, quỹ tiền mặt.</li>
+                                <li><b>Hủy hóa đơn & Đổi trả</b>: Toàn quyền xử lý đơn lỗi.</li>
+                                <li><b>Cấu hình & Đổi mật khẩu</b>: Cài đặt thông tin nhà thuốc & VietQR.</li>
+                            </ul>
+                        </div>
+
+                        <!-- Nhân viên -->
+                        <div class="border-2 border-blue-600/30 bg-blue-50/40 rounded-2xl p-4 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-black text-xs uppercase">Nhân Viên Bán Hàng (Staff)</span>
+                                <span class="text-xs font-mono font-bold text-blue-800">DS. Bán Hàng</span>
+                            </div>
+                            <ul class="text-xs text-slate-700 space-y-1.5 list-disc list-inside">
+                                <li><b>Chỉ bán lẻ & Thu tiền POS</b>: Tạo đơn và in hóa đơn.</li>
+                                <li><b>Tra cứu kho cơ bản</b>: Xem số lượng tồn và giá bán lẻ.</li>
+                                <li><b class="text-rose-600">TUYỆT ĐỐI KHÔNG xem giá vốn nhập</b> (cột giá nhập bị ẩn).</li>
+                                <li><b class="text-rose-600">Bị khóa hoàn toàn</b>: Tab Nhập Thuốc, Sổ Thu Chi, Báo Cáo Doanh Thu, Cài Đặt.</li>
+                                <li>Không được tự ý hủy đơn hàng đã hoàn tất.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Tính năng duy trì phiên đa tab -->
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 space-y-1">
+                        <div class="font-bold flex items-center gap-1.5 text-amber-800">
+                            <i data-lucide="tabs" class="w-4 h-4"></i>
+                            <span>Duy Trì Phiên Khi Mở Nhiều Tab (Multi-Tab Sync):</span>
+                        </div>
+                        <p class="leading-relaxed">
+                            Khi bạn <b>chuột phải vào "MEDICA PHARMACY"</b> và chọn <i>"Mở đường liên kết trong tab mới"</i> (hoặc bấm <kbd class="px-1.5 py-0.5 bg-white border border-amber-300 rounded text-[10px]">Ctrl + Click</kbd>), tab mới sẽ tự động duy trì đăng nhập mà không cần nhập lại mật khẩu. Khi bạn bấm nút <b>Đăng Xuất</b> ở bất kỳ tab nào, toàn bộ các tab đang mở sẽ tự động khóa lại cùng lúc.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- PHẦN 2: BÁN THUỐC & THU NGÂN (POS) -->
+                <section id="sec-pos" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">2</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Quy Trình Bán Thuốc & Thu Ngân (POS)</h2>
+                            <p class="text-xs text-slate-500">Màn hình thao tác chính của dược sĩ tại quầy bán thuốc</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
+                            <span class="text-xs font-bold text-emerald-700">Bước 1: Tìm Thuốc</span>
+                            <p class="text-xs text-slate-600">Gõ tên thuốc, hoạt chất hoặc quét mã vạch bằng máy quét Barcode. Hỗ trợ tìm kiếm không dấu.</p>
+                        </div>
+                        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
+                            <span class="text-xs font-bold text-emerald-700">Bước 2: Chọn Đơn Vị</span>
+                            <p class="text-xs text-slate-600">Chọn bán theo Viên, Vỉ, Hộp, Chai, Gói... Hệ thống tự tính đúng giá niêm yết theo quy cách.</p>
+                        </div>
+                        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
+                            <span class="text-xs font-bold text-emerald-700">Bước 3: Thu Tiền & In</span>
+                            <p class="text-xs text-slate-600">Nhập tiền khách đưa hoặc cho khách quét VietQR. Bấm "Thanh Toán & In" để xuất hóa đơn K80.</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2 text-xs sm:text-sm text-slate-700">
+                        <h3 class="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+                            <span>Các tính năng hỗ trợ khi lên đơn thuốc:</span>
+                        </h3>
+                        <ul class="space-y-2 list-disc list-inside text-xs leading-relaxed text-slate-600">
+                            <li><b>Chọn khách hàng</b>: Nhập số điện thoại khách để lưu lịch sử dùng thuốc và kích hoạt tích lũy điểm thưởng.</li>
+                            <li><b>Chiết khấu hóa đơn</b>: Giảm giá theo % hoặc theo số tiền trực tiếp cho khách quen.</li>
+                            <li><b>Ghi chú đơn thuốc</b>: Nhập hướng dẫn liều dùng (ví dụ: <i>"Uống sáng 1 viên sau ăn"</i>) để in thẳng lên hóa đơn cho bệnh nhân dễ theo dõi.</li>
+                            <li><b>Thanh toán VietQR động</b>: Tự động hiển thị mã QR kèm chính xác số tiền cần chuyển. Khách dùng bất kỳ app ngân hàng nào (Vietcombank, MB, Techcombank, BIDV...) quét là chuyển tiền tức thì, không sợ nhầm lẫn số tài khoản hay số tiền.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- PHẦN 3: TÍCH ĐIỂM KHÁCH HÀNG -->
+                <section id="sec-points" class="guide-section bg-white rounded-2xl border border-amber-200/80 p-6 sm:p-8 shadow-xs space-y-4 bg-gradient-to-b from-white to-amber-50/20">
+                    <div class="flex items-center gap-3 border-b border-amber-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-lg">3</div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-xl font-extrabold text-slate-900">Quản Lý Tích Điểm & Trừ Tiền Thưởng</h2>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white uppercase">Mới cập nhật</span>
+                            </div>
+                            <p class="text-xs text-slate-500">Giữ chân khách hàng trung thành với chính sách quy đổi điểm thưởng trực tiếp</p>
+                        </div>
+                    </div>
+
+                    <!-- Quy tắc quy đổi -->
+                    <div class="bg-amber-100/70 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm font-black text-2xl">
+                                🌟
+                            </div>
+                            <div>
+                                <div class="font-bold text-amber-950 text-sm">Tỷ Lệ Quy Đổi Điểm Thưởng:</div>
+                                <div class="text-xs text-amber-900">Cứ <b>1 Điểm Tích Lũy</b> = Trừ ngay <b>1.000 VNĐ</b> vào hóa đơn thanh toán.</div>
+                            </div>
+                        </div>
+                        <div class="px-4 py-2 bg-white rounded-xl shadow-xs border border-amber-200 text-center font-mono font-bold text-emerald-700 text-sm shrink-0">
+                            1 Điểm = 1.000 đ
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 text-xs sm:text-sm text-slate-700">
+                        <h3 class="font-bold text-slate-900 text-sm">Cách áp dụng điểm tích lũy khi bán thuốc:</h3>
+                        <ol class="space-y-2 list-decimal list-inside text-xs text-slate-600 leading-relaxed">
+                            <li>Tại khung <b>Thông Tin Khách Hàng</b> ở màn hình POS, nhập số điện thoại hoặc tên khách (Ví dụ: <i>0988 123 456 - Chị Lan</i>).</li>
+                            <li>Hệ thống sẽ lập tức hiển thị huy hiệu số điểm khách hiện có (Ví dụ: <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-bold font-mono">25 điểm = 25.000đ</span>).</li>
+                            <li>Ở phần tóm tắt thanh toán, xuất hiện ô <b>"Sử dụng tích điểm"</b>. Dược sĩ chỉ cần gõ số điểm khách muốn tiêu (ví dụ khách muốn dùng 20 điểm), hệ thống sẽ:
+                                <ul class="list-disc list-inside pl-4 pt-1 space-y-1 text-emerald-700 font-semibold">
+                                    <li>Tự động trừ <b>20.000đ</b> vào tổng tiền cần thanh toán của hóa đơn.</li>
+                                    <li>Sau khi bấm thanh toán, hệ thống tự động trừ 20 điểm trong tài khoản của khách và cộng điểm tích lũy mới theo giá trị đơn hàng thực tế.</li>
+                                </ul>
+                            </li>
+                        </ol>
+                    </div>
+                </section>
+
+                <!-- PHẦN 4: QUẢN LÝ KHO THUỐC -->
+                <section id="sec-inventory" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">4</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Quản Lý Kho Thuốc & Cảnh Báo Hạn Dùng GPP</h2>
+                            <p class="text-xs text-slate-500">Kiểm soát số lượng tồn, số lô sản xuất và hạn dùng (EXP Date)</p>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Hệ thống tự động phân loại thuốc theo tiêu chuẩn thực hành tốt nhà thuốc GPP, cảnh báo trực quan bằng các nhãn màu sắc để dược sĩ không bán thuốc hết hạn hoặc thiếu hụt tồn kho.
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                            <span class="px-2 py-0.5 bg-rose-600 text-white font-bold text-[10px] rounded uppercase">Màu Đỏ (Cực Nguy Hiểm)</span>
+                            <p class="text-[11px] text-rose-900">Thuốc đã hết hạn sử dụng (quá date) hoặc thuốc đã hết sạch số lượng trong kho (= 0).</p>
+                        </div>
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                            <span class="px-2 py-0.5 bg-amber-600 text-white font-bold text-[10px] rounded uppercase">Màu Vàng (Cần Chú Ý)</span>
+                            <p class="text-[11px] text-amber-900">Thuốc cận hạn sử dụng (dưới 6 tháng / 3 tháng) hoặc tồn kho sắp hết (dưới định mức tối thiểu).</p>
+                        </div>
+                        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                            <span class="px-2 py-0.5 bg-emerald-600 text-white font-bold text-[10px] rounded uppercase">Màu Xanh (An Toàn)</span>
+                            <p class="text-[11px] text-emerald-900">Thuốc còn hạn dùng dài (> 6 tháng) và số lượng tồn kho dồi dào sẵn sàng bán lẻ.</p>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 space-y-2 text-xs text-slate-700">
+                        <div class="font-bold text-slate-900">Các thao tác trên Kho Thuốc:</div>
+                        <ul class="list-disc list-inside space-y-1 text-slate-600">
+                            <li><b>Thêm Thuốc Mới (Chỉ Admin)</b>: Bấm nút <i>"+ Thêm Thuốc"</i>, điền tên thuốc, hoạt chất, số đăng ký, nhóm thuốc, giá vốn, giá bán lẻ và quy cách đóng gói.</li>
+                            <li><b>Sửa / Cập Nhật Thuốc (Chỉ Admin)</b>: Nhấp icon Cây Bút để cập nhật lại giá bán, số lô hoặc quy cách.</li>
+                            <li><b>Xuất File Excel Kho</b>: Tải toàn bộ danh mục kho thuốc về máy tính dưới định dạng file Excel chuẩn chỉ với 1 cú click.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- PHẦN 5: NHẬP THUỐC & IN TEM MÃ VẠCH -->
+                <section id="sec-stockin" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">5</div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-xl font-extrabold text-slate-900">Nhập Thuốc & In Tem Mã Vạch Dán Hộp</h2>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white uppercase">Tem 104×22mm</span>
+                            </div>
+                            <p class="text-xs text-slate-500">Lập phiếu nhập kho và in tem nhãn dán lên từng hộp thuốc chuẩn quầy thuốc</p>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Cho phép lập phiếu nhập kho khi nhà thuốc nhập hàng từ các công ty phân phối dược phẩm (Dược Hậu Giang, Traphaco, Sanofi, CPC1...) và in ngay tem mã vạch để dán lên từng hộp thuốc.
+                    </p>
+
+                    <div class="space-y-2 text-xs text-slate-700">
+                        <div class="font-bold text-slate-900">1. Các bước lập phiếu nhập kho:</div>
+                        <ol class="list-decimal list-inside space-y-1.5 text-slate-600">
+                            <li>Chọn <b>Nhà Cung Cấp</b> từ danh sách có sẵn hoặc thêm mới nhà phân phối.</li>
+                            <li>Nhập <b>Mã phiếu nhập / Số hóa đơn đỏ</b> và ngày giao hàng.</li>
+                            <li>Chọn các loại thuốc cần nhập, điền <b>Số Lượng Nhập</b>, <b>Giá Vốn Nhập</b>, <b>Số Lô Sản Xuất</b> và <b>Hạn Sử Dụng (EXP)</b>.</li>
+                            <li>Bấm <b>"Hoàn Tất Nhập Kho"</b>: Hệ thống sẽ tự động cộng số lượng vào kho thuốc và ghi nhận chi phí vào sổ quỹ.</li>
+                        </ol>
+                    </div>
+
+                    <!-- HƯỚNG DẪN IN TEM MÃ VẠCH 104x22mm -->
+                    <div class="p-4 bg-purple-50/70 border-2 border-purple-200 rounded-2xl space-y-3">
+                        <div class="flex items-center gap-2 text-purple-900 font-extrabold text-sm">
+                            <i data-lucide="scan" class="w-5 h-5 text-purple-600"></i>
+                            <span>2. Tính Năng In Tem Mã Vạch Dán Hộp (Khổ Cuộn 3 Nhãn 104×22mm):</span>
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            Mỗi khi hoàn tất nhập kho, hệ thống sẽ <b>tự động bật hộp thoại hỏi có muốn in tem mã vạch dán hộp ngay không</b>. Bạn chỉ cần nhấn nút <b>"In Tem Ngay"</b>, hệ thống sẽ chuẩn bị sẵn số lượng tem đúng bằng số hộp vừa nhập.
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div class="bg-white p-3 rounded-xl border border-purple-200 space-y-1 text-xs">
+                                <b class="text-purple-950">Quy cách tem in chuẩn:</b>
+                                <ul class="list-disc list-inside text-slate-600 space-y-0.5 text-[11px]">
+                                    <li><b>Khổ giấy</b>: Cuộn 3 nhãn (104 × 22 mm / 4.2 × 0.9 Inch).</li>
+                                    <li><b>Kích thước 1 tem</b>: 33 × 21 mm (vừa vặn trên mặt hộp thuốc).</li>
+                                    <li><b>Tên thuốc</b>: Dòng 1 in tên sản phẩm.</li>
+                                    <li><b>Đơn vị tính</b>: Dòng 2 in (Hộp) hoặc (Vỉ).</li>
+                                    <li><b>Mã vạch Code 128</b>: Chuẩn máy quét laser POS.</li>
+                                    <li><b>Mã SP</b>: Dòng dưới mã vạch (ví dụ SP026915).</li>
+                                    <li><b>Giá bán lẻ</b>: Dòng cuối in đậm giá tiền to rõ (ví dụ 389,000 VNĐ).</li>
+                                </ul>
+                            </div>
+                            <div class="bg-white p-3 rounded-xl border border-purple-200 space-y-1 text-xs">
+                                <b class="text-purple-950">Các vị trí có thể in tem:</b>
+                                <ul class="list-disc list-inside text-slate-600 space-y-0.5 text-[11px]">
+                                    <li><b>Ngay khi lưu phiếu nhập</b>: Bấm "In Tem Ngay" tại hộp thoại xác nhận.</li>
+                                    <li><b>Trong form lập phiếu</b>: Nút <i>"In Tem Nhãn"</i> cạnh nút lưu.</li>
+                                    <li><b>Trong bảng lịch sử</b>: Nút <i>"In Tem"</i> ở cột Thao tác của từng phiếu nhập cũ.</li>
+                                    <li><b>Trong Kho Thuốc</b>: Bấm icon mã vạch ở từng dòng thuốc để in bổ sung tem lẻ khi tem bị rách hoặc bong.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PHẦN 6: ĐƠN HÀNG & ĐỔI TRẢ -->
+                <section id="sec-orders" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">6</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Lịch Sử Hóa Đơn & Xử Lý Đổi Trả</h2>
+                            <p class="text-xs text-slate-500">Tra cứu nhanh mọi đơn hàng đã bán trong ngày và trong quá khứ</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 text-xs text-slate-700">
+                        <ul class="list-disc list-inside space-y-2 text-slate-600">
+                            <li><b>In lại hóa đơn</b>: Cả Admin và Staff đều có quyền tra cứu lại đơn hàng cũ và bấm nút <i>"In lại hóa đơn"</i> khi khách hàng làm mất bill hoặc yêu cầu xuất lại.</li>
+                            <li><b>Hủy hóa đơn / Trả hàng (Chỉ Admin)</b>: Khi khách trả thuốc hoặc đơn bị tạo nhầm, Admin bấm nút <i>"Hủy đơn / Trả hàng"</i>. Hệ thống sẽ:
+                                <ul class="list-circle list-inside pl-4 pt-1 space-y-1 text-slate-700">
+                                    <li>Tự động hoàn lại đúng số lượng thuốc về kho tồn.</li>
+                                    <li>Trừ điểm tích lũy tương ứng đã cộng cho khách.</li>
+                                    <li>Điều chỉnh giảm trừ doanh thu trong báo cáo tài chính.</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- PHẦN 7: SỔ THU CHI -->
+                <section id="sec-vouchers" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">7</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Sổ Thu Chi Quỹ Tiền Mặt (Vouchers)</h2>
+                            <p class="text-xs text-slate-500">Quản lý toàn diện dòng tiền mặt, chi phí vận hành và tồn quỹ</p>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Dành riêng cho Quản Trị Viên để theo dõi tiền mặt thực tế tại quầy, tránh thất thoát tiền bạc ngoài các hóa đơn bán thuốc.
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 text-xs">
+                            <b class="text-emerald-800">Phiếu Thu (Tiền vào quỹ):</b>
+                            <p class="text-slate-600">Thu công nợ khách hàng, thu tiền thưởng từ nhà cung cấp dược, thu vốn bổ sung của chủ nhà thuốc...</p>
+                        </div>
+                        <div class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1 text-xs">
+                            <b class="text-rose-800">Phiếu Chi (Tiền ra khỏi quỹ):</b>
+                            <p class="text-slate-600">Chi tiền thanh toán tiền thuốc cho công ty dược, chi tiền mặt bằng, tiền điện nước, mua túi bóng bao bì, lương nhân viên...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PHẦN 8: BÁO CÁO & LỢI NHUẬN -->
+                <section id="sec-reports" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">8</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Báo Cáo Thống Kê & Phân Tích Lợi Nhuận</h2>
+                            <p class="text-xs text-slate-500">Công cụ đắc lực giúp chủ nhà thuốc nắm bắt sức khỏe tài chính</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 text-xs text-slate-700">
+                        <p class="leading-relaxed text-slate-600">
+                            Phần mềm tự động tổng hợp dữ liệu thời gian thực và trực quan hóa qua biểu đồ doanh thu:
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <span class="font-bold text-slate-800">📊 Biểu đồ doanh thu 12 tháng:</span>
+                                <p class="text-[11px] text-slate-600">Xem diễn biến doanh số và lợi nhuận gộp theo từng tháng trong năm.</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <span class="font-bold text-slate-800">🏆 Top 10 Thuốc Bán Chạy Nhất:</span>
+                                <p class="text-[11px] text-slate-600">Biết rõ mặt hàng nào mang lại nhiều doanh thu nhất để chủ động nhập hàng tồn trữ.</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <span class="font-bold text-slate-800">💰 Tỷ Suất Biên Lợi Nhuận (%):</span>
+                                <p class="text-[11px] text-slate-600">Đo lường chính xác hiệu quả kinh doanh của nhà thuốc sau khi trừ giá vốn hàng bán.</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <span class="font-bold text-slate-800">💳 Tỷ lệ Thanh Toán (Tiền mặt vs VietQR):</span>
+                                <p class="text-[11px] text-slate-600">Nắm rõ cơ cấu tiền mặt tại quầy và tiền chuyển khoản về tài khoản ngân hàng.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PHẦN 9: CÀI ĐẶT & SAO LƯU -->
+                <section id="sec-settings" class="guide-section bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-lg">9</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Cài Đặt Hệ Thống, VietQR & An Toàn Dữ Liệu</h2>
+                            <p class="text-xs text-slate-500">Thiết lập thông tin nhà thuốc và quy trình sao lưu chống mất dữ liệu</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 text-xs text-slate-700">
+                        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                            <span class="font-bold text-slate-900 text-sm">1. Thiết lập tài khoản ngân hàng nhận tiền VietQR:</span>
+                            <p class="text-slate-600 leading-relaxed">
+                                Vào tab <b>Cài Đặt</b> -> Mục <b>"Tích Hợp VietQR Chuẩn Napas247"</b> -> Chọn ngân hàng của bạn (Vietcombank, MB, Techcombank, VPBank, ACB...), nhập <b>Số Tài Khoản</b> và <b>Tên Chủ Tài Khoản</b>. Ngay lập tức tại màn hình POS, khi khách thanh toán chuyển khoản, mã QR sẽ tự động chuyển đúng tiền vào tài khoản ngân hàng của bạn.
+                            </p>
+                        </div>
+
+                        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                            <span class="font-bold text-slate-900 text-sm">2. Đổi mật khẩu tài khoản Admin & Nhân Viên:</span>
+                            <p class="text-slate-600 leading-relaxed">
+                                Vào tab <b>Cài Đặt</b> -> Chọn tài khoản cần đổi mật khẩu -> Nhập mật khẩu mới -> Bấm <b>"Cập Nhật Mật Khẩu"</b>. Mật khẩu mới sẽ có hiệu lực ngay lập tức.
+                            </p>
+                        </div>
+
+                        <div class="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
+                            <span class="font-bold text-emerald-900 text-sm">3. Sao Lưu & Khôi Phục Dữ Liệu An Toàn:</span>
+                            <p class="text-slate-700 leading-relaxed">
+                                Phần mềm chạy trực tiếp offline trên máy tính của bạn. Định kỳ mỗi tuần hoặc mỗi tháng, bạn nên bấm nút <b>"Xuất File Sao Lưu JSON"</b> để tải file dữ liệu dự phòng về máy hoặc lưu trữ vào USB / Google Drive. Khi đổi máy tính mới, chỉ cần bấm <b>"Khôi Phục Dữ Liệu"</b> và chọn file sao lưu là toàn bộ dữ liệu kho, đơn hàng và thu chi sẽ được phục hồi 100%.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PHẦN 10: BẢNG PHÍM TẮT -->
+                <section id="sec-shortcuts" class="guide-section bg-white rounded-2xl border border-purple-200 p-6 sm:p-8 shadow-xs space-y-4">
+                    <div class="flex items-center gap-3 border-b border-purple-100 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black text-lg">10</div>
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900">Bảng Tra Cứu Phím Tắt Thao Tác Nhanh</h2>
+                            <p class="text-xs text-slate-500">Tối ưu tốc độ bán hàng của dược sĩ, không cần dùng chuột</p>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-200">
+                            <thead class="bg-slate-100 text-slate-700 font-bold">
+                                <tr>
+                                    <th class="p-3 w-1/3">Phím Tắt</th>
+                                    <th class="p-3 w-2/3">Chức Năng Thực Hiện</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                <tr>
+                                    <td class="p-3 font-mono font-bold text-emerald-800"><kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">F4</kbd></td>
+                                    <td class="p-3 text-slate-700">Mở nhanh màn hình <b>Bán Thuốc POS</b> từ bất kỳ đâu</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-bold text-emerald-800"><kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">F2</kbd></td>
+                                    <td class="p-3 text-slate-700">Đặt con trỏ chuột vào ô <b>Tìm kiếm thuốc</b> để gõ tên thuốc ngay lập tức</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-bold text-emerald-800"><kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">F8</kbd> hoặc <kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">F9</kbd></td>
+                                    <td class="p-3 text-slate-700">Mở hộp thoại <b>Xác Nhận Thanh Toán & In Hóa Đơn</b></td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-bold text-emerald-800"><kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">Enter</kbd></td>
+                                    <td class="p-3 text-slate-700">Chọn thuốc tìm kiếm hoặc xác nhận đồng ý các thao tác</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-bold text-emerald-800"><kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">Esc</kbd></td>
+                                    <td class="p-3 text-slate-700">Đóng nhanh các cửa sổ popup / modal đang mở</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-mono font-bold text-emerald-800"><kbd class="px-2 py-1 bg-slate-100 border border-slate-300 rounded shadow-2xs">Ctrl + Click</kbd></td>
+                                    <td class="p-3 text-slate-700">Mở thêm một tab bán hàng mới mà không cần đăng nhập lại</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 text-xs text-center no-print">
+        <div class="max-w-7xl mx-auto px-4 space-y-2">
+            <div class="text-white font-bold tracking-wide">MEDICA PHARMACY • HỆ THỐNG QUẢN LÝ NHÀ THUỐC CHUẨN GPP</div>
+            <div>Dược Sĩ Phụ Trách Chuyên Môn: DS. Nguyễn Thanh Dung • DS. Nguyễn Thị Kiều</div>
+            <div class="text-slate-500 text-[11px]">Bản quyền tài liệu thuộc về MedicaPharmacy © 2026. Mọi quyền được bảo lưu.</div>
+        </div>
+    </footer>
+
+    <!-- SCRIPT TÌM KIẾM NHANH NỘI DUNG HƯỚNG DẪN -->
+    <script>
+        lucide.createIcons();
+
+        function searchGuide() {
+            const query = document.getElementById('guide-search').value.toLowerCase().trim();
+            const sections = document.querySelectorAll('.guide-section');
+            
+            sections.forEach(sec => {
+                const text = sec.innerText.toLowerCase();
+                if (!query || text.includes(query)) {
+                    sec.style.display = 'block';
+                } else {
+                    sec.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+

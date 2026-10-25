@@ -153,12 +153,17 @@
                                     </button>
                                 </div>
 
-                                <div class="p-1.5 bg-slate-50/80">
+                                <div class="p-1.5 bg-slate-50/80 space-y-1">
                                     <button type="button" onclick="App.switchTab('pos')" 
                                             class="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer">
                                         <i data-lucide="home" class="w-3.5 h-3.5"></i>
                                         <span>Quay Về Trang Chủ (Home)</span>
                                     </button>
+                                    <a href="huong-dan-su-dung.html" target="_blank"
+                                       class="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition no-underline">
+                                        <i data-lucide="book-open" class="w-3.5 h-3.5 text-emerald-600"></i>
+                                        <span>Hướng Dẫn Sử Dụng</span>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -600,6 +605,11 @@
                     <button id="btn-export-inventory" onclick="ExportService.exportInventory(Store.getMedicines())" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
                         <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-700"></i>
                         <span>Xuất Excel Kho</span>
+                    </button>
+
+                    <button type="button" onclick="BarcodePrinterModule.openBatchInventoryModal()" class="flex items-center gap-1.5 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-xs rounded-xl shadow-2xs transition cursor-pointer" title="In tem mã vạch dán hộp cho các loại thuốc trong kho">
+                        <i data-lucide="scan" class="w-4 h-4 text-purple-600"></i>
+                        <span>In Tem Mã Vạch</span>
                     </button>
 
                     <button id="btn-add-medicine" onclick="InventoryModule.openAddModal()" class="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition">
@@ -1779,9 +1789,13 @@
                     <span id="stockin-draft-total" class="text-xl font-black text-emerald-800 ml-2 font-mono">0 đ</span>
                 </div>
 
-                <div class="flex gap-2">
-                    <button type="button" onclick="InventoryModule.closeStockInModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">Hủy</button>
-                    <button type="button" onclick="InventoryModule.saveStockInOrder()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg shadow transition flex items-center gap-1.5">
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="InventoryModule.closeStockInModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer">Hủy</button>
+                    <button type="button" onclick="BarcodePrinterModule.openForStockInDraft()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5 cursor-pointer" title="In tem mã vạch dán hộp cho các thuốc trong phiếu nhập này">
+                        <i data-lucide="scan" class="w-4 h-4"></i>
+                        <span>In Tem Nhãn</span>
+                    </button>
+                    <button type="button" onclick="InventoryModule.saveStockInOrder()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg shadow transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="check" class="w-4 h-4"></i>
                         <span id="stockin-btn-save-text">Hoàn Tất Nhập Kho</span>
                     </button>
@@ -2155,12 +2169,18 @@
                 <!-- Rendered dynamically -->
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex justify-end gap-2 shrink-0">
-                <button onclick="InventoryModule.closeStockInDetailModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">Đóng</button>
-                <button id="btn-edit-from-stockin-detail" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm">
-                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
-                    <span>Chỉnh Sửa Phiếu Nhập</span>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+                <button type="button" id="btn-print-barcode-from-stockin-detail" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer" title="In tem dán hộp cho toàn bộ thuốc trong phiếu nhập này">
+                    <i data-lucide="scan" class="w-4 h-4"></i>
+                    <span>In Tem Mã Vạch (104x22mm)</span>
                 </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="InventoryModule.closeStockInDetailModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer">Đóng</button>
+                    <button id="btn-edit-from-stockin-detail" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                        <span>Chỉnh Sửa Phiếu Nhập</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -2604,12 +2624,208 @@
         </div>
     </div>
 
+    <!-- ======================================================= -->
+    <!-- MODAL 15: IN TEM MÃ VẠCH DÁN HỘP THUỐC (104x22mm)      -->
+    <!-- ======================================================= -->
+    <div id="modal-barcode-print" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full p-4 sm:p-6 animate-fadeIn relative max-h-[92vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold shadow-inner">
+                        <i data-lucide="scan" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 id="barcode-modal-title" class="text-base sm:text-lg font-black text-slate-900">In Tem Mã Vạch Dán Hộp Thuốc</h3>
+                        <p class="text-xs text-slate-500">Mẫu tem chuẩn quầy thuốc GPP • Giá bán lẻ & Mã vạch quét nhanh</p>
+                    </div>
+                </div>
+                <button type="button" onclick="BarcodePrinterModule.closePrintModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Top Filter & Options Bar -->
+            <div class="bg-slate-50 rounded-xl p-3 my-3 border border-slate-200 shrink-0 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <label class="font-bold text-slate-700 flex items-center gap-1">
+                        <i data-lucide="layers" class="w-3.5 h-3.5 text-purple-600"></i>
+                        <span>Khổ Giấy In:</span>
+                    </label>
+                    <select id="barcode-template-select" class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-800 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                        <option value="roll_3_104x22" selected>Mẫu giấy cuộn 3 nhãn (Khổ giấy 104×22mm / 4.2×0.9 Inch)</option>
+                        <option value="roll_2_72x22">Mẫu giấy cuộn 2 nhãn (Khổ giấy 72×22mm)</option>
+                        <option value="roll_1_35x22">Mẫu giấy cuộn 1 nhãn nhỏ (Khổ 35×22mm)</option>
+                        <option value="roll_1_50x30">Mẫu giấy cuộn 1 nhãn lớn (Khổ 50×30mm)</option>
+                        <option value="sheet_a4_65">Mẫu giấy Decal A4 (65 tem/tờ - Tommys 145)</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-3 text-slate-600 font-medium">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" id="chk-show-unit" checked onchange="BarcodePrinterModule.options.showUnit = this.checked; BarcodePrinterModule.renderLivePreview();" class="rounded text-purple-600 focus:ring-purple-500" />
+                        <span>Hiện Đơn Vị (Hộp/Vỉ)</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" id="chk-show-price" checked onchange="BarcodePrinterModule.options.showPrice = this.checked; BarcodePrinterModule.renderLivePreview();" class="rounded text-purple-600 focus:ring-purple-500" />
+                        <span class="font-bold text-emerald-800">Hiện Giá Bán</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Body: 2 Columns Layout -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 overflow-hidden min-h-0">
+                <!-- Cột Trái: Danh Sách Thuốc & Số Lượng Tem Cần In (6 cols) -->
+                <div class="lg:col-span-6 flex flex-col border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
+                    <div class="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+                        <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="list-checks" class="w-4 h-4 text-purple-600"></i>
+                            <span>Danh Sách Thuốc Cần In Tem</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="BarcodePrinterModule.setAllQuantities(1)" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-200 rounded text-[11px] font-semibold text-slate-600 transition cursor-pointer" title="Đặt mỗi loại in 1 tem">
+                                Tất cả = 1
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bảng danh sách hàng in -->
+                    <div class="flex-1 overflow-y-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50/80 sticky top-0 z-10 text-[11px] text-slate-500 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2 font-semibold">Tên Thuốc</th>
+                                    <th class="p-2 font-semibold w-24">Mã Vạch</th>
+                                    <th class="p-2 font-semibold w-24 text-right">Giá Bán</th>
+                                    <th class="p-2 font-semibold w-24 text-center">Số Tem</th>
+                                    <th class="p-2 font-semibold w-8 text-center"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="barcode-queue-tbody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer cột trái: Tóm tắt số tem -->
+                    <div class="p-2.5 bg-slate-50/90 border-t border-slate-200 flex items-center justify-between shrink-0 text-xs">
+                        <div id="barcode-summary-badge" class="font-medium text-slate-600">
+                            <!-- Summary text -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cột Phải: Xem Trước Bản In (Live Preview) (6 cols) -->
+                <div class="lg:col-span-6 flex flex-col border border-slate-200 rounded-2xl overflow-hidden bg-slate-100/70 shadow-2xs">
+                    <!-- Thẻ xem trước tương tự Ảnh 2 -->
+                    <div class="p-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 gap-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-12 h-10 rounded-lg border border-slate-300 bg-slate-50 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden p-1">
+                                <svg viewBox="0 0 48 36" class="w-full h-full text-slate-400">
+                                    <rect x="2" y="4" width="44" height="28" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+                                    <line x1="16" y1="4" x2="16" y2="32" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2 2"/>
+                                    <line x1="32" y1="4" x2="32" y2="32" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2 2"/>
+                                    <rect x="6" y="8" width="6" height="2" fill="#64748b"/>
+                                    <rect x="22" y="8" width="6" height="2" fill="#64748b"/>
+                                    <rect x="38" y="8" width="6" height="2" fill="#64748b"/>
+                                    <rect x="4" y="14" width="10" height="8" fill="#475569"/>
+                                    <rect x="20" y="14" width="10" height="8" fill="#475569"/>
+                                    <rect x="36" y="14" width="10" height="8" fill="#475569"/>
+                                </svg>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-extrabold text-xs text-slate-900 truncate">Mẫu giấy cuộn 3 nhãn</div>
+                                <div class="text-[11px] text-slate-500 font-mono">(Khổ giấy in nhãn 104×22mm / 4.2×0.9 Inch)</div>
+                            </div>
+                        </div>
+
+                        <!-- Nút Xem bản in tương tự Ảnh 2 -->
+                        <button type="button" onclick="BarcodePrinterModule.openPrintWindow()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer">
+                            <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                            <span>Xem bản in</span>
+                        </button>
+                    </div>
+
+                    <!-- Khung xem trước các tem thực tế -->
+                    <div class="flex-1 overflow-y-auto p-4 pl-8 bg-slate-200/50">
+                        <div id="barcode-live-preview-box" class="max-w-[420px] mx-auto space-y-2">
+                            <!-- Dynamic preview labels -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer Actions -->
+            <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 shrink-0">
+                <div class="text-xs text-slate-500 flex items-center gap-1.5">
+                    <i data-lucide="info" class="w-4 h-4 text-purple-600"></i>
+                    <span>Tương thích hoàn hảo máy in tem nhiệt Xprinter, Bixolon, Godex...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="BarcodePrinterModule.closePrintModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                        Đóng
+                    </button>
+                    <button type="button" onclick="BarcodePrinterModule.executePrint()" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>In Tem Ngay (Print)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 16: GỢI Ý IN TEM MÃ VẠCH SAU KHI NHẬP THUỐC       -->
+    <!-- ======================================================= -->
+    <div id="modal-stockin-print-prompt" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fadeIn">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 sm:p-6 text-center space-y-4 border border-slate-100 relative">
+            <div class="w-14 h-14 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <i data-lucide="scan" class="w-7 h-7"></i>
+            </div>
+            <div class="space-y-1">
+                <h3 class="text-lg font-black text-slate-900">Nhập Kho Thành Công!</h3>
+                <p class="text-xs text-slate-500">
+                    Phiếu nhập <b id="stockin-prompt-id" class="font-mono text-emerald-700">---</b> đã được lưu vào hệ thống.
+                </p>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1 text-left">
+                <div class="flex items-center justify-between">
+                    <span>Số loại thuốc:</span>
+                    <b id="stockin-prompt-types" class="text-slate-800">0 loại</b>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Tổng số lượng hộp:</span>
+                    <b id="stockin-prompt-qty" class="text-slate-800 font-mono">0 hộp</b>
+                </div>
+                <div class="flex items-center justify-between text-purple-700 font-semibold pt-1 border-t border-slate-200">
+                    <span>Mẫu tem đề xuất:</span>
+                    <span>Cuộn 3 nhãn (104×22mm)</span>
+                </div>
+            </div>
+            <p class="text-xs text-slate-600">Bạn có muốn in tem mã vạch dán lên các hộp thuốc vừa nhập ngay bây giờ không?</p>
+            <div class="grid grid-cols-2 gap-2.5 pt-1">
+                <button type="button" onclick="BarcodePrinterModule.closePromptModal()" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer">
+                    Để Sau / Đóng
+                </button>
+                <button type="button" onclick="BarcodePrinterModule.confirmPromptPrint()" class="py-2.5 px-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>In Tem Ngay</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Iframe ẩn hỗ trợ in tem nhãn trực tiếp không làm gián đoạn giao diện -->
+    <iframe id="barcode-print-iframe" style="display:none; position:fixed; width:0; height:0; border:0;"></iframe>
+
     <!-- Application JavaScript Bundles -->
+    <script src="vendor/JsBarcode.all.min.js"></script>
     <script src="js/vietqr.js"></script>
     <script src="js/sample-data.js"></script>
     <script src="js/store.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/export-excel.js"></script>
+    <script src="js/barcode-printer.js"></script>
     <script src="js/searchable-select.js"></script>
     <script src="js/vouchers.js"></script>
     <script src="js/inventory.js"></script>
