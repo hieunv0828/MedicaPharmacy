@@ -18,6 +18,11 @@ const App = {
         POSModule.init();
         InventoryModule.init();
         OrdersModule.init();
+        if (window.CustomersModule) {
+            CustomersModule.init();
+            CustomersModule.renderSummaryCards();
+            CustomersModule.renderCustomersTable();
+        }
         if (window.VouchersModule) {
             VouchersModule.init();
         }

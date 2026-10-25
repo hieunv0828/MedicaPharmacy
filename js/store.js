@@ -118,14 +118,18 @@ class DataStore {
     }
 
     saveToLocalCache(db) {
-        if (db.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(db.settings));
-        if (db.medicines) localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines));
-        if (db.suppliers) localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers));
-        if (db.orders) localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders));
-        if (db.stockInOrders) localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders));
-        if (db.customers) localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(db.customers));
-        if (db.settingsHistory) localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory));
-        if (db.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers));
+        try {
+            if (db.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(db.settings));
+            if (db.medicines) localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines));
+            if (db.suppliers) localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers));
+            if (db.orders) localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders));
+            if (db.stockInOrders) localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders));
+            if (db.customers) localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(db.customers));
+            if (db.settingsHistory) localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory));
+            if (db.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers));
+        } catch (e) {
+            console.warn('LocalStorage quota limit reached, maintaining state in-memory:', e);
+        }
     }
 
     getCurrentFullDatabase() {
@@ -704,6 +708,56 @@ class DataStore {
         return order;
     }
 
+    updateOrder(orderId, updateFields) {
+        const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return null;
+
+        const oldPaymentMethod = order.paymentMethod;
+        const oldCustomerPhone = order.customerPhone;
+        const oldCustomerName = order.customerName;
+
+        // Cập nhật các trường được truyền vào
+        Object.assign(order, updateFields);
+        order.updatedAt = new Date().toISOString();
+
+        // Lưu vào localStorage
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+
+        // 1. Nếu phương thức thanh toán thay đổi (ví dụ: chuyển khoản -> tiền mặt)
+        // Cập nhật phiếu thu tương ứng trong Sổ Quỹ Thu Chi
+        if (updateFields.paymentMethod && updateFields.paymentMethod !== oldPaymentMethod) {
+            const vouchers = this.getVouchers();
+            const voucher = vouchers.find(v => v.refId === order.id && !v.isCancelled && v.type === 'receipt');
+            if (voucher) {
+                voucher.paymentMethod = updateFields.paymentMethod;
+                voucher.note = `Thu tiền bán thuốc hóa đơn ${order.id} (${updateFields.paymentMethod === 'cash' ? 'Đổi sang Tiền mặt' : 'Đổi sang Chuyển khoản'})`;
+                localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers));
+                this.emit('vouchers:changed', vouchers);
+            }
+        }
+
+        // 2. Nếu tên khách hàng hoặc SĐT thay đổi
+        if (updateFields.customerName && updateFields.customerName !== oldCustomerName) {
+            const vouchers = this.getVouchers();
+            const voucher = vouchers.find(v => v.refId === order.id && !v.isCancelled);
+            if (voucher) {
+                voucher.targetName = updateFields.customerName || (updateFields.customerPhone ? `Khách ${updateFields.customerPhone}` : 'Khách lẻ trực tiếp');
+                localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers));
+                this.emit('vouchers:changed', vouchers);
+            }
+        }
+
+        // 3. Nếu trước đó chưa có SĐT và giờ bổ sung SĐT mới -> Tích điểm cho khách
+        if (!oldCustomerPhone && updateFields.customerPhone && (order.pointsEarned || 0) > 0) {
+            this.addPointsToCustomer(updateFields.customerPhone, updateFields.customerName || 'Khách hàng', order.pointsEarned, order.totalAmount);
+        }
+
+        this.schedulePersistToServer();
+        this.emit('orders:changed', orders);
+        return order;
+    }
+
     cancelOrder(orderId, cancelReason = 'Khách trả hàng / Dược sĩ thao tác nhầm') {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === orderId);
@@ -892,7 +946,10 @@ class DataStore {
 
     normalizePhone(phone) {
         if (!phone) return '';
-        return phone.toString().replace(/[\s.-]/g, '');
+        let p = phone.toString().replace(/[\s.-]/g, '');
+        if (p.startsWith('+84')) p = '0' + p.substring(3);
+        else if (p.startsWith('84') && p.length >= 11) p = '0' + p.substring(2);
+        return p;
     }
 
     getCustomerById(id) {

@@ -7,11 +7,15 @@ const InventoryModule = {
     currentFilterCategory: 'all',
     currentFilterStatus: 'all',
     searchKeyword: '',
+    currentPage: 1,
+    pageSize: 25,
     stockInSearchKeyword: '',
     stockInTimeFilter: 'this_month',
     stockInPaymentFilter: 'all', // 'all', 'cash', 'transfer'
     stockInDateFrom: '',
     stockInDateTo: '',
+    stockInCurrentPage: 1,
+    stockInPageSize: 25,
     currentEditingMedId: null,
     currentHistoryMedId: null,
     currentHistoryTab: 'stockin', // 'stockin', 'sales'
@@ -60,6 +64,7 @@ const InventoryModule = {
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.searchKeyword = e.target.value.trim().toLowerCase();
+                this.currentPage = 1;
                 this.renderMedicineTable();
             });
         }
@@ -69,6 +74,7 @@ const InventoryModule = {
         if (catSelect) {
             catSelect.addEventListener('change', (e) => {
                 this.currentFilterCategory = e.target.value;
+                this.currentPage = 1;
                 this.renderMedicineTable();
             });
         }
@@ -78,6 +84,7 @@ const InventoryModule = {
         if (statusSelect) {
             statusSelect.addEventListener('change', (e) => {
                 this.currentFilterStatus = e.target.value;
+                this.currentPage = 1;
                 this.renderMedicineTable();
             });
         }
@@ -87,6 +94,7 @@ const InventoryModule = {
         if (stockInSearch) {
             stockInSearch.addEventListener('input', (e) => {
                 this.stockInSearchKeyword = e.target.value.trim().toLowerCase();
+                this.stockInCurrentPage = 1;
                 this.renderStockInHistory();
             });
         }
@@ -95,6 +103,7 @@ const InventoryModule = {
         if (stockInTimeSel) {
             stockInTimeSel.addEventListener('change', (e) => {
                 this.stockInTimeFilter = e.target.value;
+                this.stockInCurrentPage = 1;
                 const customDiv = document.getElementById('stockin-custom-dates');
                 if (customDiv) {
                     if (e.target.value === 'custom') {
@@ -111,6 +120,7 @@ const InventoryModule = {
         if (dateFrom) {
             dateFrom.addEventListener('change', (e) => {
                 this.stockInDateFrom = e.target.value;
+                this.stockInCurrentPage = 1;
                 this.renderStockInHistory();
             });
         }
@@ -119,6 +129,7 @@ const InventoryModule = {
         if (dateTo) {
             dateTo.addEventListener('change', (e) => {
                 this.stockInDateTo = e.target.value;
+                this.stockInCurrentPage = 1;
                 this.renderStockInHistory();
             });
         }
@@ -172,6 +183,101 @@ const InventoryModule = {
         this.renderMedicineTable();
     },
 
+    // --- PHÂN TRANG KHO THUỐC ---
+    changePageSize(newSize) {
+        this.pageSize = (newSize === 'all') ? 'all' : parseInt(newSize, 10);
+        this.currentPage = 1;
+        this.renderMedicineTable();
+    },
+
+    goToPage(page) {
+        this.currentPage = page;
+        this.renderMedicineTable();
+    },
+
+    renderPaginationControls(total, totalPages, startIdx, count) {
+        const pageInfoEl = document.getElementById('inventory-page-info');
+        const badgeTotal = document.getElementById('inventory-count-badge');
+        const btnsEl = document.getElementById('inventory-pagination-buttons');
+        
+        if (badgeTotal) badgeTotal.innerText = total;
+
+        if (pageInfoEl) {
+            if (total === 0) {
+                pageInfoEl.innerText = "0";
+            } else {
+                pageInfoEl.innerText = `${startIdx + 1} - ${startIdx + count}`;
+            }
+        }
+
+        if (!btnsEl) return;
+
+        if (this.pageSize === 'all' || totalPages <= 1) {
+            btnsEl.innerHTML = '';
+            return;
+        }
+
+        const cur = this.currentPage;
+        let html = '';
+
+        html += `
+            <button onclick="InventoryModule.goToPage(1)" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Về trang đầu">
+                «
+            </button>
+        `;
+
+        html += `
+            <button onclick="InventoryModule.goToPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang trước">
+                ‹
+            </button>
+        `;
+
+        let startPage = Math.max(1, cur - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            if (p === cur) {
+                html += `
+                    <button class="p-1 px-2.5 rounded bg-emerald-600 text-white text-xs font-black shadow-xs cursor-default">
+                        ${p}
+                    </button>
+                `;
+            } else {
+                html += `
+                    <button onclick="InventoryModule.goToPage(${p})" 
+                            class="p-1 px-2.5 rounded bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-bold transition cursor-pointer">
+                        ${p}
+                    </button>
+                `;
+            }
+        }
+
+        html += `
+            <button onclick="InventoryModule.goToPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang sau">
+                ›
+            </button>
+        `;
+
+        html += `
+            <button onclick="InventoryModule.goToPage(${totalPages})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Đến trang cuối">
+                »
+            </button>
+        `;
+
+        btnsEl.innerHTML = html;
+    },
+
     renderMedicineTable() {
         const tbody = document.getElementById('medicine-table-body');
         if (!tbody) return;
@@ -205,7 +311,9 @@ const InventoryModule = {
             medicines = medicines.filter(m => (m.stockUnits || 0) <= 0);
         }
 
-        if (medicines.length === 0) {
+        const total = medicines.length;
+
+        if (total === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="8" class="text-center py-12 text-slate-400">
@@ -214,9 +322,23 @@ const InventoryModule = {
                     </td>
                 </tr>
             `;
+            this.renderPaginationControls(0, 1, 0, 0);
             if (window.lucide) lucide.createIcons();
             return;
         }
+
+        const totalPages = (this.pageSize === 'all') ? 1 : Math.max(1, Math.ceil(total / this.pageSize));
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        if (this.currentPage < 1) this.currentPage = 1;
+
+        let displayedMedicines = medicines;
+        let startIdx = 0;
+        if (this.pageSize !== 'all') {
+            startIdx = (this.currentPage - 1) * this.pageSize;
+            displayedMedicines = medicines.slice(startIdx, startIdx + this.pageSize);
+        }
+
+        this.renderPaginationControls(total, totalPages, startIdx, displayedMedicines.length);
 
         let html = '';
         const canViewCost = !window.AuthModule || AuthModule.canViewCostPrice();
@@ -227,7 +349,7 @@ const InventoryModule = {
             thCost.style.display = canViewCost ? '' : 'none';
         }
 
-        medicines.forEach((m, idx) => {
+        displayedMedicines.forEach((m, idx) => {
             const stockStatus = AppUtils.checkStockStatus(m);
             const expiryStatus = AppUtils.checkExpiryStatus(m.expiryDate);
 
@@ -289,7 +411,7 @@ const InventoryModule = {
 
             html += `
                 <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-sm">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
                     <td class="py-3 px-3">
                         <div class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</div>
                         <div class="text-xs text-slate-500 line-clamp-1 italic">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
@@ -891,6 +1013,7 @@ const InventoryModule = {
     // --- TAB LỌC THANH TOÁN TIỀN MẶT / CHUYỂN KHOẢN / ĐÃ TRẢ HÀNG KHI NHẬP HÀNG ---
     setStockInPaymentFilter(method) {
         this.stockInPaymentFilter = method;
+        this.stockInCurrentPage = 1;
 
         const btnAll = document.getElementById('tab-btn-stockin-all');
         const btnCash = document.getElementById('tab-btn-stockin-cash');
@@ -1027,6 +1150,101 @@ const InventoryModule = {
         return orders;
     },
 
+    // --- PHÂN TRANG LỊCH SỬ NHẬP KHO ---
+    changeStockInPageSize(newSize) {
+        this.stockInPageSize = (newSize === 'all') ? 'all' : parseInt(newSize, 10);
+        this.stockInCurrentPage = 1;
+        this.renderStockInHistory();
+    },
+
+    goToStockInPage(page) {
+        this.stockInCurrentPage = page;
+        this.renderStockInHistory();
+    },
+
+    renderStockInPaginationControls(total, totalPages, startIdx, count) {
+        const pageInfoEl = document.getElementById('stockin-page-info');
+        const badgeTotal = document.getElementById('stockin-count-badge');
+        const btnsEl = document.getElementById('stockin-pagination-buttons');
+        
+        if (badgeTotal) badgeTotal.innerText = total;
+
+        if (pageInfoEl) {
+            if (total === 0) {
+                pageInfoEl.innerText = "0";
+            } else {
+                pageInfoEl.innerText = `${startIdx + 1} - ${startIdx + count}`;
+            }
+        }
+
+        if (!btnsEl) return;
+
+        if (this.stockInPageSize === 'all' || totalPages <= 1) {
+            btnsEl.innerHTML = '';
+            return;
+        }
+
+        const cur = this.stockInCurrentPage;
+        let html = '';
+
+        html += `
+            <button onclick="InventoryModule.goToStockInPage(1)" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Về trang đầu">
+                «
+            </button>
+        `;
+
+        html += `
+            <button onclick="InventoryModule.goToStockInPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang trước">
+                ‹
+            </button>
+        `;
+
+        let startPage = Math.max(1, cur - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            if (p === cur) {
+                html += `
+                    <button class="p-1 px-2.5 rounded bg-emerald-600 text-white text-xs font-black shadow-xs cursor-default">
+                        ${p}
+                    </button>
+                `;
+            } else {
+                html += `
+                    <button onclick="InventoryModule.goToStockInPage(${p})" 
+                            class="p-1 px-2.5 rounded bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-bold transition cursor-pointer">
+                        ${p}
+                    </button>
+                `;
+            }
+        }
+
+        html += `
+            <button onclick="InventoryModule.goToStockInPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang sau">
+                ›
+            </button>
+        `;
+
+        html += `
+            <button onclick="InventoryModule.goToStockInPage(${totalPages})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Đến trang cuối">
+                »
+            </button>
+        `;
+
+        btnsEl.innerHTML = html;
+    },
+
     renderStockInHistory() {
         const tbody = document.getElementById('stockin-history-tbody');
         if (!tbody) return;
@@ -1034,13 +1252,29 @@ const InventoryModule = {
         this.renderStockInSummaryCards();
 
         const stockInOrders = this.getFilteredStockInOrders();
-        if (stockInOrders.length === 0) {
+        const total = stockInOrders.length;
+
+        if (total === 0) {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-400 text-sm">Không tìm thấy phiếu nhập kho nào thỏa mãn điều kiện lọc.</td></tr>`;
+            this.renderStockInPaginationControls(0, 1, 0, 0);
             return;
         }
 
+        const totalPages = (this.stockInPageSize === 'all') ? 1 : Math.max(1, Math.ceil(total / this.stockInPageSize));
+        if (this.stockInCurrentPage > totalPages) this.stockInCurrentPage = totalPages;
+        if (this.stockInCurrentPage < 1) this.stockInCurrentPage = 1;
+
+        let displayedOrders = stockInOrders;
+        let startIdx = 0;
+        if (this.stockInPageSize !== 'all') {
+            startIdx = (this.stockInCurrentPage - 1) * this.stockInPageSize;
+            displayedOrders = stockInOrders.slice(startIdx, startIdx + this.stockInPageSize);
+        }
+
+        this.renderStockInPaginationControls(total, totalPages, startIdx, displayedOrders.length);
+
         let html = '';
-        stockInOrders.forEach((o, idx) => {
+        displayedOrders.forEach((o, idx) => {
             const itemCount = o.items ? o.items.length : 0;
             const itemsText = (o.items || []).map(i => `${i.medicineName} [${i.medicineId || 'Mã'}] (${i.quantity} ${i.unit})`).join(', ');
             const isCash = (o.paymentMethod || 'cash') === 'cash';

@@ -12,12 +12,15 @@ const CustomersModule = {
     selectedCustomer: null,
     selectedCustomerOrders: [],
     orderSearchQuery: '',
+    currentPage: 1,
+    pageSize: 25,
 
     init() {
         const searchInput = document.getElementById('customers-search-input');
         if (searchInput && !searchInput._bound) {
             searchInput.addEventListener('input', (e) => {
                 this.searchQuery = e.target.value.trim().toLowerCase();
+                this.currentPage = 1;
                 this.renderCustomersTable();
             });
             searchInput._bound = true;
@@ -27,6 +30,7 @@ const CustomersModule = {
         if (tierFilterEl && !tierFilterEl._bound) {
             tierFilterEl.addEventListener('change', (e) => {
                 this.tierFilter = e.target.value;
+                this.currentPage = 1;
                 this.renderCustomersTable();
             });
             tierFilterEl._bound = true;
@@ -36,6 +40,7 @@ const CustomersModule = {
         if (sortFilterEl && !sortFilterEl._bound) {
             sortFilterEl.addEventListener('change', (e) => {
                 this.sortBy = e.target.value;
+                this.currentPage = 1;
                 this.renderCustomersTable();
             });
             sortFilterEl._bound = true;
@@ -131,16 +136,114 @@ const CustomersModule = {
         return customers;
     },
 
+    // --- PHÂN TRANG KHÁCH HÀNG ---
+    changePageSize(newSize) {
+        this.pageSize = (newSize === 'all') ? 'all' : parseInt(newSize, 10);
+        this.currentPage = 1;
+        this.renderCustomersTable();
+    },
+
+    goToPage(page) {
+        this.currentPage = page;
+        this.renderCustomersTable();
+    },
+
+    renderPaginationControls(total, totalPages, startIdx, count) {
+        const pageInfoEl = document.getElementById('cust-page-info');
+        const btnsEl = document.getElementById('cust-pagination-buttons');
+        
+        if (pageInfoEl) {
+            if (total === 0) {
+                pageInfoEl.innerText = "0";
+            } else {
+                pageInfoEl.innerText = `${startIdx + 1} - ${startIdx + count}`;
+            }
+        }
+
+        if (!btnsEl) return;
+
+        if (this.pageSize === 'all' || totalPages <= 1) {
+            btnsEl.innerHTML = '';
+            return;
+        }
+
+        const cur = this.currentPage;
+        let html = '';
+
+        // Nút Trang đầu
+        html += `
+            <button onclick="CustomersModule.goToPage(1)" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Về trang đầu">
+                «
+            </button>
+        `;
+
+        // Nút Trước
+        html += `
+            <button onclick="CustomersModule.goToPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang trước">
+                ‹
+            </button>
+        `;
+
+        // Các số trang
+        let startPage = Math.max(1, cur - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            if (p === cur) {
+                html += `
+                    <button class="p-1 px-2.5 rounded bg-emerald-600 text-white text-xs font-black shadow-xs cursor-default">
+                        ${p}
+                    </button>
+                `;
+            } else {
+                html += `
+                    <button onclick="CustomersModule.goToPage(${p})" 
+                            class="p-1 px-2.5 rounded bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-bold transition cursor-pointer">
+                        ${p}
+                    </button>
+                `;
+            }
+        }
+
+        // Nút Sau
+        html += `
+            <button onclick="CustomersModule.goToPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang sau">
+                ›
+            </button>
+        `;
+
+        // Nút Trang cuối
+        html += `
+            <button onclick="CustomersModule.goToPage(${totalPages})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Đến trang cuối">
+                »
+            </button>
+        `;
+
+        btnsEl.innerHTML = html;
+    },
+
     // --- RENDER BẢNG KHÁCH HÀNG CHÍNH ---
     renderCustomersTable() {
         const tbody = document.getElementById('customers-table-tbody');
         if (!tbody) return;
 
         const customers = this.getFilteredCustomers();
+        const total = customers.length;
         const badgeTotal = document.getElementById('customers-count-badge');
-        if (badgeTotal) badgeTotal.innerText = customers.length;
+        if (badgeTotal) badgeTotal.innerText = total;
 
-        if (customers.length === 0) {
+        if (total === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="8" class="py-12 text-center text-slate-400">
@@ -150,12 +253,26 @@ const CustomersModule = {
                     </td>
                 </tr>
             `;
+            this.renderPaginationControls(0, 1, 0, 0);
             if (window.lucide) lucide.createIcons();
             return;
         }
 
+        const totalPages = (this.pageSize === 'all') ? 1 : Math.max(1, Math.ceil(total / this.pageSize));
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        if (this.currentPage < 1) this.currentPage = 1;
+
+        let displayedCustomers = customers;
+        let startIdx = 0;
+        if (this.pageSize !== 'all') {
+            startIdx = (this.currentPage - 1) * this.pageSize;
+            displayedCustomers = customers.slice(startIdx, startIdx + this.pageSize);
+        }
+
+        this.renderPaginationControls(total, totalPages, startIdx, displayedCustomers.length);
+
         let html = '';
-        customers.forEach((c, idx) => {
+        displayedCustomers.forEach((c, idx) => {
             const tier = Store.getCustomerTier(c.points || 0);
             const safeName = (c.name || 'Khách hàng').replace(/'/g, "\\'");
             const safePhone = (c.phone || '').replace(/'/g, "\\'");
@@ -163,7 +280,7 @@ const CustomersModule = {
 
             html += `
                 <tr class="hover:bg-emerald-50/40 transition border-b border-slate-100 group">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
                     
                     <!-- Cột Khách Hàng (Tên click để xem danh sách hóa đơn) -->
                     <td class="py-3 px-3">

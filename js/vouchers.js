@@ -10,6 +10,8 @@ const VouchersModule = {
     dateFrom: '',
     dateTo: '',
     searchKeyword: '',
+    currentPage: 1,
+    pageSize: 25,
     currentPrintingVoucher: null,
 
     // Danh mục thu / chi chuẩn nhà thuốc
@@ -58,6 +60,7 @@ const VouchersModule = {
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.searchKeyword = e.target.value.trim().toLowerCase();
+                this.currentPage = 1;
                 this.renderVouchersTable();
             });
         }
@@ -66,6 +69,7 @@ const VouchersModule = {
         if (timeSel) {
             timeSel.addEventListener('change', (e) => {
                 this.timeFilter = e.target.value;
+                this.currentPage = 1;
                 const customDiv = document.getElementById('vouchers-custom-dates');
                 if (customDiv) {
                     if (e.target.value === 'custom') {
@@ -83,6 +87,7 @@ const VouchersModule = {
         if (dateFrom) {
             dateFrom.addEventListener('change', (e) => {
                 this.dateFrom = e.target.value;
+                this.currentPage = 1;
                 this.renderSummaryCards();
                 this.renderVouchersTable();
             });
@@ -92,6 +97,7 @@ const VouchersModule = {
         if (dateTo) {
             dateTo.addEventListener('change', (e) => {
                 this.dateTo = e.target.value;
+                this.currentPage = 1;
                 this.renderSummaryCards();
                 this.renderVouchersTable();
             });
@@ -100,6 +106,7 @@ const VouchersModule = {
 
     setTab(tab) {
         this.currentTab = tab;
+        this.currentPage = 1;
 
         const btnAll = document.getElementById('tab-btn-vouchers-all');
         const btnReceipt = document.getElementById('tab-btn-vouchers-receipt');
@@ -122,6 +129,7 @@ const VouchersModule = {
 
     setPaymentFilter(method) {
         this.paymentFilter = method;
+        this.currentPage = 1;
 
         const btnAll = document.getElementById('filter-voucher-method-all');
         const btnCash = document.getElementById('filter-voucher-method-cash');
@@ -230,12 +238,109 @@ const VouchersModule = {
         return vouchers;
     },
 
+    // --- PHÂN TRANG SỔ QUỸ THU CHI ---
+    changePageSize(newSize) {
+        this.pageSize = (newSize === 'all') ? 'all' : parseInt(newSize, 10);
+        this.currentPage = 1;
+        this.renderVouchersTable();
+    },
+
+    goToPage(page) {
+        this.currentPage = page;
+        this.renderVouchersTable();
+    },
+
+    renderPaginationControls(total, totalPages, startIdx, count) {
+        const pageInfoEl = document.getElementById('vouchers-page-info');
+        const badgeTotal = document.getElementById('vouchers-count-badge');
+        const btnsEl = document.getElementById('vouchers-pagination-buttons');
+        
+        if (badgeTotal) badgeTotal.innerText = total;
+
+        if (pageInfoEl) {
+            if (total === 0) {
+                pageInfoEl.innerText = "0";
+            } else {
+                pageInfoEl.innerText = `${startIdx + 1} - ${startIdx + count}`;
+            }
+        }
+
+        if (!btnsEl) return;
+
+        if (this.pageSize === 'all' || totalPages <= 1) {
+            btnsEl.innerHTML = '';
+            return;
+        }
+
+        const cur = this.currentPage;
+        let html = '';
+
+        html += `
+            <button onclick="VouchersModule.goToPage(1)" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Về trang đầu">
+                «
+            </button>
+        `;
+
+        html += `
+            <button onclick="VouchersModule.goToPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang trước">
+                ‹
+            </button>
+        `;
+
+        let startPage = Math.max(1, cur - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            if (p === cur) {
+                html += `
+                    <button class="p-1 px-2.5 rounded bg-emerald-600 text-white text-xs font-black shadow-xs cursor-default">
+                        ${p}
+                    </button>
+                `;
+            } else {
+                html += `
+                    <button onclick="VouchersModule.goToPage(${p})" 
+                            class="p-1 px-2.5 rounded bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-bold transition cursor-pointer">
+                        ${p}
+                    </button>
+                `;
+            }
+        }
+
+        html += `
+            <button onclick="VouchersModule.goToPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang sau">
+                ›
+            </button>
+        `;
+
+        html += `
+            <button onclick="VouchersModule.goToPage(${totalPages})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Đến trang cuối">
+                »
+            </button>
+        `;
+
+        btnsEl.innerHTML = html;
+    },
+
     renderVouchersTable() {
         const tbody = document.getElementById('vouchers-table-tbody');
         if (!tbody) return;
 
         const list = this.getFilteredVouchers();
-        if (list.length === 0) {
+        const total = list.length;
+
+        if (total === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="9" class="text-center py-10 text-slate-400">
@@ -244,12 +349,26 @@ const VouchersModule = {
                     </td>
                 </tr>
             `;
+            this.renderPaginationControls(0, 1, 0, 0);
             if (window.lucide) lucide.createIcons();
             return;
         }
 
+        const totalPages = (this.pageSize === 'all') ? 1 : Math.max(1, Math.ceil(total / this.pageSize));
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        if (this.currentPage < 1) this.currentPage = 1;
+
+        let displayedVouchers = list;
+        let startIdx = 0;
+        if (this.pageSize !== 'all') {
+            startIdx = (this.currentPage - 1) * this.pageSize;
+            displayedVouchers = list.slice(startIdx, startIdx + this.pageSize);
+        }
+
+        this.renderPaginationControls(total, totalPages, startIdx, displayedVouchers.length);
+
         let html = '';
-        list.forEach((v, idx) => {
+        displayedVouchers.forEach((v, idx) => {
             const isReceipt = v.type === 'receipt';
             const isCash = v.paymentMethod === 'cash';
 
@@ -274,7 +393,7 @@ const VouchersModule = {
 
             html += `
                 <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-xs ${v.isCancelled ? 'opacity-50' : ''}">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="py-3 px-3 text-center text-slate-400 font-mono">${startIdx + idx + 1}</td>
                     <td class="py-3 px-3 font-mono font-bold text-slate-800">
                         <span class="hover:text-emerald-700 cursor-pointer" onclick="VouchersModule.viewVoucherDetail('${v.id}')">${v.id}</span>
                         <div class="text-[11px] text-slate-400 font-sans font-normal">${AppUtils.formatDateTime(v.createdAt)}</div>

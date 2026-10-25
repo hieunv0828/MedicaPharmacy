@@ -8,6 +8,8 @@ const OrdersModule = {
     currentTab: 'all', // 'all', 'cash', 'transfer'
     timeFilter: 'this_month', // 'today', 'yesterday', 'last_7_days', 'this_month', 'all'
     searchKeyword: '',
+    currentPage: 1,
+    pageSize: 25,
     selectedOrder: null,
     pendingCancelOrderId: null,
     pendingReturnOrderId: null,
@@ -29,6 +31,7 @@ const OrdersModule = {
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.searchKeyword = e.target.value.trim().toLowerCase();
+                this.currentPage = 1;
                 this.renderOrdersTable();
             });
         }
@@ -38,6 +41,7 @@ const OrdersModule = {
         if (timeSelect) {
             timeSelect.addEventListener('change', (e) => {
                 this.timeFilter = e.target.value;
+                this.currentPage = 1;
                 this.renderOrdersTable();
             });
         }
@@ -45,6 +49,7 @@ const OrdersModule = {
 
     setTab(tab) {
         this.currentTab = tab;
+        this.currentPage = 1;
 
         // Cập nhật giao diện tab buttons
         const tabAll = document.getElementById('tab-btn-orders-all');
@@ -142,13 +147,109 @@ const OrdersModule = {
         if (cardTotalTransfer) cardTotalTransfer.innerText = AppUtils.formatVND(totalTransferAmount);
     },
 
+    // --- PHÂN TRANG HÓA ĐƠN ---
+    changePageSize(newSize) {
+        this.pageSize = (newSize === 'all') ? 'all' : parseInt(newSize, 10);
+        this.currentPage = 1;
+        this.renderOrdersTable();
+    },
+
+    goToPage(page) {
+        this.currentPage = page;
+        this.renderOrdersTable();
+    },
+
+    renderPaginationControls(total, totalPages, startIdx, count) {
+        const pageInfoEl = document.getElementById('orders-page-info');
+        const badgeTotal = document.getElementById('orders-count-badge');
+        const btnsEl = document.getElementById('orders-pagination-buttons');
+        
+        if (badgeTotal) badgeTotal.innerText = total;
+
+        if (pageInfoEl) {
+            if (total === 0) {
+                pageInfoEl.innerText = "0";
+            } else {
+                pageInfoEl.innerText = `${startIdx + 1} - ${startIdx + count}`;
+            }
+        }
+
+        if (!btnsEl) return;
+
+        if (this.pageSize === 'all' || totalPages <= 1) {
+            btnsEl.innerHTML = '';
+            return;
+        }
+
+        const cur = this.currentPage;
+        let html = '';
+
+        html += `
+            <button onclick="OrdersModule.goToPage(1)" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Về trang đầu">
+                «
+            </button>
+        `;
+
+        html += `
+            <button onclick="OrdersModule.goToPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang trước">
+                ‹
+            </button>
+        `;
+
+        let startPage = Math.max(1, cur - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            if (p === cur) {
+                html += `
+                    <button class="p-1 px-2.5 rounded bg-emerald-600 text-white text-xs font-black shadow-xs cursor-default">
+                        ${p}
+                    </button>
+                `;
+            } else {
+                html += `
+                    <button onclick="OrdersModule.goToPage(${p})" 
+                            class="p-1 px-2.5 rounded bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-bold transition cursor-pointer">
+                        ${p}
+                    </button>
+                `;
+            }
+        }
+
+        html += `
+            <button onclick="OrdersModule.goToPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Trang sau">
+                ›
+            </button>
+        `;
+
+        html += `
+            <button onclick="OrdersModule.goToPage(${totalPages})" ${cur >= totalPages ? 'disabled' : ''} 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 cursor-pointer'} transition" 
+                    title="Đến trang cuối">
+                »
+            </button>
+        `;
+
+        btnsEl.innerHTML = html;
+    },
+
     renderOrdersTable() {
         const tbody = document.getElementById('orders-table-tbody');
         if (!tbody) return;
 
         const orders = this.getFilteredOrders();
+        const total = orders.length;
 
-        if (orders.length === 0) {
+        if (total === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="8" class="text-center py-12 text-slate-400">
@@ -157,13 +258,27 @@ const OrdersModule = {
                     </td>
                 </tr>
             `;
+            this.renderPaginationControls(0, 1, 0, 0);
             if (window.lucide) lucide.createIcons();
             return;
         }
 
+        const totalPages = (this.pageSize === 'all') ? 1 : Math.max(1, Math.ceil(total / this.pageSize));
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        if (this.currentPage < 1) this.currentPage = 1;
+
+        let displayedOrders = orders;
+        let startIdx = 0;
+        if (this.pageSize !== 'all') {
+            startIdx = (this.currentPage - 1) * this.pageSize;
+            displayedOrders = orders.slice(startIdx, startIdx + this.pageSize);
+        }
+
+        this.renderPaginationControls(total, totalPages, startIdx, displayedOrders.length);
+
         const canCancelOrReturn = !window.AuthModule || AuthModule.canCancelOrReturnOrder();
         let html = '';
-        orders.forEach((o, idx) => {
+        displayedOrders.forEach((o, idx) => {
             const isCash = o.paymentMethod === 'cash';
             const isCancelled = o.isCancelled;
             const hasReturn = o.returns && o.returns.length > 0;
@@ -193,11 +308,36 @@ const OrdersModule = {
 
             const itemsSummary = (o.items || []).map(i => `${i.medicineName} (${i.quantity} ${i.unit})`).join(', ');
 
+            // Cột Khách Hàng: click vào tên để xem thông tin & lịch sử khách hàng
+            const custPhone = (o.customerPhone || '').trim();
+            const custName = (o.customerName || '').trim();
+            const isRetail = !custPhone && (!custName || custName.toLowerCase() === 'khách vãng lai' || custName.toLowerCase() === 'khách lẻ');
+
+            let customerCellHtml = '';
+            if (!isRetail) {
+                const safeCustLookup = (custPhone || o.customerId || custName).replace(/'/g, "\\'");
+                customerCellHtml = `
+                    <button type="button" 
+                            onclick="CustomersModule.openCustomerOrdersModal('${safeCustLookup}')"
+                            class="font-semibold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1 group"
+                            title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
+                        <span>${custName || 'Khách hàng'}</span>
+                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-600 opacity-60 group-hover:opacity-100"></i>
+                    </button>
+                    ${custPhone ? `<div class="text-xs text-slate-500 font-mono mt-0.5">${custPhone}</div>` : ''}
+                    ${o.pointsEarned ? `<div class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full mt-0.5">⭐ +${o.pointsEarned} điểm</div>` : ''}
+                `;
+            } else {
+                customerCellHtml = `
+                    <div class="font-semibold text-slate-400 italic">Khách vãng lai</div>
+                `;
+            }
+
             html += `
                 <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-sm ${isCancelled ? 'opacity-50 bg-slate-50/80 line-through' : ''}">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
                     <td class="py-3 px-3">
-                        <div class="font-mono font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" onclick="OrdersModule.openOrderDetails('${o.id}')">${o.id}</div>
+                        <div class="font-mono font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" onclick="OrdersModule.openOrderDetails('${o.id}')" title="Bấm để xem chi tiết hóa đơn">${o.id}</div>
                         <div class="text-[11px] text-slate-400">${AppUtils.formatDateTime(o.createdAt)}</div>
                     </td>
                     <td class="py-3 px-3">
@@ -205,9 +345,7 @@ const OrdersModule = {
                         ${o.transferCode ? `<div class="text-[11px] font-mono text-slate-500 mt-1">Mã GD: ${o.transferCode}</div>` : ''}
                     </td>
                     <td class="py-3 px-3">
-                        <div class="font-semibold text-slate-800">${o.customerName || 'Khách vãng lai'}</div>
-                        ${o.customerPhone ? `<div class="text-xs text-slate-500 font-mono">${o.customerPhone}</div>` : ''}
-                        ${o.pointsEarned ? `<div class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full mt-0.5">⭐ +${o.pointsEarned} điểm</div>` : ''}
+                        ${customerCellHtml}
                     </td>
                     <td class="py-3 px-3">
                         <div class="text-xs text-slate-600 line-clamp-1 max-w-xs" title="${itemsSummary}">${itemsSummary}</div>
@@ -223,12 +361,13 @@ const OrdersModule = {
                     </td>
                     <td class="py-3 px-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="OrdersModule.openOrderDetails('${o.id}')" title="Xem chi tiết" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition cursor-pointer">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
-                            </button>
                             <button onclick="OrdersModule.reprintOrder('${o.id}')" title="In lại hóa đơn" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition cursor-pointer">
                                 <i data-lucide="printer" class="w-4 h-4"></i>
                             </button>
+                            ${!isCancelled ? `
+                            <button onclick="OrdersModule.openEditOrderModal('${o.id}')" title="Chỉnh sửa hóa đơn (Đổi tiền mặt / chuyển khoản, thông tin khách, ghi chú)" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition cursor-pointer">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>` : ''}
                             ${canCancelOrReturn && !isCancelled && !isFullyReturned ? `
                             <button onclick="OrdersModule.openReturnModal('${o.id}')" title="Khách trả thuốc & trừ quỹ tiền mặt" class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition cursor-pointer">
                                 <i data-lucide="corner-down-left" class="w-4 h-4"></i>
@@ -358,13 +497,21 @@ const OrdersModule = {
                 <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg text-xs">
                     <div>
                         <p class="text-slate-500">Khách hàng:</p>
-                        <p class="font-bold text-slate-800">${order.customerName || 'Khách vãng lai'}</p>
+                        ${order.customerPhone || (order.customerName && order.customerName !== 'Khách vãng lai') ? `
+                            <button type="button" 
+                                    onclick="CustomersModule.openCustomerOrdersModal('${(order.customerPhone || order.customerId || order.customerName).replace(/'/g, "\\'")}');" 
+                                    class="font-bold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left flex items-center gap-1 mt-0.5" 
+                                    title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
+                                <span>${order.customerName || 'Khách hàng'}</span>
+                                <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            </button>
+                        ` : `<p class="font-bold text-slate-800 mt-0.5">${order.customerName || 'Khách vãng lai'}</p>`}
                         <p class="text-slate-500 mt-1">Số điện thoại: <span class="font-mono text-slate-700">${order.customerPhone || '---'}</span></p>
                         ${order.pointsEarned ? `<p class="mt-1"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">⭐ Tích lũy đơn: +${order.pointsEarned} điểm</span></p>` : ''}
                         ${order.pointsUsed ? `<p class="mt-0.5"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-full">⭐ Đã dùng: -${order.pointsUsed} điểm (-${AppUtils.formatVND(order.pointsDiscount || order.pointsUsed * 1000)})</span></p>` : ''}
                     </div>
                     <div>
-                        <p class="text-slate-500">Phương thức thanh toán gốc:</p>
+                        <p class="text-slate-500">Phương thức thanh toán:</p>
                         <p class="font-bold ${isCash ? 'text-amber-700' : 'text-blue-700'}">
                             ${isCash ? 'TIỀN MẶT' : 'CHUYỂN KHOẢN (VietQR)'}
                         </p>
@@ -449,6 +596,15 @@ const OrdersModule = {
                 </div>
             </div>
         `;
+
+        const btnEditFromDetails = document.getElementById('btn-edit-from-order-details');
+        if (btnEditFromDetails) {
+            if (order.isCancelled) {
+                btnEditFromDetails.classList.add('hidden');
+            } else {
+                btnEditFromDetails.classList.remove('hidden');
+            }
+        }
 
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
@@ -771,6 +927,158 @@ const OrdersModule = {
 
         App.showToast(`Đã trả hàng thành công! Đã trừ ${AppUtils.formatVND(res.returnRecord.refundTotal)} vào quỹ tiền mặt và hoàn kho thuốc.`, 'success');
         AppUtils.playBeepSound('success');
+    },
+
+    // ========================================================
+    // MODAL: CHỈNH SỬA HÓA ĐƠN
+    // ========================================================
+    openEditOrderModal(orderId) {
+        const order = Store.getOrderById(orderId);
+        if (!order) {
+            App.showToast('Không tìm thấy hóa đơn cần chỉnh sửa.', 'error');
+            return;
+        }
+
+        if (order.isCancelled) {
+            App.showToast('Không thể chỉnh sửa hóa đơn đã bị hủy.', 'warning');
+            return;
+        }
+
+        const modal = document.getElementById('modal-edit-order');
+        if (!modal) return;
+
+        // Điền dữ liệu tóm tắt
+        const elId = document.getElementById('edit-order-id');
+        const elDispId = document.getElementById('edit-order-display-id');
+        const elDispTime = document.getElementById('edit-order-display-time');
+        const elDispAmount = document.getElementById('edit-order-display-amount');
+
+        if (elId) elId.value = order.id;
+        if (elDispId) elDispId.innerText = order.id;
+        if (elDispTime) elDispTime.innerText = `Tạo lúc: ${AppUtils.formatDateTime(order.createdAt)}`;
+        if (elDispAmount) elDispAmount.innerText = AppUtils.formatVND(order.totalAmount);
+
+        // Hình thức thanh toán
+        const isTransfer = order.paymentMethod === 'transfer';
+        const radioTransfer = document.getElementById('edit-method-transfer');
+        const radioCash = document.getElementById('edit-method-cash');
+        if (isTransfer) {
+            if (radioTransfer) radioTransfer.checked = true;
+            this.onEditPaymentMethodChange('transfer');
+        } else {
+            if (radioCash) radioCash.checked = true;
+            this.onEditPaymentMethodChange('cash');
+        }
+
+        const elTransferCode = document.getElementById('edit-transfer-code');
+        const elCashGiven = document.getElementById('edit-cash-given');
+        if (elTransferCode) elTransferCode.value = order.transferCode || '';
+        if (elCashGiven) elCashGiven.value = order.cashGiven || order.totalAmount || 0;
+        this.calculateEditChangeDue();
+
+        // Khách hàng & ghi chú
+        const elCustName = document.getElementById('edit-customer-name');
+        const elCustPhone = document.getElementById('edit-customer-phone');
+        const elNote = document.getElementById('edit-order-note');
+
+        if (elCustName) elCustName.value = order.customerName || '';
+        if (elCustPhone) elCustPhone.value = order.customerPhone || '';
+        if (elNote) elNote.value = order.note || '';
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    onEditPaymentMethodChange(method) {
+        const labelCash = document.getElementById('label-method-cash');
+        const labelTransfer = document.getElementById('label-method-transfer');
+        const groupTransfer = document.getElementById('edit-transfer-code-group');
+        const groupCash = document.getElementById('edit-cash-group');
+
+        const activeCashClass = ['border-emerald-500', 'bg-emerald-50/50'];
+        const activeTransferClass = ['border-blue-500', 'bg-blue-50/50'];
+        const inactiveClass = ['border-slate-200', 'bg-white'];
+
+        if (method === 'cash') {
+            labelCash?.classList.remove(...inactiveClass);
+            labelCash?.classList.add(...activeCashClass);
+            labelTransfer?.classList.remove(...activeTransferClass);
+            labelTransfer?.classList.add(...inactiveClass);
+
+            groupCash?.classList.remove('hidden');
+            groupTransfer?.classList.add('hidden');
+            this.calculateEditChangeDue();
+        } else {
+            labelTransfer?.classList.remove(...inactiveClass);
+            labelTransfer?.classList.add(...activeTransferClass);
+            labelCash?.classList.remove(...activeCashClass);
+            labelCash?.classList.add(...inactiveClass);
+
+            groupCash?.classList.add('hidden');
+            groupTransfer?.classList.remove('hidden');
+        }
+    },
+
+    calculateEditChangeDue() {
+        const orderId = document.getElementById('edit-order-id')?.value;
+        const order = Store.getOrderById(orderId);
+        if (!order) return;
+
+        const given = parseFloat(document.getElementById('edit-cash-given')?.value) || 0;
+        const changeDue = Math.max(0, given - (order.totalAmount || 0));
+        const elChange = document.getElementById('edit-change-due');
+        if (elChange) {
+            elChange.value = AppUtils.formatVND(changeDue);
+        }
+    },
+
+    closeEditOrderModal() {
+        document.getElementById('modal-edit-order')?.classList.add('hidden');
+    },
+
+    saveOrderEdit() {
+        const orderId = document.getElementById('edit-order-id')?.value;
+        const order = Store.getOrderById(orderId);
+        if (!order) {
+            App.showToast('Không tìm thấy hóa đơn cần cập nhật.', 'error');
+            return;
+        }
+
+        const radioTransfer = document.getElementById('edit-method-transfer');
+        const newMethod = (radioTransfer && radioTransfer.checked) ? 'transfer' : 'cash';
+        const transferCode = document.getElementById('edit-transfer-code')?.value.trim() || '';
+        const cashGiven = parseFloat(document.getElementById('edit-cash-given')?.value) || order.totalAmount;
+        const customerName = document.getElementById('edit-customer-name')?.value.trim() || 'Khách vãng lai';
+        const customerPhone = document.getElementById('edit-customer-phone')?.value.trim() || '';
+        const note = document.getElementById('edit-order-note')?.value.trim() || '';
+
+        const changeAmount = (newMethod === 'cash') ? Math.max(0, cashGiven - order.totalAmount) : 0;
+
+        const updateData = {
+            paymentMethod: newMethod,
+            transferCode: (newMethod === 'transfer') ? transferCode : '',
+            cashGiven: (newMethod === 'cash') ? cashGiven : 0,
+            changeAmount: changeAmount,
+            customerName: customerName,
+            customerPhone: customerPhone,
+            note: note
+        };
+
+        const updated = Store.updateOrder(orderId, updateData);
+        if (updated) {
+            this.closeEditOrderModal();
+            App.showToast(`Đã cập nhật hóa đơn ${orderId} thành công (Phương thức: ${newMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})`, 'success');
+            AppUtils.playBeepSound('success');
+            
+            // Cập nhật lại giao diện và modal chi tiết nếu đang mở
+            this.renderOrdersTable();
+            this.updateTabSummaryCards();
+            if (this.selectedOrder && this.selectedOrder.id === orderId) {
+                this.openOrderDetails(orderId);
+            }
+        } else {
+            App.showToast('Không thể cập nhật hóa đơn.', 'error');
+        }
     },
 
     exportCurrentTabOrders() {

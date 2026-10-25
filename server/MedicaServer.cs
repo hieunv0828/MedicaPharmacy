@@ -25,9 +25,15 @@ namespace MedicaPharmacy
             };
 
             // Kiểm tra xem đã có tiến trình MedicaServer nào đang chạy chưa
+            int currentId = Process.GetCurrentProcess().Id;
             string currentProcessName = Process.GetCurrentProcess().ProcessName;
             Process[] existingProcesses = Process.GetProcessesByName(currentProcessName);
-            if (existingProcesses.Length > 1)
+            int otherCount = 0;
+            foreach (Process p in existingProcesses)
+            {
+                if (p.Id != currentId) otherCount++;
+            }
+            if (otherCount > 0)
             {
                 // Đã có máy chủ chạy rồi -> chỉ cần mở trình duyệt tới web
                 OpenBrowser("http://medica.com");
@@ -42,7 +48,7 @@ namespace MedicaPharmacy
             }
             catch (Exception ex)
             {
-                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_err.txt"), ex.ToString());
+                try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_err.txt"), ex.ToString()); } catch { }
             }
         }
 
@@ -477,11 +483,19 @@ namespace MedicaPharmacy
                         string rawUrl = parts[1].Split('?')[0];
 
                         int contentLength = 0;
+                        bool clientSupportsGzip = false;
                         foreach (string line in lines)
                         {
                             if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
                             {
                                 int.TryParse(line.Substring("Content-Length:".Length).Trim(), out contentLength);
+                            }
+                            else if (line.StartsWith("Accept-Encoding:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (line.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    clientSupportsGzip = true;
+                                }
                             }
                         }
 
@@ -589,7 +603,7 @@ namespace MedicaPharmacy
                             {
                                 string dbJson = GetFullDatabaseJson();
                                 byte[] dbBytes = Encoding.UTF8.GetBytes(dbJson);
-                                SendResponse(stream, 200, "application/json; charset=utf-8", dbBytes);
+                                SendResponse(stream, 200, "application/json; charset=utf-8", dbBytes, clientSupportsGzip);
                             }
                             else if (method == "POST")
                             {
@@ -627,7 +641,7 @@ namespace MedicaPharmacy
                             string ext = Path.GetExtension(filePath).ToLower();
                             string mime = GetMimeType(ext);
                             byte[] fileBytes = File.ReadAllBytes(filePath);
-                            SendResponse(stream, 200, mime, fileBytes);
+                            SendResponse(stream, 200, mime, fileBytes, clientSupportsGzip);
                         }
                         else
                         {
@@ -640,26 +654,75 @@ namespace MedicaPharmacy
             }
         }
 
-        private void SendResponse(NetworkStream stream, int statusCode, string contentType, byte[] bodyBytes)
+        private void SendResponse(NetworkStream stream, int statusCode, string contentType, byte[] bodyBytes, bool allowGzip = false)
         {
-            string statusText = (statusCode == 200) ? "OK" : (statusCode == 404 ? "Not Found" : "Error");
+            string statusText = (statusCode == 200) ? "OK" : (statusCode == 404 ? "Not Found" : (statusCode == 400 ? "Bad Request" : "Error"));
+            
+            bool isGzipped = false;
+            byte[] outputBytes = bodyBytes;
+
+            // Nén GZip nếu client hỗ trợ, dữ liệu > 1KB và là định dạng văn bản/JSON/script
+            if (allowGzip && bodyBytes != null && bodyBytes.Length > 1024 && IsCompressible(contentType))
+            {
+                try
+                {
+                    using (MemoryStream ms = new MemoryStream())
+                    {
+                        using (System.IO.Compression.GZipStream gzip = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Compress, true))
+                        {
+                            gzip.Write(bodyBytes, 0, bodyBytes.Length);
+                        }
+                        byte[] compressed = ms.ToArray();
+                        if (compressed.Length < bodyBytes.Length)
+                        {
+                            outputBytes = compressed;
+                            isGzipped = true;
+                        }
+                    }
+                }
+                catch { }
+            }
+
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("HTTP/1.1 {0} {1}\r\n", statusCode, statusText);
             sb.AppendFormat("Content-Type: {0}\r\n", contentType);
-            sb.AppendFormat("Content-Length: {0}\r\n", bodyBytes.Length);
+            sb.AppendFormat("Content-Length: {0}\r\n", outputBytes.Length);
+            if (isGzipped)
+            {
+                sb.Append("Content-Encoding: gzip\r\n");
+            }
             sb.Append("Access-Control-Allow-Origin: *\r\n");
             sb.Append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
             sb.Append("Access-Control-Allow-Headers: Content-Type\r\n");
+            if (contentType.StartsWith("application/json") || contentType.Contains("text/html"))
+            {
+                sb.Append("Cache-Control: no-cache, no-store, must-revalidate\r\n");
+            }
+            else
+            {
+                sb.Append("Cache-Control: public, max-age=86400\r\n");
+            }
             sb.Append("Connection: close\r\n");
             sb.Append("\r\n");
 
             byte[] headerBytes = Encoding.UTF8.GetBytes(sb.ToString());
             stream.Write(headerBytes, 0, headerBytes.Length);
-            if (bodyBytes.Length > 0)
+            if (outputBytes.Length > 0)
             {
-                stream.Write(bodyBytes, 0, bodyBytes.Length);
+                stream.Write(outputBytes, 0, outputBytes.Length);
             }
             stream.Flush();
+        }
+
+        private bool IsCompressible(string contentType)
+        {
+            if (string.IsNullOrEmpty(contentType)) return false;
+            string ct = contentType.ToLower();
+            return ct.Contains("text/") || 
+                   ct.Contains("application/json") || 
+                   ct.Contains("application/javascript") || 
+                   ct.Contains("application/x-javascript") || 
+                   ct.Contains("image/svg+xml");
         }
 
         private string GetMimeType(string ext)

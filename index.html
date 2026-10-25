@@ -661,6 +661,26 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="p-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            Hiển thị <span id="inventory-page-info" class="font-bold text-slate-800 font-mono">0</span> trong <span id="inventory-count-badge" class="font-bold text-emerald-700 font-mono">0</span> loại thuốc
+                        </div>
+                        <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                            <span class="text-slate-400">Mỗi trang:</span>
+                            <select id="inventory-pagesize-select" onchange="InventoryModule.changePageSize(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                                <option value="25" selected>25 loại</option>
+                                <option value="50">50 loại</option>
+                                <option value="100">100 loại</option>
+                                <option value="all">Tất cả</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-1" id="inventory-pagination-buttons">
+                        <!-- Nút phân trang render động -->
+                    </div>
+                </div>
             </div>
 
         </section>
@@ -797,6 +817,26 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="p-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            Hiển thị <span id="stockin-page-info" class="font-bold text-slate-800 font-mono">0</span> trong <span id="stockin-count-badge" class="font-bold text-emerald-700 font-mono">0</span> phiếu nhập
+                        </div>
+                        <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                            <span class="text-slate-400">Mỗi trang:</span>
+                            <select id="stockin-pagesize-select" onchange="InventoryModule.changeStockInPageSize(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                                <option value="25" selected>25 phiếu</option>
+                                <option value="50">50 phiếu</option>
+                                <option value="100">100 phiếu</option>
+                                <option value="all">Tất cả</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-1" id="stockin-pagination-buttons">
+                        <!-- Nút phân trang render động -->
+                    </div>
+                </div>
             </div>
 
         </section>
@@ -905,6 +945,26 @@
                             <!-- Rendered dynamically -->
                         </tbody>
                     </table>
+                </div>
+                <div class="p-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            Hiển thị <span id="orders-page-info" class="font-bold text-slate-800 font-mono">0</span> trong <span id="orders-count-badge" class="font-bold text-emerald-700 font-mono">0</span> đơn hàng
+                        </div>
+                        <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                            <span class="text-slate-400">Mỗi trang:</span>
+                            <select id="orders-pagesize-select" onchange="OrdersModule.changePageSize(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                                <option value="25" selected>25 đơn</option>
+                                <option value="50">50 đơn</option>
+                                <option value="100">100 đơn</option>
+                                <option value="all">Tất cả</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-1" id="orders-pagination-buttons">
+                        <!-- Nút phân trang render động -->
+                    </div>
                 </div>
             </div>
 
@@ -1016,12 +1076,24 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="p-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <div>
-                        Hiển thị <span id="customers-count-badge" class="font-bold text-emerald-700 font-mono">0</span> khách hàng
+                <div class="p-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            Hiển thị <span id="cust-page-info" class="font-bold text-slate-800 font-mono">0</span> trong <span id="customers-count-badge" class="font-bold text-emerald-700 font-mono">0</span> khách hàng
+                        </div>
+                        <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                            <span class="text-slate-400">Mỗi trang:</span>
+                            <select id="cust-pagesize-select" onchange="CustomersModule.changePageSize(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                                <option value="25" selected>25 khách</option>
+                                <option value="50">50 khách</option>
+                                <option value="100">100 khách</option>
+                                <option value="all">Tất cả</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="text-[11px] text-slate-400">
-                        💡 <b>Mẹo:</b> Bấm trực tiếp vào <b>Tên khách hàng</b> hoặc <b>Lượt mua</b> để xem toàn bộ lịch sử hóa đơn khách từng mua.
+                    
+                    <div class="flex items-center gap-1" id="cust-pagination-buttons">
+                        <!-- Nút phân trang render động -->
                     </div>
                 </div>
             </div>
@@ -1186,6 +1258,26 @@
                             <!-- Rendered dynamically -->
                         </tbody>
                     </table>
+                </div>
+                <div class="p-3 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                    <div class="flex items-center gap-3">
+                        <div>
+                            Hiển thị <span id="vouchers-page-info" class="font-bold text-slate-800 font-mono">0</span> trong <span id="vouchers-count-badge" class="font-bold text-emerald-700 font-mono">0</span> phiếu thu chi
+                        </div>
+                        <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                            <span class="text-slate-400">Mỗi trang:</span>
+                            <select id="vouchers-pagesize-select" onchange="VouchersModule.changePageSize(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
+                                <option value="25" selected>25 phiếu</option>
+                                <option value="50">50 phiếu</option>
+                                <option value="100">100 phiếu</option>
+                                <option value="all">Tất cả</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-1" id="vouchers-pagination-buttons">
+                        <!-- Nút phân trang render động -->
+                    </div>
                 </div>
             </div>
 
@@ -1969,13 +2061,144 @@
                 <!-- Rendered dynamically -->
             </div>
 
-            <div class="mt-5 pt-3 border-t border-slate-100 flex justify-end gap-2">
-                <button onclick="OrdersModule.closeOrderDetailsModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">Đóng</button>
-                <button onclick="OrdersModule.reprintOrder(OrdersModule.selectedOrder?.id)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5">
-                    <i data-lucide="printer" class="w-4 h-4"></i>
-                    <span>In Lại Hóa Đơn Nhiệt</span>
+            <div class="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div>
+                    <button id="btn-edit-from-order-details" onclick="OrdersModule.openEditOrderModal(OrdersModule.selectedOrder?.id); OrdersModule.closeOrderDetailsModal();" class="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                        <span>Chỉnh Sửa Đơn</span>
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="OrdersModule.closeOrderDetailsModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">Đóng</button>
+                    <button onclick="OrdersModule.reprintOrder(OrdersModule.selectedOrder?.id)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>In Lại Hóa Đơn Nhiệt</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 3.5: CHỈNH SỬA HÓA ĐƠN -->
+    <!-- ========================================== -->
+    <div id="modal-edit-order" class="hidden fixed inset-0 z-[85] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 my-8 animate-fadeIn max-h-[90vh] overflow-y-auto border border-slate-100">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-slate-800 text-base">Chỉnh Sửa Hóa Đơn</h3>
+                        <p class="text-[11px] text-slate-400">Thay đổi hình thức thanh toán, thông tin khách hoặc ghi chú</p>
+                    </div>
+                </div>
+                <button onclick="OrdersModule.closeEditOrderModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
+
+            <form id="form-edit-order" onsubmit="event.preventDefault(); OrdersModule.saveOrderEdit();" class="mt-4 space-y-4">
+                <input type="hidden" id="edit-order-id" />
+
+                <!-- Thẻ thông tin tóm tắt đơn -->
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Mã Hóa Đơn</div>
+                        <div id="edit-order-display-id" class="font-mono font-bold text-slate-800 text-sm mt-0.5">---</div>
+                        <div id="edit-order-display-time" class="text-[11px] text-slate-500 mt-0.5">---</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Tổng Tiền Đơn</div>
+                        <div id="edit-order-display-amount" class="text-lg font-black text-emerald-700 font-mono mt-0.5">0 đ</div>
+                    </div>
+                </div>
+
+                <!-- 1. HÌNH THỨC THANH TOÁN (Cốt lõi yêu cầu) -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                        <i data-lucide="wallet" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <span>Hình Thức Thanh Toán</span>
+                        <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label id="label-method-cash" class="flex items-center gap-2.5 p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/50 cursor-pointer transition select-none">
+                            <input type="radio" name="edit-payment-method" id="edit-method-cash" value="cash" onchange="OrdersModule.onEditPaymentMethodChange('cash')" class="text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer" checked />
+                            <div>
+                                <div class="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                    <i data-lucide="banknote" class="w-3.5 h-3.5 text-amber-600"></i>
+                                    <span>Tiền Mặt</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 mt-0.5">Khách trả tiền mặt tại quầy</div>
+                            </div>
+                        </label>
+
+                        <label id="label-method-transfer" class="flex items-center gap-2.5 p-3 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition select-none">
+                            <input type="radio" name="edit-payment-method" id="edit-method-transfer" value="transfer" onchange="OrdersModule.onEditPaymentMethodChange('transfer')" class="text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
+                            <div>
+                                <div class="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                    <i data-lucide="qr-code" class="w-3.5 h-3.5 text-blue-600"></i>
+                                    <span>Chuyển Khoản</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 mt-0.5">VietQR / Ngân hàng</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Trường phụ khi chọn Chuyển Khoản -->
+                <div id="edit-transfer-code-group" class="hidden">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Mã Giao Dịch Ngân Hàng / VietQR</label>
+                    <input type="text" id="edit-transfer-code" placeholder="VD: MBVCB.123456789..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                </div>
+
+                <!-- Trường phụ khi chọn Tiền Mặt -->
+                <div id="edit-cash-group" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tiền Khách Đưa (đ)</label>
+                        <input type="number" id="edit-cash-given" min="0" step="1000" oninput="OrdersModule.calculateEditChangeDue()" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tiền Thối Lại (đ)</label>
+                        <input type="text" id="edit-change-due" readonly class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-600 bg-slate-100 cursor-default" />
+                    </div>
+                </div>
+
+                <!-- 2. THÔNG TIN KHÁCH HÀNG -->
+                <div class="border-t border-slate-100 pt-3">
+                    <div class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <span>Thông Tin Khách Hàng</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] text-slate-500 mb-1">Tên khách hàng</label>
+                            <input type="text" id="edit-customer-name" placeholder="Khách vãng lai" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white" />
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-500 mb-1">Số điện thoại (tích điểm)</label>
+                            <input type="text" id="edit-customer-phone" placeholder="VD: 0987654321" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. GHI CHÚ ĐƠN HÀNG -->
+                <div class="border-t border-slate-100 pt-3">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Ghi Chú Đơn Hàng / Lý Do Sửa Đổi</label>
+                    <textarea id="edit-order-note" rows="2" placeholder="VD: Khách đổi từ chuyển khoản sang trả tiền mặt..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"></textarea>
+                </div>
+
+                <div class="mt-5 pt-3 border-t border-slate-100 flex justify-end gap-2">
+                    <button type="button" onclick="OrdersModule.closeEditOrderModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
+                        Hủy Bỏ
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span>Lưu Thay Đổi</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

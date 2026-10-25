@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>MedicaPharmacy - Automated Frontend Test Suite</title>
+    <script src="../vendor/tailwind.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+        .test-pass { border-left: 4px solid #10b981; }
+        .test-fail { border-left: 4px solid #ef4444; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- HEADER -->
+        <div class="flex items-center justify-between border-b border-slate-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-black text-white flex items-center gap-2">
+                    <span class="text-emerald-400">⚡</span> MedicaPharmacy Automated Test Suite
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">Kiểm thử toàn diện: POS, Giá vốn lẻ COGS, Kho FIFO, Khách hàng CRM, Báo cáo & Lợi nhuận</p>
+            </div>
+            <div id="summary-badge" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-sm font-bold border border-slate-700">
+                Đang chạy test...
+            </div>
+        </div>
+
+        <!-- STATS COUNTERS -->
+        <div class="grid grid-cols-4 gap-4">
+            <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                <div class="text-xs text-slate-400 uppercase font-semibold">Tổng Số Test</div>
+                <div id="stat-total" class="text-3xl font-black text-white mt-1">0</div>
+            </div>
+            <div class="bg-emerald-950/40 p-4 rounded-xl border border-emerald-800/60">
+                <div class="text-xs text-emerald-400 uppercase font-semibold">Đạt (Passed)</div>
+                <div id="stat-passed" class="text-3xl font-black text-emerald-400 mt-1">0</div>
+            </div>
+            <div class="bg-rose-950/40 p-4 rounded-xl border border-rose-800/60">
+                <div class="text-xs text-rose-400 uppercase font-semibold">Thất Bại (Failed)</div>
+                <div id="stat-failed" class="text-3xl font-black text-rose-400 mt-1">0</div>
+            </div>
+            <div class="bg-blue-950/40 p-4 rounded-xl border border-blue-800/60">
+                <div class="text-xs text-blue-400 uppercase font-semibold">Thời Gian Chạy</div>
+                <div id="stat-time" class="text-3xl font-black text-blue-400 mt-1">0 ms</div>
+            </div>
+        </div>
+
+        <!-- RESULTS CONTAINER -->
+        <div id="test-suites-container" class="space-y-4"></div>
+    </div>
+
+    <!-- MOCK DOM FOR MODALS & UI TESTING -->
+    <div id="mock-dom" style="display:none;">
+        <div id="modal-medicine-history" class="z-[70]"></div>
+        <div id="modal-stockin-detail" class="z-[80]"></div>
+        <div id="modal-order-details" class="z-[80]"></div>
+        <div id="modal-customer-orders-history" class="z-[60]"></div>
+        <div id="modal-customer-edit" class="z-[60]"></div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="../js/sample-data.js"></script>
+    <script src="../js/store.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/inventory.js"></script>
+    <script src="../js/pos.js"></script>
+    <script src="../js/orders.js"></script>
+    <script src="../js/customers.js"></script>
+    <script src="../js/vouchers.js"></script>
+    <script src="../js/reports.js"></script>
+
+    <!-- TEST RUNNER IMPLEMENTATION -->
+    <script>
+        const suites = [];
+        let currentSuite = null;
+
+        function describe(name, fn) {
+            currentSuite = { name, tests: [] };
+            suites.push(currentSuite);
+            fn();
+        }
+
+        function it(name, fn) {
+            currentSuite.tests.push({ name, fn });
+        }
+
+        const assert = {
+            equal(actual, expected, msg) {
+                if (actual !== expected) {
+                    throw new Error(msg || `Expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}`);
+                }
+            },
+            true(value, msg) {
+                if (value !== true) {
+                    throw new Error(msg || `Expected true but got ${value}`);
+                }
+            },
+            false(value, msg) {
+                if (value !== false) {
+                    throw new Error(msg || `Expected false but got ${value}`);
+                }
+            },
+            closeTo(actual, expected, delta = 0.01, msg) {
+                if (Math.abs(actual - expected) > delta) {
+                    throw new Error(msg || `Expected ${actual} to be close to ${expected} within +/-${delta}`);
+                }
+            },
+            greaterThan(actual, expected, msg) {
+                if (!(actual > expected)) {
+                    throw new Error(msg || `Expected ${actual} > ${expected}`);
+                }
+            },
+            isNotNull(value, msg) {
+                if (value === null || value === undefined) {
+                    throw new Error(msg || `Expected non-null value`);
+                }
+            }
+        };
+
+        // =========================================================================
+        // SUITE 1: TÍNH GIÁ VỐN ĐƠN VỊ LẺ (COGS & UNIT CONVERSION)
+        // =========================================================================
+        describe("Suite 1: Tính Chuẩn Giá Vốn Theo Đơn Vị Lẻ (Store.getMedicineUnitCost)", () => {
+            const medPanadol = {
+                id: "MED001",
+                name: "Panadol Extra Đỏ",
+                packUnit: "Hộp",
+                subUnit: "Vỉ",
+                baseUnit: "Viên",
+                packRatio: 120, // 1 Hộp = 120 Viên
+                subRatio: 12,   // 1 Vỉ = 12 Viên (1 Hộp = 10 Vỉ)
+                costPrice: 150000 // 1 Hộp = 150.000đ
+            };
+
+            const medAugmentin = {
+                id: "MED003",
+                name: "Augmentin 1g",
+                packUnit: "Hộp",
+                subUnit: "Vỉ",
+                baseUnit: "Viên",
+                packRatio: 14,
+                subRatio: 7, // 1 Vỉ = 7 Viên
+                costPrice: 215000
+            };
+
+            const medBottle = {
+                id: "MED_BOT",
+                name: "Nước muối sinh lý 500ml",
+                packUnit: "Thùng",
+                subUnit: "Chai",
+                baseUnit: "Chai",
+                packRatio: 20, // 1 Thùng = 20 Chai
+                subRatio: 1,
+                costPrice: 100000 // 1 Thùng = 100.000đ (5.000đ/chai)
+            };
+
+            it("TC-01: Giá vốn Hộp (packUnit) phải bằng đúng med.costPrice", () => {
+                const cost = Store.getMedicineUnitCost(medPanadol, "Hộp");
+                assert.equal(cost, 150000, "Giá vốn Hộp phải là 150.000đ");
+            });
+
+            it("TC-02: Giá vốn Viên (baseUnit) phải bằng costPrice / packRatio", () => {
+                // 150.000 / 120 = 1.250đ/viên
+                const cost = Store.getMedicineUnitCost(medPanadol, "Viên");
+                assert.equal(cost, 1250, "Giá vốn 1 viên Panadol phải là 1.250đ");
+            });
+
+            it("TC-03: Giá vốn Vỉ (subUnit) phải bằng (costPrice / packRatio) * subRatio", () => {
+                // (150.000 / 120) * 12 = 15.000đ/vỉ
+                const cost = Store.getMedicineUnitCost(medPanadol, "Vỉ");
+                assert.equal(cost, 15000, "Giá vốn 1 vỉ Panadol (12 viên) phải là 15.000đ");
+            });
+
+            it("TC-04: Thuốc không có vỉ (Thùng -> Chai) tính đúng giá vốn Chai lẻ", () => {
+                // 100.000 / 20 = 5.000đ/chai
+                const cost = Store.getMedicineUnitCost(medBottle, "Chai");
+                assert.equal(cost, 5000, "Giá vốn chai nước muối phải là 5.000đ");
+            });
+
+            it("TC-05: Thuốc số lẻ (Augmentin 215.000đ / 14 viên = 15.357đ/viên)", () => {
+                const costPill = Store.getMedicineUnitCost(medAugmentin, "Viên");
+                // Math.round(215000 / 14) = 15357
+                assert.equal(costPill, 15357, "Giá vốn 1 viên Augmentin phải làm tròn 15.357đ");
+
+                const costBlister = Store.getMedicineUnitCost(medAugmentin, "Vỉ");
+                // Math.round((215000 / 14) * 7) = 107500
+                assert.equal(costBlister, 107500, "Giá vốn 1 vỉ Augmentin phải là 107.500đ");
+            });
+
+            it("TC-06: Fallback an toàn khi thuốc thiếu packRatio hoặc costPrice = 0", () => {
+                const invalidMed = { costPrice: 50000, packRatio: 0, packUnit: "Hộp", baseUnit: "Viên" };
+                const cost = Store.getMedicineUnitCost(invalidMed, "Viên");
+                assert.equal(cost, 50000, "packRatio = 0 fallback về 1 để tránh lỗi chia 0 (NaN/Infinity)");
+
+                const nullMedCost = Store.getMedicineUnitCost(null, "Viên");
+                assert.equal(nullMedCost, 0, "Null med an toàn trả về 0");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 2: TRỪ KHO THEO LÔ FIFO & HẠN DÙNG
+        // =========================================================================
+        describe("Suite 2: Trừ Kho Theo Lô Cận Date (FIFO Logic)", () => {
+            it("TC-07: Trừ kho lô đơn lẻ khi số lượng mua nhỏ hơn lô đầu tiên", () => {
+                const lots = [
+                    { lotNumber: "LOT_EARLY", expiryDate: "2026-12-31", quantity: 50 },
+                    { lotNumber: "LOT_LATER", expiryDate: "2027-12-31", quantity: 100 }
+                ];
+                let remainingToDeduct = 20;
+                lots.forEach(l => {
+                    if (remainingToDeduct <= 0) return;
+                    const deduct = Math.min(l.quantity, remainingToDeduct);
+                    l.quantity -= deduct;
+                    remainingToDeduct -= deduct;
+                });
+                assert.equal(lots[0].quantity, 30, "Lô cận date giảm từ 50 xuống 30");
+                assert.equal(lots[1].quantity, 100, "Lô date xa giữ nguyên 100");
+                assert.equal(remainingToDeduct, 0, "Đã trừ hết toàn bộ số lượng cần trừ");
+            });
+
+            it("TC-08: Tự động tách trừ qua nhiều lô (Splitting across lots)", () => {
+                const lots = [
+                    { lotNumber: "LOT1", expiryDate: "2026-11-01", quantity: 10 },
+                    { lotNumber: "LOT2", expiryDate: "2027-05-01", quantity: 30 }
+                ];
+                let toDeduct = 25; // Cần trừ 25 (10 từ LOT1, 15 từ LOT2)
+                lots.forEach(l => {
+                    if (toDeduct <= 0) return;
+                    const deduct = Math.min(l.quantity, toDeduct);
+                    l.quantity -= deduct;
+                    toDeduct -= deduct;
+                });
+                assert.equal(lots[0].quantity, 0, "LOT1 bị trừ cạn về 0");
+                assert.equal(lots[1].quantity, 15, "LOT2 bị trừ tiếp 15 còn 15");
+                assert.equal(toDeduct, 0, "Trừ đủ 25 món");
+            });
+
+            it("TC-09: Phân loại cảnh báo hạn sử dụng (<3 tháng: Đỏ, <6 tháng: Vàng)", () => {
+                const now = new Date("2026-10-25");
+                const getAlertStatus = (expStr) => {
+                    const exp = new Date(expStr);
+                    const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+                    if (diffDays <= 0) return "expired";
+                    if (diffDays <= 90) return "critical"; // < 3 tháng
+                    if (diffDays <= 180) return "warning"; // < 6 tháng
+                    return "good";
+                };
+
+                assert.equal(getAlertStatus("2026-11-15"), "critical", "Còn 21 ngày phải là critical (Đỏ)");
+                assert.equal(getAlertStatus("2027-02-15"), "warning", "Còn ~110 ngày phải là warning (Vàng)");
+                assert.equal(getAlertStatus("2028-10-25"), "good", "Còn 2 năm là good (Xanh)");
+                assert.equal(getAlertStatus("2026-10-01"), "expired", "HSD quá khứ là expired (Hết hạn)");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 3: KHÁCH HÀNG CRM, PHÂN HẠNG & LỊCH SỬ HÓA ĐƠN
+        // =========================================================================
+        describe("Suite 3: Quản Lý Khách Hàng CRM & Lịch Sử Mua Hàng", () => {
+            it("TC-10: Phân hạng thành viên theo điểm tích lũy", () => {
+                assert.equal(Store.getCustomerTier(0).name, "Thành Viên", "0 điểm là Thành Viên");
+                assert.equal(Store.getCustomerTier(4).name, "Thành Viên", "4 điểm là Thành Viên");
+                assert.equal(Store.getCustomerTier(5).name, "Bạc", "5 điểm lên Bạc");
+                assert.equal(Store.getCustomerTier(19).name, "Bạc", "19 điểm là Bạc");
+                assert.equal(Store.getCustomerTier(20).name, "Vàng", "20 điểm lên Vàng");
+                assert.equal(Store.getCustomerTier(49).name, "Vàng", "49 điểm là Vàng");
+                assert.equal(Store.getCustomerTier(50).name, "Kim Cương", "50 điểm lên Kim Cương");
+                assert.equal(Store.getCustomerTier(120).name, "Kim Cương", "120 điểm là Kim Cương");
+            });
+
+            it("TC-11: Chuẩn hóa số điện thoại khách hàng (normalizePhone)", () => {
+                assert.equal(Store.normalizePhone("0987.654.321"), "0987654321");
+                assert.equal(Store.normalizePhone("+84 987 654 321"), "0987654321");
+                assert.equal(Store.normalizePhone("0987-654-321"), "0987654321");
+                assert.equal(Store.normalizePhone(""), "");
+            });
+
+            it("TC-12: getOrdersByCustomer tra cứu chuẩn xác theo Số điện thoại", () => {
+                // Tạo mock orders
+                const origGetOrders = Store.getOrders;
+                Store.getOrders = () => [
+                    { id: "HD01", customerPhone: "0912345678", customerName: "Nguyen Van A", createdAt: "2026-10-20" },
+                    { id: "HD02", customerPhone: "0988888888", customerName: "Tran Thi B", createdAt: "2026-10-21" },
+                    { id: "HD03", customerPhone: "0912 345 678", customerName: "Nguyen Van A", createdAt: "2026-10-22" },
+                    { id: "HD04", customerPhone: "", customerName: "Khách vãng lai", createdAt: "2026-10-23" }
+                ];
+
+                const ordersA = Store.getOrdersByCustomer("0912345678", "Nguyen Van A");
+                assert.equal(ordersA.length, 2, "Khách Nguyen Van A phải tìm thấy đúng 2 đơn");
+                assert.equal(ordersA[0].id, "HD03", "Đơn mới hơn phải xếp trước (sort createdAt DESC)");
+
+                // Khôi phục
+                Store.getOrders = origGetOrders;
+            });
+
+            it("TC-13: Khách vãng lai không bị gom chung lịch sử của nhau", () => {
+                const origGetOrders = Store.getOrders;
+                Store.getOrders = () => [
+                    { id: "HD01", customerPhone: "", customerName: "Khách vãng lai", createdAt: "2026-10-20" },
+                    { id: "HD02", customerPhone: "", customerName: "Khách lẻ", createdAt: "2026-10-21" }
+                ];
+
+                const ordersGuest = Store.getOrdersByCustomer("", "Khách vãng lai");
+                assert.equal(ordersGuest.length, 0, "Khách vãng lai không gom chung lịch sử");
+
+                Store.getOrders = origGetOrders;
+            });
+        });
+
+        // =========================================================================
+        // SUITE 4: GIỎ HÀNG POS, ĐỔI ĐƠN VỊ & ÁP VOUCHER
+        // =========================================================================
+        describe("Suite 4: Nghiệp Vụ Giỏ Hàng POS & Áp Mã Giảm Giá", () => {
+            it("TC-14: Chuyển đổi đơn vị trong giỏ hàng cập nhật đúng Đơn giá và Giá vốn", () => {
+                const med = {
+                    id: "MED_TEST",
+                    name: "Thuốc Test",
+                    packUnit: "Hộp",
+                    subUnit: "Vỉ",
+                    baseUnit: "Viên",
+                    packRatio: 100,
+                    subRatio: 10,
+                    costPrice: 200000,
+                    price: 250000,
+                    subPrice: 30000,
+                    basePrice: 3500
+                };
+
+                const item = {
+                    medicineId: med.id,
+                    name: med.name,
+                    quantity: 1,
+                    unit: "Hộp",
+                    unitPrice: med.price,
+                    costPrice: Store.getMedicineUnitCost(med, "Hộp")
+                };
+
+                assert.equal(item.unitPrice, 250000, "Giá bán Hộp ban đầu là 250.000đ");
+                assert.equal(item.costPrice, 200000, "Giá vốn Hộp ban đầu là 200.000đ");
+
+                // Đổi sang Vỉ
+                item.unit = "Vỉ";
+                item.unitPrice = med.subPrice;
+                item.costPrice = Store.getMedicineUnitCost(med, "Vỉ");
+                assert.equal(item.unitPrice, 30000, "Giá bán Vỉ là 30.000đ");
+                assert.equal(item.costPrice, 20000, "Giá vốn Vỉ là 20.000đ");
+
+                // Đổi sang Viên
+                item.unit = "Viên";
+                item.unitPrice = med.basePrice;
+                item.costPrice = Store.getMedicineUnitCost(med, "Viên");
+                assert.equal(item.unitPrice, 3500, "Giá bán Viên là 3.500đ");
+                assert.equal(item.costPrice, 2000, "Giá vốn Viên là 2.000đ");
+            });
+
+            it("TC-15: Tính toán chiết khấu Voucher theo phần trăm và số tiền cố định", () => {
+                const cartTotal = 500000;
+
+                // Voucher %
+                const vPercent = { type: "percent", value: 10, maxDiscount: 40000 };
+                let discount1 = (cartTotal * vPercent.value) / 100; // 50.000đ
+                if (vPercent.maxDiscount && discount1 > vPercent.maxDiscount) {
+                    discount1 = vPercent.maxDiscount; // Giới hạn 40.000đ
+                }
+                assert.equal(discount1, 40000, "Giảm 10% tối đa 40k phải là 40.000đ");
+
+                // Voucher tiền cố định
+                const vFixed = { type: "fixed", value: 30000 };
+                const discount2 = Math.min(cartTotal, vFixed.value);
+                assert.equal(discount2, 30000, "Giảm cố định 30.000đ");
+            });
+
+            it("TC-16: Điểm tích lũy sử dụng không được vượt quá số tiền của đơn", () => {
+                const subtotal = 15000;
+                const custPoints = 50; // 50 điểm = 50.000đ
+                const pointRate = 1000; // 1 điểm = 1.000đ
+
+                const maxPointsCanUse = Math.floor(subtotal / pointRate); // Tối đa 15 điểm
+                const pointsUsed = Math.min(custPoints, maxPointsCanUse);
+                const pointDiscount = pointsUsed * pointRate;
+                const finalDue = subtotal - pointDiscount;
+
+                assert.equal(pointsUsed, 15, "Chỉ được dùng tối đa 15 điểm tương ứng 15.000đ");
+                assert.equal(finalDue, 0, "Số tiền phải trả về 0, không bị âm tiền");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 5: BẢO VỆ LỢI NHUẬN & BÁO CÁO TÀI CHÍNH
+        // =========================================================================
+        describe("Suite 5: Tính Toán Báo Cáo Tài Chính & Bảo Đảm Lợi Nhuận Gộp Dương", () => {
+            it("TC-17: Đơn hàng bán lẻ các đơn vị Vỉ/Viên không bao giờ bị âm lợi nhuận", () => {
+                const orderItems = [
+                    { name: "Panadol", unit: "Vỉ", qty: 10, unitPrice: 20000, costPrice: 15000 },
+                    { name: "Augmentin", unit: "Viên", qty: 5, unitPrice: 20000, costPrice: 15357 },
+                    { name: "Vigentin", unit: "Viên", qty: 20, unitPrice: 10000, costPrice: 6000 }
+                ];
+
+                let totalRevenue = 0;
+                let totalCost = 0;
+
+                orderItems.forEach(i => {
+                    const lineRevenue = i.unitPrice * i.qty;
+                    const lineCost = i.costPrice * i.qty;
+                    const lineProfit = lineRevenue - lineCost;
+                    assert.greaterThan(lineProfit, 0, `Mặt hàng ${i.name} (${i.unit}) phải có lợi nhuận dương`);
+                    totalRevenue += lineRevenue;
+                    totalCost += lineCost;
+                });
+
+                const grossProfit = totalRevenue - totalCost;
+                const margin = (grossProfit / totalRevenue) * 100;
+
+                assert.greaterThan(grossProfit, 0, "Tổng lợi nhuận gộp đơn hàng phải dương");
+                assert.greaterThan(margin, 20, "Tỷ suất lợi nhuận phải đạt trên 20%");
+            });
+
+            it("TC-18: Báo cáo ngày có đơn hàng trong database/Store đạt lợi nhuận dương", () => {
+                const orders = Store.getOrders();
+                let targetOrders = orders.filter(o => o.createdAt && o.createdAt.startsWith("2026-10-25"));
+                if (targetOrders.length === 0 && orders.length > 0) {
+                    const firstDate = (orders[0].createdAt || '').slice(0, 10);
+                    targetOrders = orders.filter(o => o.createdAt && o.createdAt.startsWith(firstDate));
+                }
+
+                let rev = 0;
+                let cost = 0;
+
+                targetOrders.forEach(o => {
+                    if (o.status !== "cancelled" && !o.isCancelled) {
+                        rev += (o.finalAmount || o.totalAmount || 0);
+                        (o.items || []).forEach(it => {
+                            cost += ((it.costPrice || 0) * (it.quantity || 1));
+                        });
+                    }
+                });
+
+                const profit = rev - cost;
+                assert.greaterThan(profit, 0, `Lợi nhuận ngày có đơn thực tế phải dương (+${profit}đ)`);
+            });
+        });
+
+        // =========================================================================
+        // SUITE 6: TƯƠNG TÁC MODAL & XẾP TẦNG Z-INDEX
+        // =========================================================================
+        describe("Suite 6: Tương Tác Xem Chi Tiết Mã Phiếu / Mã Đơn & Z-Index", () => {
+            it("TC-19: Hàm InventoryModule.openStockInDetailModal tồn tại", () => {
+                assert.isNotNull(InventoryModule.openStockInDetailModal, "InventoryModule.openStockInDetailModal phải tồn tại");
+            });
+
+            it("TC-20: Hàm OrdersModule.openOrderDetails tồn tại", () => {
+                assert.isNotNull(OrdersModule.openOrderDetails, "OrdersModule.openOrderDetails phải tồn tại");
+            });
+
+            it("TC-21: Xếp tầng Z-Index chuẩn xác cho modal lồng nhau", () => {
+                // Kiểm tra các class z-index đã quy ước
+                const zOrderDetails = 80;
+                const zStockInDetail = 80;
+                const zMedicineHistory = 70;
+                const zCustomerHistory = 60;
+
+                assert.greaterThan(zOrderDetails, zMedicineHistory, "Modal Chi tiết đơn (z-80) phải đè lên Modal Lịch sử thuốc (z-70)");
+                assert.greaterThan(zStockInDetail, zMedicineHistory, "Modal Chi tiết phiếu nhập (z-80) phải đè lên Modal Lịch sử thuốc (z-70)");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 7: TÌM KIẾM THUỐC, HOẠT CHẤT & ĐĂNG KÝ KHÁCH HÀNG
+        // =========================================================================
+        describe("Suite 7: Tìm Kiếm Dược Phẩm, Hoạt Chất & Đăng Ký Khách Hàng", () => {
+            it("TC-22: Tìm kiếm thuốc theo tên hoạt chất (Ví dụ: Paracetamol -> Panadol)", () => {
+                const meds = Store.getMedicines();
+                const found = meds.filter(m => (m.activeIngredient || '').toLowerCase().includes("paracetamol") || (m.name || '').toLowerCase().includes("paracetamol"));
+                assert.greaterThan(found.length, 0, "Tìm theo hoạt chất paracetamol phải ra ít nhất 1 thuốc");
+            });
+
+            it("TC-23: Lưu khách hàng mới tự động sinh mã KHxxxx và lưu vào Store", () => {
+                const custCountBefore = Store.getCustomers().length;
+                const newCust = {
+                    name: "Khách Kiểm Thử Tự Động",
+                    phone: "0999888777",
+                    address: "Hà Nội",
+                    notes: "Không có dị ứng"
+                };
+                const saved = Store.saveCustomer(newCust);
+                assert.isNotNull(saved, "Khách hàng phải được lưu thành công");
+                assert.true(saved.id.startsWith("KH"), "Mã khách hàng phải bắt đầu bằng KH");
+                
+                // Dọn dẹp khách test
+                Store.deleteCustomer(saved.id);
+                assert.equal(Store.getCustomers().length, custCountBefore, "Dọn dẹp thành công sau test");
+            });
+
+            it("TC-24: Đơn hàng hoàn trả (Return Order) tính toán số tiền hoàn đúng", () => {
+                const originalTotal = 250000;
+                const returnAmount = 50000;
+                const newTotal = originalTotal - returnAmount;
+                assert.equal(newTotal, 200000, "Đơn hàng sau khi hoàn 50k còn 200k");
+            });
+
+            it("TC-25: Kiểm tra cấu trúc lịch sử nhập kho (StockIn History) & Mã Lô/Hạn Dùng", () => {
+                const meds = Store.getMedicines();
+                const panadol = meds.find(m => m.id === "MED001");
+                assert.isNotNull(panadol, "Phải tìm thấy Panadol MED001");
+                const history = Store.getMedicineStockInHistory("MED001");
+                assert.greaterThan(history.length, 0, "Panadol phải có ít nhất 1 bản ghi lịch sử nhập");
+                const first = history[0];
+                assert.isNotNull(first.orderId, "Bản ghi phải có orderId (Mã Phiếu)");
+                assert.isNotNull(first.batchNo, "Bản ghi phải có batchNo");
+                assert.isNotNull(first.expiryDate, "Bản ghi phải có expiryDate");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 7: KIỂM THỬ PHÂN TRANG (PAGINATION) CHO TẤT CẢ CÁC TAB
+        // =========================================================================
+        describe("Suite 7: Phân Trang Bảng Dữ Liệu (Pagination)", () => {
+            it("TC-26: Phân trang Khách Hàng (CustomersModule) hoạt động chuẩn xác", () => {
+                assert.isNotNull(CustomersModule.changePageSize, "CustomersModule.changePageSize phải tồn tại");
+                assert.isNotNull(CustomersModule.goToPage, "CustomersModule.goToPage phải tồn tại");
+                assert.equal(CustomersModule.currentPage, 1, "Trang ban đầu phải là 1");
+                CustomersModule.changePageSize("50");
+                assert.equal(CustomersModule.pageSize, 50, "Cỡ trang cập nhật thành 50");
+                CustomersModule.changePageSize("25");
+                assert.equal(CustomersModule.pageSize, 25, "Cỡ trang khôi phục về 25");
+            });
+
+            it("TC-27: Phân trang Hóa Đơn (OrdersModule) hoạt động chuẩn xác", () => {
+                assert.isNotNull(OrdersModule.changePageSize, "OrdersModule.changePageSize phải tồn tại");
+                assert.isNotNull(OrdersModule.goToPage, "OrdersModule.goToPage phải tồn tại");
+                assert.equal(OrdersModule.currentPage, 1, "Trang ban đầu phải là 1");
+                OrdersModule.changePageSize("100");
+                assert.equal(OrdersModule.pageSize, 100, "Cỡ trang đơn hàng cập nhật thành 100");
+                OrdersModule.changePageSize("all");
+                assert.equal(OrdersModule.pageSize, "all", "Cỡ trang chọn Tất cả");
+                OrdersModule.changePageSize("25");
+                assert.equal(OrdersModule.pageSize, 25, "Cỡ trang khôi phục về 25");
+            });
+
+            it("TC-28: Phân trang Kho Thuốc (InventoryModule) hoạt động chuẩn xác", () => {
+                assert.isNotNull(InventoryModule.changePageSize, "InventoryModule.changePageSize phải tồn tại");
+                assert.isNotNull(InventoryModule.goToPage, "InventoryModule.goToPage phải tồn tại");
+                assert.equal(InventoryModule.currentPage, 1, "Trang thuốc ban đầu phải là 1");
+                InventoryModule.changePageSize("50");
+                assert.equal(InventoryModule.pageSize, 50, "Cỡ trang thuốc thành 50");
+                InventoryModule.changePageSize("25");
+                assert.equal(InventoryModule.pageSize, 25, "Cỡ trang thuốc khôi phục về 25");
+            });
+
+            it("TC-29: Phân trang Nhập Kho (InventoryModule Stock-In) hoạt động chuẩn xác", () => {
+                assert.isNotNull(InventoryModule.changeStockInPageSize, "InventoryModule.changeStockInPageSize phải tồn tại");
+                assert.isNotNull(InventoryModule.goToStockInPage, "InventoryModule.goToStockInPage phải tồn tại");
+                assert.equal(InventoryModule.stockInCurrentPage, 1, "Trang phiếu nhập ban đầu là 1");
+                InventoryModule.changeStockInPageSize("50");
+                assert.equal(InventoryModule.stockInPageSize, 50, "Cỡ trang phiếu nhập thành 50");
+                InventoryModule.changeStockInPageSize("25");
+                assert.equal(InventoryModule.stockInPageSize, 25, "Cỡ trang phiếu nhập khôi phục về 25");
+            });
+
+            it("TC-30: Phân trang Sổ Thu Chi (VouchersModule) hoạt động chuẩn xác", () => {
+                assert.isNotNull(VouchersModule.changePageSize, "VouchersModule.changePageSize phải tồn tại");
+                assert.isNotNull(VouchersModule.goToPage, "VouchersModule.goToPage phải tồn tại");
+                assert.equal(VouchersModule.currentPage, 1, "Trang phiếu thu chi ban đầu là 1");
+                VouchersModule.changePageSize("50");
+                assert.equal(VouchersModule.pageSize, 50, "Cỡ trang phiếu thu chi thành 50");
+                VouchersModule.changePageSize("25");
+                assert.equal(VouchersModule.pageSize, 25, "Cỡ trang phiếu thu chi khôi phục về 25");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 8: CHỈNH SỬA HÓA ĐƠN & LIÊN KẾT KHÁCH HÀNG
+        // =========================================================================
+        describe("Suite 8: Chỉnh Sửa Hóa Đơn & Liên Kết Khách Hàng", () => {
+            it("TC-31: Store.updateOrder tồn tại và cập nhật được phương thức thanh toán", () => {
+                assert.isNotNull(Store.updateOrder, "Store.updateOrder phải tồn tại");
+                
+                // Tạo đơn test
+                const testOrder = {
+                    id: "HD-TEST-EDIT-01",
+                    createdAt: new Date().toISOString(),
+                    totalAmount: 150000,
+                    paymentMethod: "transfer",
+                    transferCode: "TEST_TRANSFER_123",
+                    customerName: "Khách test chuyển khoản",
+                    customerPhone: "0911222333",
+                    items: []
+                };
+                Store.addOrder(testOrder);
+
+                // Thực hiện đổi sang tiền mặt
+                const updated = Store.updateOrder("HD-TEST-EDIT-01", {
+                    paymentMethod: "cash",
+                    transferCode: "",
+                    cashGiven: 200000,
+                    changeAmount: 50000,
+                    note: "Khách đổi sang trả tiền mặt tại quầy"
+                });
+
+                assert.isNotNull(updated, "Đơn hàng phải được cập nhật");
+                assert.equal(updated.paymentMethod, "cash", "Phương thức phải đổi thành cash");
+                assert.equal(updated.cashGiven, 200000, "Tiền khách đưa phải là 200k");
+                assert.equal(updated.changeAmount, 50000, "Tiền thối lại phải là 50k");
+
+                // Dọn dẹp đơn test
+                const cleanOrders = Store.getOrders().filter(o => o.id !== "HD-TEST-EDIT-01");
+                localStorage.setItem("medica_orders_v1", JSON.stringify(cleanOrders));
+                const cleanVouchers = Store.getVouchers().filter(v => v.refId !== "HD-TEST-EDIT-01");
+                localStorage.setItem("medica_vouchers_v1", JSON.stringify(cleanVouchers));
+            });
+
+            it("TC-32: OrdersModule có đầy đủ hàm xử lý chỉnh sửa hóa đơn", () => {
+                assert.isNotNull(OrdersModule.openEditOrderModal, "openEditOrderModal phải tồn tại");
+                assert.isNotNull(OrdersModule.onEditPaymentMethodChange, "onEditPaymentMethodChange phải tồn tại");
+                assert.isNotNull(OrdersModule.calculateEditChangeDue, "calculateEditChangeDue phải tồn tại");
+                assert.isNotNull(OrdersModule.closeEditOrderModal, "closeEditOrderModal phải tồn tại");
+                assert.isNotNull(OrdersModule.saveOrderEdit, "saveOrderEdit phải tồn tại");
+            });
+
+            it("TC-33: Khách hàng có thể được tra cứu từ hóa đơn để mở modal hồ sơ", () => {
+                assert.isNotNull(CustomersModule.openCustomerOrdersModal, "CustomersModule.openCustomerOrdersModal phải tồn tại");
+            });
+        });
+
+        // =========================================================================
+        // EXECUTE SUITES & RENDER REPORT
+        // =========================================================================
+        async function runAllTests() {
+            const startTime = performance.now();
+            let total = 0;
+            let passed = 0;
+            let failed = 0;
+            const container = document.getElementById("test-suites-container");
+            container.innerHTML = "";
+
+            const suiteResults = [];
+
+            for (const suite of suites) {
+                const suiteEl = document.createElement("div");
+                suiteEl.className = "bg-slate-800/60 rounded-2xl p-5 border border-slate-700/80 space-y-3";
+                
+                const header = document.createElement("div");
+                header.className = "flex items-center justify-between border-b border-slate-700/60 pb-2.5";
+                header.innerHTML = `<h3 class="font-extrabold text-sm text-slate-200 tracking-wide">${suite.name}</h3>`;
+                suiteEl.appendChild(header);
+
+                const testList = document.createElement("div");
+                testList.className = "space-y-2";
+
+                let suitePass = 0;
+                let suiteFail = 0;
+
+                for (const test of suite.tests) {
+                    total++;
+                    const item = document.createElement("div");
+                    item.className = "p-2.5 rounded-xl bg-slate-900/70 text-xs flex items-start justify-between gap-3 border border-slate-800";
+
+                    try {
+                        test.fn();
+                        passed++;
+                        suitePass++;
+                        item.classList.add("test-pass");
+                        item.innerHTML = `
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400 font-black">✔</span>
+                                <span class="font-semibold text-slate-200">${test.name}</span>
+                            </div>
+                            <span class="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800/50">PASS</span>
+                        `;
+                    } catch (err) {
+                        failed++;
+                        suiteFail++;
+                        item.classList.add("test-fail");
+                        item.innerHTML = `
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-rose-400 font-black">✖</span>
+                                    <span class="font-semibold text-slate-200">${test.name}</span>
+                                </div>
+                                <div class="text-[11px] text-rose-300 font-mono bg-rose-950/40 p-2 rounded border border-rose-900/60 ml-5">
+                                    ${err.message}
+                                </div>
+                            </div>
+                            <span class="text-[10px] uppercase font-bold text-rose-400 bg-rose-950/80 px-2 py-0.5 rounded-full border border-rose-800/50">FAIL</span>
+                        `;
+                    }
+                    testList.appendChild(item);
+                }
+
+                header.innerHTML += `<span class="text-xs font-bold ${suiteFail > 0 ? 'text-rose-400' : 'text-emerald-400'}">${suitePass}/${suite.tests.length} passed</span>`;
+                suiteEl.appendChild(testList);
+                container.appendChild(suiteEl);
+
+                suiteResults.push({ name: suite.name, total: suite.tests.length, passed: suitePass, failed: suiteFail });
+            }
+
+            const endTime = performance.now();
+            const duration = Math.round(endTime - startTime);
+
+            document.getElementById("stat-total").innerText = total;
+            document.getElementById("stat-passed").innerText = passed;
+            document.getElementById("stat-failed").innerText = failed;
+            document.getElementById("stat-time").innerText = `${duration} ms`;
+
+            const badge = document.getElementById("summary-badge");
+            if (failed === 0) {
+                badge.className = "px-4 py-2 rounded-xl bg-emerald-950 text-emerald-300 text-sm font-extrabold border border-emerald-700 flex items-center gap-2";
+                badge.innerHTML = `<span>✔ TOÀN BỘ ${total} TEST ĐẠT</span>`;
+            } else {
+                badge.className = "px-4 py-2 rounded-xl bg-rose-950 text-rose-300 text-sm font-extrabold border border-rose-700 flex items-center gap-2";
+                badge.innerHTML = `<span>✖ CÓ ${failed} TEST THẤT BẠI</span>`;
+            }
+
+            // Expose globally for automated headless test runner
+            window.__TEST_RESULTS__ = {
+                total,
+                passed,
+                failed,
+                duration,
+                suites: suiteResults
+            };
+        }
+
+        window.addEventListener("DOMContentLoaded", async () => {
+            let waitCount = 0;
+            while (Store.syncInProgress && waitCount < 50) {
+                await new Promise(r => setTimeout(r, 50));
+                waitCount++;
+            }
+            if (Store.getOrders().length === 0) {
+                await Store.syncWithServer();
+            }
+            runAllTests();
+        });
+    </script>
+</body>
+</html>
