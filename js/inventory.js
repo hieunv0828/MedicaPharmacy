@@ -24,6 +24,8 @@ const InventoryModule = {
         items: []
     },
     editingStockInId: null,
+    pendingReturnStockInId: null,
+    returnStockInPaymentMethod: 'cash',
 
     init() {
         this.renderCategoryFilter();
@@ -804,25 +806,28 @@ const InventoryModule = {
         }
     },
 
-    // --- TAB LỌC THANH TOÁN TIỀN MẶT / CHUYỂN KHOẢN KHI NHẬP HÀNG ---
+    // --- TAB LỌC THANH TOÁN TIỀN MẶT / CHUYỂN KHOẢN / ĐÃ TRẢ HÀNG KHI NHẬP HÀNG ---
     setStockInPaymentFilter(method) {
         this.stockInPaymentFilter = method;
 
         const btnAll = document.getElementById('tab-btn-stockin-all');
         const btnCash = document.getElementById('tab-btn-stockin-cash');
         const btnTransfer = document.getElementById('tab-btn-stockin-transfer');
+        const btnReturned = document.getElementById('tab-btn-stockin-returned');
 
         const activeClass = ['border-emerald-600', 'text-emerald-700', 'font-bold'];
+        const activeReturnedClass = ['border-rose-600', 'text-rose-700', 'font-bold'];
         const inactiveClass = ['border-transparent', 'text-slate-500', 'font-medium'];
 
-        [btnAll, btnCash, btnTransfer].forEach(b => {
-            b?.classList.remove(...activeClass);
+        [btnAll, btnCash, btnTransfer, btnReturned].forEach(b => {
+            b?.classList.remove(...activeClass, ...activeReturnedClass);
             b?.classList.add(...inactiveClass);
         });
 
         if (method === 'all') btnAll?.classList.add(...activeClass);
         if (method === 'cash') btnCash?.classList.add(...activeClass);
         if (method === 'transfer') btnTransfer?.classList.add(...activeClass);
+        if (method === 'returned') btnReturned?.classList.add(...activeReturnedClass);
 
         this.renderStockInHistory();
     },
@@ -855,6 +860,7 @@ const InventoryModule = {
 
         const cashOrders = filtered.filter(o => (o.paymentMethod || 'cash') === 'cash');
         const transferOrders = filtered.filter(o => o.paymentMethod === 'transfer');
+        const returnedOrders = filtered.filter(o => o.returnStatus || (o.returns && o.returns.length > 0));
 
         const totalAll = filtered.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         const totalCash = cashOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -871,21 +877,25 @@ const InventoryModule = {
         const badgeAll = document.getElementById('badge-stockin-all');
         const badgeCash = document.getElementById('badge-stockin-cash');
         const badgeTransfer = document.getElementById('badge-stockin-transfer');
+        const badgeReturned = document.getElementById('badge-stockin-returned');
 
         if (badgeAll) badgeAll.innerText = filtered.length;
         if (badgeCash) badgeCash.innerText = cashOrders.length;
         if (badgeTransfer) badgeTransfer.innerText = transferOrders.length;
+        if (badgeReturned) badgeReturned.innerText = returnedOrders.length;
     },
 
     // --- Lịch sử Phiếu Nhập Hàng & Tra cứu thời gian, tìm kiếm sản phẩm ---
     getFilteredStockInOrders() {
         let orders = Store.getStockInOrders();
 
-        // 0. Lọc theo Tab phương thức thanh toán
+        // 0. Lọc theo Tab phương thức thanh toán / Trả hàng
         if (this.stockInPaymentFilter === 'cash') {
             orders = orders.filter(o => (o.paymentMethod || 'cash') === 'cash');
         } else if (this.stockInPaymentFilter === 'transfer') {
             orders = orders.filter(o => o.paymentMethod === 'transfer');
+        } else if (this.stockInPaymentFilter === 'returned') {
+            orders = orders.filter(o => o.returnStatus || (o.returns && o.returns.length > 0));
         }
 
         // 1. Lọc theo thời gian
@@ -957,10 +967,18 @@ const InventoryModule = {
                 ? '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i data-lucide="banknote" class="w-3 h-3"></i> Tiền mặt</span>'
                 : '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"><i data-lucide="qr-code" class="w-3 h-3"></i> Chuyển khoản</span>';
 
+            let returnStatusBadge = '';
+            if (o.returnStatus === 'fully_returned') {
+                returnStatusBadge = '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Đã trả hết</span>';
+            } else if (o.returnStatus === 'partially_returned') {
+                returnStatusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" title="Đã nhận lại ${AppUtils.formatVND(o.totalRefunded || 0)}"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Trả 1 phần</span>`;
+            }
+
             html += `
                 <tr class="border-b border-slate-100 hover:bg-slate-50 text-sm">
                     <td class="py-3 px-3 font-mono font-bold text-emerald-700">
                         <span class="cursor-pointer hover:underline" onclick="InventoryModule.openStockInDetailModal('${o.id}')">${o.id}</span>
+                        ${returnStatusBadge ? `<div class="mt-0.5">${returnStatusBadge}</div>` : ''}
                     </td>
                     <td class="py-3 px-3 text-slate-600 text-xs">${AppUtils.formatDateTime(o.createdAt)}</td>
                     <td class="py-3 px-3">${methodBadge}</td>
@@ -969,18 +987,32 @@ const InventoryModule = {
                         <span class="font-bold text-slate-700">${itemCount} loại thuốc:</span> 
                         <span class="line-clamp-1 italic text-slate-500" title="${itemsText}">${itemsText}</span>
                     </td>
-                    <td class="py-3 px-3 text-right font-bold text-slate-800">${AppUtils.formatVND(o.totalAmount)}</td>
+                    <td class="py-3 px-3 text-right">
+                        <div class="font-bold text-slate-800">${AppUtils.formatVND(o.totalAmount)}</div>
+                        ${(o.totalRefunded || 0) > 0 ? `<div class="text-[11px] text-rose-600 font-semibold" title="Đã hoàn tiền từ NCC">Hoàn: -${AppUtils.formatVND(o.totalRefunded)}</div>` : ''}
+                    </td>
                     <td class="py-3 px-3 text-center">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="BarcodePrinterModule.openForStockInOrder('${o.id}')" title="In tem mã vạch dán hộp (104x22mm)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                            <button onclick="BarcodePrinterModule.openForStockInOrder('${o.id}')" title="In tem mã vạch dán hộp (104x22mm)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="scan" class="w-3.5 h-3.5"></i>
                                 <span>In Tem</span>
                             </button>
-                            <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Xem chi tiết" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                            ${o.returnStatus === 'fully_returned' ? `
+                                <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Phiếu nhập đã xuất trả toàn bộ hàng cho NCC" class="text-xs bg-slate-100 text-slate-400 border border-slate-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                    <span>Đã trả</span>
+                                </button>
+                            ` : `
+                                <button onclick="InventoryModule.openReturnStockInModal('${o.id}')" title="Xuất trả thuốc cho nhà cung cấp & nhận hoàn tiền" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                    <span>Trả hàng</span>
+                                </button>
+                            `}
+                            <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Xem chi tiết" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                                 <span>Chi tiết</span>
                             </button>
-                            <button onclick="InventoryModule.openEditStockInModal('${o.id}')" title="Chỉnh sửa phiếu nhập kho" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                            <button onclick="InventoryModule.openEditStockInModal('${o.id}')" title="Chỉnh sửa phiếu nhập kho" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                                 <span>Sửa</span>
                             </button>
@@ -1012,6 +1044,12 @@ const InventoryModule = {
         (o.items || []).forEach((item, i) => {
             const med = Store.getMedicineById(item.medicineId) || Store.getMedicines().find(m => m.name === item.medicineName);
             const medId = med ? med.id : item.medicineId;
+
+            const returnedQty = (o.returns || []).reduce((sum, r) => {
+                const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
+                return sum + (ri ? ri.quantity : 0);
+            }, 0);
+
             itemsHtml += `
                 <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition">
                     <td class="p-2 text-center text-slate-400 font-mono">${i + 1}</td>
@@ -1024,12 +1062,64 @@ const InventoryModule = {
                     </td>
                     <td class="p-2 font-mono text-slate-700">${item.batchNo || '---'}</td>
                     <td class="p-2 text-slate-600">${AppUtils.formatDate(item.expiryDate) || '---'}</td>
-                    <td class="p-2 text-center font-semibold text-slate-800">${item.quantity} ${item.unit}</td>
+                    <td class="p-2 text-center font-semibold text-slate-800">
+                        ${item.quantity} ${item.unit}
+                        ${returnedQty > 0 ? `<div class="text-[10px] text-rose-600 font-bold">(Đã trả: ${returnedQty} ${item.unit})</div>` : ''}
+                    </td>
                     <td class="p-2 text-right">${AppUtils.formatVND(item.costPrice)}</td>
                     <td class="p-2 text-right font-bold text-emerald-700">${AppUtils.formatVND(item.total || item.quantity * item.costPrice)}</td>
                 </tr>
             `;
         });
+
+        // Bảng lịch sử các lần trả hàng (nếu có)
+        let returnsSectionHtml = '';
+        if (o.returns && o.returns.length > 0) {
+            returnsSectionHtml = `
+                <div class="border border-rose-200 rounded-xl overflow-hidden mt-3">
+                    <div class="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-900 uppercase flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-rose-600"></i>
+                            <span>Lịch Sử Xuất Trả Hàng Cho NCC (${o.returns.length} lần trả)</span>
+                        </div>
+                        <span class="text-[11px] font-normal lowercase italic text-rose-700">Tự động trừ kho & lập phiếu thu tiền hoàn</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-rose-50/50 text-[11px] text-rose-800 font-semibold border-b border-rose-200">
+                                <tr>
+                                    <th class="p-2 w-28">Mã Phiếu Trả</th>
+                                    <th class="p-2 w-32">Thời Gian</th>
+                                    <th class="p-2 w-24">Hình Thức</th>
+                                    <th class="p-2">Lý Do Xuất Trả</th>
+                                    <th class="p-2 text-right w-28">Số Tiền Hoàn</th>
+                                    <th class="p-2 text-center w-24">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-rose-100">
+                                ${o.returns.map(r => `
+                                    <tr class="hover:bg-rose-50/30 transition">
+                                        <td class="p-2 font-mono font-bold text-rose-700">${r.id}</td>
+                                        <td class="p-2 text-slate-600">${AppUtils.formatDateTime(r.createdAt)}</td>
+                                        <td class="p-2 font-medium">
+                                            ${r.paymentMethod === 'transfer' ? '<span class="text-blue-700 font-semibold">Chuyển khoản</span>' : '<span class="text-amber-700 font-semibold">Tiền mặt</span>'}
+                                        </td>
+                                        <td class="p-2 text-slate-700 max-w-xs truncate" title="${r.reason || ''}">${r.reason || '---'}</td>
+                                        <td class="p-2 text-right font-bold text-rose-700 font-mono">${AppUtils.formatVND(r.refundTotal)}</td>
+                                        <td class="p-2 text-center">
+                                            <button type="button" onclick="InventoryModule.printPurchaseReturn('${r.id}')" class="px-2 py-1 bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded font-bold text-[11px] transition inline-flex items-center gap-1 cursor-pointer">
+                                                <i data-lucide="printer" class="w-3 h-3"></i>
+                                                <span>In Phiếu</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
 
         body.innerHTML = `
             <div class="space-y-4">
@@ -1047,10 +1137,33 @@ const InventoryModule = {
                         <span class="font-bold text-slate-800">${o.supplierName || '---'}</span>
                     </div>
                     <div>
-                        <span class="text-slate-400 block">Tổng Tiền Nhập:</span>
+                        <span class="text-slate-400 block">Tổng Tiền Nhập Gốc:</span>
                         <span class="font-extrabold text-emerald-700 text-sm">${AppUtils.formatVND(o.totalAmount)}</span>
                     </div>
                 </div>
+
+                ${(o.returnStatus || (o.totalRefunded || 0) > 0) ? `
+                <div class="bg-rose-50 p-3 rounded-xl border border-rose-200 text-xs text-rose-900 flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i>
+                        <div>
+                            <span class="text-slate-500">Trạng thái hoàn trả:</span>
+                            <span class="font-bold uppercase ${o.returnStatus === 'fully_returned' ? 'text-rose-700' : 'text-amber-700'} ml-1">
+                                ${o.returnStatus === 'fully_returned' ? 'Đã xuất trả toàn bộ hàng' : 'Đã xuất trả một phần'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div>
+                            <span class="text-slate-500">Tiền đã hoàn lại:</span>
+                            <b class="text-rose-700 font-mono text-sm ml-1">${AppUtils.formatVND(o.totalRefunded || 0)}</b>
+                        </div>
+                        <div>
+                            <span class="text-slate-500">Giá trị thực nhập:</span>
+                            <b class="text-emerald-700 font-mono text-sm ml-1">${AppUtils.formatVND((o.totalAmount || 0) - (o.totalRefunded || 0))}</b>
+                        </div>
+                    </div>
+                </div>` : ''}
 
                 ${o.note ? `
                 <div class="bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-xs text-amber-900">
@@ -1070,7 +1183,7 @@ const InventoryModule = {
                                     <th class="p-2">Tên Thuốc</th>
                                     <th class="p-2 w-24">Số Lô</th>
                                     <th class="p-2 w-24">Hạn Dùng</th>
-                                    <th class="p-2 text-center w-20">SL Nhập</th>
+                                    <th class="p-2 text-center w-28">SL Nhập (Đã Trả)</th>
                                     <th class="p-2 text-right w-24">Đơn Giá Vốn</th>
                                     <th class="p-2 text-right w-28">Thành Tiền</th>
                                 </tr>
@@ -1082,10 +1195,12 @@ const InventoryModule = {
                     </div>
                 </div>
 
+                ${returnsSectionHtml}
+
                 <div class="flex justify-between items-center text-xs pt-2 border-t border-slate-200">
                     <span class="text-slate-500">Tồn kho các loại thuốc trên đã được cộng dồn theo đơn vị cơ bản.</span>
                     <div class="text-right">
-                        <span class="text-slate-600 font-bold mr-2">TỔNG CỘNG:</span>
+                        <span class="text-slate-600 font-bold mr-2">TỔNG CỘNG TIỀN NHẬP:</span>
                         <span class="text-base font-black text-emerald-700">${AppUtils.formatVND(o.totalAmount)}</span>
                     </div>
                 </div>
@@ -1093,10 +1208,25 @@ const InventoryModule = {
         `;
 
         modal.classList.remove('hidden');
+
         const btnEdit = document.getElementById('btn-edit-from-stockin-detail');
         if (btnEdit) {
             btnEdit.onclick = () => this.openEditStockInModal(orderId);
         }
+
+        const btnReturn = document.getElementById('btn-return-from-stockin-detail');
+        if (btnReturn) {
+            if (o.returnStatus === 'fully_returned') {
+                btnReturn.style.display = 'none';
+            } else {
+                btnReturn.style.display = '';
+                btnReturn.onclick = () => {
+                    this.closeStockInDetailModal();
+                    this.openReturnStockInModal(orderId);
+                };
+            }
+        }
+
         const btnPrintBarcode = document.getElementById('btn-print-barcode-from-stockin-detail');
         if (btnPrintBarcode) {
             btnPrintBarcode.onclick = () => {
@@ -1114,6 +1244,448 @@ const InventoryModule = {
 
     viewStockInDetails(orderId) {
         this.openStockInDetailModal(orderId);
+    },
+
+    // =========================================================
+    // NGHIỆP VỤ XUẤT TRẢ HÀNG NHẬP CHO NHÀ CUNG CẤP (PURCHASE RETURN)
+    // =========================================================
+    openReturnStockInModal(stockInId) {
+        const orders = Store.getStockInOrders();
+        const o = orders.find(x => x.id === stockInId);
+        if (!o) {
+            alert('Không tìm thấy thông tin phiếu nhập kho!');
+            return;
+        }
+
+        this.pendingReturnStockInId = stockInId;
+        this.returnStockInPaymentMethod = 'cash'; // Mặc định nhận tiền mặt
+
+        const modal = document.getElementById('modal-return-stockin');
+        const refIdText = document.getElementById('return-stockin-ref-id');
+        const supplierText = document.getElementById('return-stockin-supplier');
+        const noteInput = document.getElementById('return-stockin-note');
+        const reasonSelect = document.getElementById('return-stockin-reason-select');
+        const reasonCustom = document.getElementById('return-stockin-reason-custom');
+        const tbody = document.getElementById('return-stockin-items-tbody');
+
+        if (!modal || !tbody) return;
+
+        if (refIdText) refIdText.innerText = o.id;
+        if (supplierText) supplierText.innerText = o.supplierName || 'Nhà cung cấp';
+        if (noteInput) noteInput.value = '';
+        if (reasonSelect) reasonSelect.value = 'Hàng cận date / Hết hạn sử dụng';
+        if (reasonCustom) {
+            reasonCustom.value = '';
+            reasonCustom.classList.add('hidden');
+        }
+
+        this.setReturnStockInPaymentMethod('cash');
+
+        let rowsHtml = '';
+        (o.items || []).forEach((item, idx) => {
+            const med = Store.getMedicineById(item.medicineId);
+
+            // Tính số lượng đã trả trước đó trong phiếu này
+            const alreadyReturned = (o.returns || []).reduce((sum, r) => {
+                const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
+                return sum + (ri ? ri.quantity : 0);
+            }, 0);
+
+            const remainingFromInvoice = Math.max(0, item.quantity - alreadyReturned);
+
+            // Tính số lượng tồn kho thực tế quy đổi theo đơn vị phiếu nhập
+            let currentStockInUnit = 0;
+            if (med) {
+                if (item.unit === med.packUnit && med.packRatio > 1) {
+                    currentStockInUnit = Math.floor((med.stockUnits || 0) / med.packRatio);
+                } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                    currentStockInUnit = Math.floor((med.stockUnits || 0) / med.subRatio);
+                } else {
+                    currentStockInUnit = med.stockUnits || 0;
+                }
+            }
+
+            const maxReturnable = Math.min(remainingFromInvoice, Math.max(0, currentStockInUnit));
+
+            let inputColumnHtml = '';
+            if (remainingFromInvoice <= 0) {
+                inputColumnHtml = `<span class="inline-block text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded">Đã trả hết</span>`;
+            } else if (currentStockInUnit <= 0) {
+                inputColumnHtml = `<span class="inline-block text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded italic" title="Kho đã xuất hết loại thuốc này">Hết tồn kho</span>`;
+            } else {
+                inputColumnHtml = `
+                    <div class="flex items-center justify-center gap-1">
+                        <input type="number" id="return-qty-${idx}" min="0" max="${maxReturnable}" value="0"
+                               data-index="${idx}" data-max="${maxReturnable}" data-cost="${item.costPrice}"
+                               data-medid="${item.medicineId}" data-name="${item.medicineName}" data-unit="${item.unit}"
+                               data-batch="${item.batchNo || ''}" data-expiry="${item.expiryDate || ''}"
+                               oninput="InventoryModule.updateReturnStockInCalculations()"
+                               class="w-16 px-2 py-1 text-center font-bold border border-rose-300 rounded-lg focus:ring-1 focus:ring-rose-500 text-xs bg-white" />
+                        <button type="button" onclick="InventoryModule.setReturnStockInQtyMax(${idx}, ${maxReturnable})"
+                                class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-[10px] font-bold cursor-pointer transition"
+                                title="Điền số lượng tối đa có thể trả (${maxReturnable})">Hết</button>
+                    </div>
+                `;
+            }
+
+            rowsHtml += `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs">
+                    <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="p-2.5 font-mono font-bold text-emerald-800">${item.medicineId || '---'}</td>
+                    <td class="p-2.5 font-bold text-slate-800">${item.medicineName}</td>
+                    <td class="p-2.5 text-slate-600 font-mono text-[11px]">
+                        ${item.batchNo || '---'} • ${AppUtils.formatDate(item.expiryDate) || '---'}
+                    </td>
+                    <td class="p-2.5 text-center font-semibold text-slate-700">${item.quantity} ${item.unit}</td>
+                    <td class="p-2.5 text-center font-bold text-rose-700">${alreadyReturned} ${item.unit}</td>
+                    <td class="p-2.5 text-center">
+                        <span class="inline-block px-2 py-0.5 rounded font-mono font-bold ${currentStockInUnit > 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-400'}">
+                            ${currentStockInUnit} ${item.unit}
+                        </span>
+                    </td>
+                    <td class="p-2.5 text-center bg-rose-50/30">
+                        ${inputColumnHtml}
+                    </td>
+                    <td class="p-2.5 text-right font-medium text-slate-700">${AppUtils.formatVND(item.costPrice)}</td>
+                    <td class="p-2.5 text-right font-bold text-rose-700 font-mono">
+                        <span id="return-line-subtotal-${idx}">0 đ</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = rowsHtml;
+        this.updateReturnStockInCalculations();
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeReturnStockInModal() {
+        document.getElementById('modal-return-stockin')?.classList.add('hidden');
+        this.pendingReturnStockInId = null;
+    },
+
+    setReturnStockInPaymentMethod(method) {
+        this.returnStockInPaymentMethod = method;
+
+        const btnCash = document.getElementById('btn-return-pay-cash');
+        const btnTransfer = document.getElementById('btn-return-pay-transfer');
+        const methodText = document.getElementById('return-stockin-payment-method-text');
+
+        if (method === 'cash') {
+            btnCash?.classList.add('border-amber-500', 'text-amber-700', 'shadow-xs');
+            btnCash?.classList.remove('border-slate-200', 'text-slate-600');
+            btnTransfer?.classList.remove('border-blue-500', 'text-blue-700', 'shadow-xs');
+            btnTransfer?.classList.add('border-slate-200', 'text-slate-600');
+            if (methodText) methodText.innerHTML = '<i data-lucide="banknote" class="w-3.5 h-3.5 inline mr-1"></i>Hình thức: Nhận <b>Tiền Mặt</b> vào quỹ';
+        } else {
+            btnTransfer?.classList.add('border-blue-500', 'text-blue-700', 'shadow-xs');
+            btnTransfer?.classList.remove('border-slate-200', 'text-slate-600');
+            btnCash?.classList.remove('border-amber-500', 'text-amber-700', 'shadow-xs');
+            btnCash?.classList.add('border-slate-200', 'text-slate-600');
+            if (methodText) methodText.innerHTML = '<i data-lucide="qr-code" class="w-3.5 h-3.5 inline mr-1"></i>Hình thức: Nhận <b>Chuyển Khoản</b> vào tài khoản';
+        }
+        if (window.lucide) lucide.createIcons();
+    },
+
+    onReturnReasonChange() {
+        const select = document.getElementById('return-stockin-reason-select');
+        const customInput = document.getElementById('return-stockin-reason-custom');
+        if (!select || !customInput) return;
+
+        if (select.value === 'custom') {
+            customInput.classList.remove('hidden');
+            customInput.focus();
+        } else {
+            customInput.classList.add('hidden');
+        }
+    },
+
+    setReturnStockInQtyMax(idx, max) {
+        const input = document.getElementById(`return-qty-${idx}`);
+        if (input) {
+            input.value = max;
+            this.updateReturnStockInCalculations();
+        }
+    },
+
+    setReturnStockInQtyAll(isAll) {
+        const inputs = document.querySelectorAll('#return-stockin-items-tbody input[type="number"]');
+        inputs.forEach(input => {
+            const max = parseInt(input.dataset.max) || 0;
+            input.value = isAll ? max : 0;
+        });
+        this.updateReturnStockInCalculations();
+    },
+
+    updateReturnStockInCalculations() {
+        const inputs = document.querySelectorAll('#return-stockin-items-tbody input[type="number"]');
+        let totalCount = 0;
+        let totalRefund = 0;
+
+        inputs.forEach(input => {
+            let val = parseInt(input.value) || 0;
+            const max = parseInt(input.dataset.max) || 0;
+            if (val > max) {
+                val = max;
+                input.value = max;
+            }
+            if (val < 0) {
+                val = 0;
+                input.value = 0;
+            }
+
+            const cost = parseFloat(input.dataset.cost) || 0;
+            const lineSubtotal = val * cost;
+
+            const subtotalSpan = document.getElementById(`return-line-subtotal-${input.dataset.index}`);
+            if (subtotalSpan) {
+                subtotalSpan.innerText = AppUtils.formatVND(lineSubtotal);
+            }
+
+            if (val > 0) {
+                totalCount++;
+                totalRefund += lineSubtotal;
+            }
+        });
+
+        const countEl = document.getElementById('return-stockin-summary-count');
+        const amountEl = document.getElementById('return-stockin-summary-amount');
+
+        if (countEl) countEl.innerText = totalCount;
+        if (amountEl) amountEl.innerText = AppUtils.formatVND(totalRefund);
+    },
+
+    confirmReturnStockIn() {
+        if (!this.pendingReturnStockInId) {
+            alert('Không có thông tin phiếu nhập cần trả hàng!');
+            return;
+        }
+
+        const inputs = document.querySelectorAll('#return-stockin-items-tbody input[type="number"]');
+        const returnedItems = [];
+
+        inputs.forEach(input => {
+            const val = parseInt(input.value) || 0;
+            if (val > 0) {
+                returnedItems.push({
+                    medicineId: input.dataset.medid,
+                    medicineName: input.dataset.name,
+                    unit: input.dataset.unit,
+                    quantity: val,
+                    costPrice: parseFloat(input.dataset.cost) || 0,
+                    batchNo: input.dataset.batch,
+                    expiryDate: input.dataset.expiry
+                });
+            }
+        });
+
+        if (returnedItems.length === 0) {
+            alert('Vui lòng chọn số lượng ít nhất một mặt hàng thuốc để xuất trả (lớn hơn 0)!');
+            return;
+        }
+
+        const reasonSelect = document.getElementById('return-stockin-reason-select');
+        const reasonCustom = document.getElementById('return-stockin-reason-custom');
+        const noteInput = document.getElementById('return-stockin-note');
+
+        let reason = reasonSelect ? reasonSelect.value : 'Trả hàng cho nhà cung cấp';
+        if (reason === 'custom') {
+            reason = (reasonCustom && reasonCustom.value.trim()) ? reasonCustom.value.trim() : 'Trả hàng cho nhà cung cấp';
+        }
+        const note = noteInput ? noteInput.value.trim() : '';
+
+        const returnIdPending = this.pendingReturnStockInId;
+        const res = Store.returnStockInItems(
+            returnIdPending,
+            returnedItems,
+            reason,
+            this.returnStockInPaymentMethod || 'cash',
+            note
+        );
+
+        if (!res.success) {
+            alert(res.message);
+            return;
+        }
+
+        this.closeReturnStockInModal();
+
+        if (window.App && App.showToast) {
+            App.showToast(`Đã xuất trả ${returnedItems.length} loại thuốc và tạo phiếu thu tiền hoàn từ NCC thành công!`, 'success');
+        }
+
+        this.renderStockInHistory();
+        this.renderStockInSummaryCards();
+        this.renderMedicineTable();
+
+        if (this.currentHistoryMedId) {
+            const med = Store.getMedicineById(this.currentHistoryMedId);
+            if (med) this.renderMedicineHistoryViews(med);
+        }
+
+        // Tự động mở modal xem & in phiếu trả hàng vừa tạo
+        setTimeout(() => {
+            this.printPurchaseReturn(res.returnRecord.id);
+        }, 300);
+    },
+
+    // --- XEM TRƯỚC VÀ IN PHIẾU XUẤT TRẢ HÀNG NHẬP (PURCHASE RETURN NOTE) ---
+    printPurchaseReturn(returnId) {
+        const orders = Store.getStockInOrders();
+        let foundRecord = null;
+        let parentStockIn = null;
+
+        for (const o of orders) {
+            const r = (o.returns || []).find(x => x.id === returnId);
+            if (r) {
+                foundRecord = r;
+                parentStockIn = o;
+                break;
+            }
+        }
+
+        if (!foundRecord || !parentStockIn) {
+            alert('Không tìm thấy thông tin phiếu xuất trả hàng này!');
+            return;
+        }
+
+        const modal = document.getElementById('modal-print-purchase-return');
+        const container = document.getElementById('purchase-return-print-content');
+        if (!modal || !container) return;
+
+        const settings = Store.getSettings();
+        const isCash = (foundRecord.paymentMethod || 'cash') === 'cash';
+
+        let rowsHtml = '';
+        (foundRecord.items || []).forEach((it, idx) => {
+            rowsHtml += `
+                <tr class="border-b border-slate-200 text-xs">
+                    <td class="p-2 text-center text-slate-500 font-mono">${idx + 1}</td>
+                    <td class="p-2 font-mono font-bold text-slate-700">${it.medicineId || '---'}</td>
+                    <td class="p-2 font-bold text-slate-900">${it.medicineName}</td>
+                    <td class="p-2 text-center font-semibold text-slate-700">${it.unit}</td>
+                    <td class="p-2 text-center font-bold text-slate-900">${it.quantity}</td>
+                    <td class="p-2 text-right font-medium text-slate-700">${AppUtils.formatVND(it.costPrice)}</td>
+                    <td class="p-2 text-right font-bold text-rose-700 font-mono">${AppUtils.formatVND(it.totalRefund)}</td>
+                </tr>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="receipt-paper bg-white text-slate-900 mx-auto p-4 sm:p-6 shadow-sm font-sans text-xs space-y-4">
+                <!-- Header Thông tin Nhà Thuốc -->
+                <div class="flex items-start justify-between pb-3 border-b-2 border-slate-800">
+                    <div>
+                        <h2 class="font-black text-base sm:text-lg uppercase text-slate-900 tracking-tight">${settings.pharmacyName || 'MEDICA PHARMACY'}</h2>
+                        <p class="text-[11px] text-slate-600">${settings.address || 'Địa chỉ: 123 Đường Y Dược, Hà Nội'}</p>
+                        <p class="text-[11px] text-slate-600">Hotline: <b>${settings.phone || '0988.000.xxx'}</b></p>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-300 rounded font-bold text-[11px]">
+                            MẪU XUẤT TRẢ NCC
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Tiêu đề Phiếu -->
+                <div class="text-center my-2 space-y-1">
+                    <h1 class="font-black text-lg uppercase text-slate-900 tracking-wide">PHIẾU XUẤT TRẢ HÀNG NHẬP KHO</h1>
+                    <div class="text-xs font-mono font-bold text-slate-700">Số phiếu: <span class="text-rose-700">${foundRecord.id}</span></div>
+                    <div class="text-[11px] text-slate-500">Ngày xuất trả: ${AppUtils.formatDateTime(foundRecord.createdAt)}</div>
+                </div>
+
+                <!-- Thông tin giao dịch & Nhà cung cấp -->
+                <div class="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                        <span class="text-slate-500">Nhà cung cấp:</span>
+                        <div class="font-bold text-slate-900">${foundRecord.supplierName || parentStockIn.supplierName || '---'}</div>
+                    </div>
+                    <div>
+                        <span class="text-slate-500">Phiếu nhập gốc:</span>
+                        <div class="font-mono font-bold text-emerald-800">${parentStockIn.id}</div>
+                    </div>
+                    <div>
+                        <span class="text-slate-500">Hình thức hoàn tiền:</span>
+                        <div class="font-bold ${isCash ? 'text-amber-800' : 'text-blue-800'}">
+                            ${isCash ? 'Tiền Mặt (Đã nộp vào quỹ)' : 'Chuyển Khoản (Đã nhận vào TK)'}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-slate-500">Dược sĩ phụ trách:</span>
+                        <div class="font-bold text-slate-800">${foundRecord.pharmacist || 'DS. Nguyễn Thanh Dung'}</div>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-slate-500">Lý do xuất trả:</span>
+                        <div class="font-medium text-slate-800 italic">${foundRecord.reason || 'Trả hàng cho NCC'}</div>
+                    </div>
+                    ${foundRecord.note ? `
+                    <div class="col-span-2">
+                        <span class="text-slate-500">Ghi chú:</span>
+                        <div class="text-slate-700">${foundRecord.note}</div>
+                    </div>` : ''}
+                </div>
+
+                <!-- Bảng danh sách hàng xuất trả -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 font-bold text-slate-700 border-b border-slate-200 uppercase text-[11px]">
+                            <tr>
+                                <th class="p-2 text-center w-8">#</th>
+                                <th class="p-2 w-20">Mã Thuốc</th>
+                                <th class="p-2">Tên Thuốc</th>
+                                <th class="p-2 text-center w-16">ĐVT</th>
+                                <th class="p-2 text-center w-16">SL Trả</th>
+                                <th class="p-2 text-right w-24">Đơn Giá Vốn</th>
+                                <th class="p-2 text-right w-28">Thành Tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tổng kết tiền hoàn trả -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="font-bold text-slate-700 uppercase">TỔNG TIỀN HOÀN TRẢ NCC:</span>
+                        <span class="text-base font-black text-rose-700 font-mono">${AppUtils.formatVND(foundRecord.refundTotal)}</span>
+                    </div>
+                    <div class="text-[11px] text-slate-500 italic">
+                        (Số lượng thuốc trên đã tự động giảm trừ khỏi kho hàng. Số tiền đã được hạch toán vào Sổ Quỹ Thu Chi).
+                    </div>
+                </div>
+
+                <!-- Chữ ký 2 bên -->
+                <div class="grid grid-cols-2 text-center text-xs text-slate-700 pt-4">
+                    <div>
+                        <p class="font-bold uppercase">Đại Diện Nhà Cung Cấp</p>
+                        <p class="italic text-[10px] text-slate-400">(Ký, ghi rõ họ tên)</p>
+                        <div class="h-16"></div>
+                        <p class="font-semibold text-slate-800">${foundRecord.supplierName || '---'}</p>
+                    </div>
+                    <div>
+                        <p class="font-bold uppercase">Người Lập Phiếu</p>
+                        <p class="italic text-[10px] text-slate-400">(Ký, ghi rõ họ tên)</p>
+                        <div class="h-16"></div>
+                        <p class="font-semibold text-slate-800">${foundRecord.pharmacist || 'DS. Nguyễn Thanh Dung'}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closePurchaseReturnPrintModal() {
+        document.getElementById('modal-print-purchase-return')?.classList.add('hidden');
+    },
+
+    executePrintPurchaseReturn() {
+        window.print();
     },
 
     // --- MODAL XEM LỊCH SỬ NHẬP / BÁN CỦA TỪNG LOẠI THUỐC ---

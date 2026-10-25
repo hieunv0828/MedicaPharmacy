@@ -711,7 +711,7 @@
                             <span>Lịch Sử Các Phiếu Nhập Kho</span>
                         </div>
 
-                        <!-- Sub-tabs lọc Tiền mặt / Chuyển khoản -->
+                        <!-- Sub-tabs lọc Tiền mặt / Chuyển khoản / Đã trả hàng -->
                         <div class="flex items-center gap-1 border-b border-slate-200 text-xs">
                             <button id="tab-btn-stockin-all" onclick="InventoryModule.setStockInPaymentFilter('all')" class="px-2.5 py-1.5 border-b-2 border-emerald-600 text-emerald-700 font-bold transition">
                                 Tất Cả (<span id="badge-stockin-all">0</span>)
@@ -721,6 +721,9 @@
                             </button>
                             <button id="tab-btn-stockin-transfer" onclick="InventoryModule.setStockInPaymentFilter('transfer')" class="px-2.5 py-1.5 border-b-2 border-transparent text-slate-500 font-medium hover:text-slate-700 transition">
                                 Chuyển Khoản (<span id="badge-stockin-transfer">0</span>)
+                            </button>
+                            <button id="tab-btn-stockin-returned" onclick="InventoryModule.setStockInPaymentFilter('returned')" class="px-2.5 py-1.5 border-b-2 border-transparent text-slate-500 font-medium hover:text-rose-700 transition">
+                                Đã Trả Hàng (<span id="badge-stockin-returned">0</span>)
                             </button>
                         </div>
                     </div>
@@ -2175,6 +2178,10 @@
                     <span>In Tem Mã Vạch (104x22mm)</span>
                 </button>
                 <div class="flex items-center gap-2">
+                    <button id="btn-return-from-stockin-detail" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer" title="Xuất trả lại thuốc cho nhà cung cấp & nhận hoàn tiền">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        <span>Trả Hàng Nhập Cho NCC</span>
+                    </button>
                     <button onclick="InventoryModule.closeStockInDetailModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer">Đóng</button>
                     <button id="btn-edit-from-stockin-detail" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer">
                         <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
@@ -2810,6 +2817,183 @@
                 <button type="button" onclick="BarcodePrinterModule.confirmPromptPrint()" class="py-2.5 px-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer">
                     <i data-lucide="printer" class="w-4 h-4"></i>
                     <span>In Tem Ngay</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 17: XUẤT TRẢ HÀNG NHẬP CHO NHÀ CUNG CẤP (PURCHASE RETURN) -->
+    <!-- ======================================================= -->
+    <div id="modal-return-stockin" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[95vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2.5 text-rose-700">
+                    <div class="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-base sm:text-lg text-slate-800">Xuất Trả Hàng Nhập Kho Cho Nhà Cung Cấp</h3>
+                        <p class="text-xs text-slate-500">
+                            Phiếu nhập gốc: <b id="return-stockin-ref-id" class="font-mono text-emerald-700 font-bold">---</b> • NCC: <b id="return-stockin-supplier" class="text-slate-800 font-semibold">---</b>
+                        </p>
+                    </div>
+                </div>
+                <button type="button" onclick="InventoryModule.closeReturnStockInModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="flex-1 overflow-y-auto my-3 space-y-4 pr-1 text-xs">
+                <!-- Card Cấu hình: Hình thức nhận tiền & Lý do trả -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <span>Hình Thức Nhận Lại Tiền Từ NCC:</span>
+                            <span class="text-[11px] text-slate-400 font-normal">Tự động lập Phiếu Thu tương ứng</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" id="btn-return-pay-cash" onclick="InventoryModule.setReturnStockInPaymentMethod('cash')" class="py-2 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer bg-white border-amber-500 text-amber-700 shadow-xs">
+                                <i data-lucide="banknote" class="w-4 h-4"></i>
+                                <span>Tiền Mặt (Cash)</span>
+                            </button>
+                            <button type="button" id="btn-return-pay-transfer" onclick="InventoryModule.setReturnStockInPaymentMethod('transfer')" class="py-2 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer bg-white border-slate-200 text-slate-600 hover:border-slate-300">
+                                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                                <span>Chuyển Khoản (Transfer)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1.5">Lý Do Xuất Trả Hàng:</label>
+                        <select id="return-stockin-reason-select" onchange="InventoryModule.onReturnReasonChange()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500 mb-1.5">
+                            <option value="Hàng cận date / Hết hạn sử dụng">Hàng cận date / Hết hạn sử dụng</option>
+                            <option value="Bao bì rách, móp méo, hư hỏng khi nhận">Bao bì rách, móp méo, hư hỏng khi nhận</option>
+                            <option value="Nhà cung cấp giao sai chủng loại / quy cách">Nhà cung cấp giao sai chủng loại / quy cách</option>
+                            <option value="Thừa số lượng so với nhu cầu bán hàng">Thừa số lượng so với nhu cầu bán hàng</option>
+                            <option value="Đổi trả theo thỏa thuận với Nhà cung cấp">Đổi trả theo thỏa thuận với Nhà cung cấp</option>
+                            <option value="custom">Lý do khác (tự nhập)...</option>
+                        </select>
+                        <input id="return-stockin-reason-custom" type="text" placeholder="Nhập lý do xuất trả cụ thể..." class="hidden w-full px-3 py-1.5 bg-white border border-rose-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-500" />
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block font-bold text-slate-700 mb-1">Ghi Chú Bổ Sung (nếu có):</label>
+                        <input id="return-stockin-note" type="text" placeholder="Ghi chú thêm về biên bản giao nhận hàng, người nhận của NCC..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-500" />
+                    </div>
+                </div>
+
+                <!-- Danh sách sản phẩm trong phiếu nhập để chọn trả -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="bg-slate-100 px-3.5 py-2.5 flex items-center justify-between flex-wrap gap-2">
+                        <div class="font-bold text-slate-800 text-xs flex items-center gap-1.5 uppercase">
+                            <i data-lucide="package" class="w-4 h-4 text-slate-500"></i>
+                            <span>Danh Sách Thuốc Có Thể Xuất Trả</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="InventoryModule.setReturnStockInQtyAll(true)" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-[11px] transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
+                                <span>Trả Toàn Bộ Phiếu (Điền Tối Đa)</span>
+                            </button>
+                            <button type="button" onclick="InventoryModule.setReturnStockInQtyAll(false)" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-[11px] transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                <span>Đặt Lại Về 0</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-50 text-[11px] text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider">
+                                <tr>
+                                    <th class="p-2.5 text-center w-8">#</th>
+                                    <th class="p-2.5 w-24">Mã Hàng</th>
+                                    <th class="p-2.5">Tên Thuốc</th>
+                                    <th class="p-2.5 w-24">Lô / HSD</th>
+                                    <th class="p-2.5 text-center w-20">Đã Nhập</th>
+                                    <th class="p-2.5 text-center w-20 text-rose-700">Đã Trả</th>
+                                    <th class="p-2.5 text-center w-24 text-emerald-700">Tồn Kho</th>
+                                    <th class="p-2.5 text-center w-36 bg-rose-50/50">SL Xuất Trả</th>
+                                    <th class="p-2.5 text-right w-24">Đơn Giá Vốn</th>
+                                    <th class="p-2.5 text-right w-28">Tiền Hoàn Lại</th>
+                                </tr>
+                            </thead>
+                            <tbody id="return-stockin-items-tbody" class="divide-y divide-slate-100">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Box Tự động hạch toán & Tổng kết hoàn tiền -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div class="bg-emerald-50/80 p-3 rounded-xl border border-emerald-200 text-emerald-900 space-y-1">
+                        <div class="font-bold flex items-center gap-1.5 text-emerald-800">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                            <span>Tự Động Trừ Tồn Kho & Vào Sổ Quỹ Thu Chi</span>
+                        </div>
+                        <p class="text-[11px] text-emerald-700 leading-relaxed">
+                            • Tồn kho của các loại thuốc trên sẽ được <b>tự động giảm trừ</b> ngay lập tức.<br/>
+                            • Hệ thống tự động tạo <b>Phiếu Thu tiền hoàn trả</b> từ NCC vào Sổ Quỹ để cân đối dòng tiền chuẩn kế toán.
+                        </p>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col justify-center items-end text-right space-y-1">
+                        <div class="text-xs text-slate-500 font-medium">
+                            Số mặt hàng xuất trả: <b id="return-stockin-summary-count" class="text-slate-800">0</b> loại thuốc
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-xs font-bold text-slate-700 uppercase">Tổng tiền hoàn trả:</span>
+                            <span id="return-stockin-summary-amount" class="text-xl font-black text-rose-600 font-mono">0 đ</span>
+                        </div>
+                        <div id="return-stockin-payment-method-text" class="text-[11px] font-semibold text-amber-700">
+                            Hình thức: Nhận Tiền Mặt vào quỹ
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+                <button type="button" onclick="InventoryModule.closeReturnStockInModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
+                    Hủy Bỏ / Đóng
+                </button>
+                <button type="button" onclick="InventoryModule.confirmReturnStockIn()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>Xác Nhận Xuất Trả Hàng & Nhận Tiền</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 18: XEM TRƯỚC & IN PHIẾU XUẤT TRẢ HÀNG NHẬP (PURCHASE RETURN NOTE) -->
+    <!-- ======================================================= -->
+    <div id="modal-print-purchase-return" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[95vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>In Phiếu Xuất Trả Hàng Nhập Kho</span>
+                </div>
+                <button type="button" onclick="InventoryModule.closePurchaseReturnPrintModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div id="purchase-return-print-content" class="flex-1 overflow-y-auto my-4 bg-slate-50 p-2 sm:p-4 rounded-xl border border-slate-200">
+                <!-- Dynamic voucher print content -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button type="button" onclick="InventoryModule.closePurchaseReturnPrintModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
+                    Đóng
+                </button>
+                <button type="button" onclick="InventoryModule.executePrintPurchaseReturn()" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>In Phiếu Ngay (Print)</span>
                 </button>
             </div>
         </div>

@@ -474,6 +474,135 @@ class DataStore {
         return orders[index];
     }
 
+    // --- TRẢ HÀNG NHẬP CHO NHÀ CUNG CẤP (PURCHASE RETURN) ---
+    returnStockInItems(stockInId, returnedItems, returnReason, paymentMethod = 'cash', note = '') {
+        const orders = this.getStockInOrders();
+        const stockIn = orders.find(o => o.id === stockInId);
+        if (!stockIn) return { success: false, message: 'Không tìm thấy phiếu nhập kho!' };
+
+        if (!Array.isArray(returnedItems) || returnedItems.length === 0) {
+            return { success: false, message: 'Vui lòng chọn ít nhất một mặt hàng để trả!' };
+        }
+
+        // 1. Kiểm tra số lượng tồn kho thực tế trước khi xuất trả
+        for (const item of returnedItems) {
+            const qtyToReturn = parseInt(item.quantity) || 0;
+            if (qtyToReturn <= 0) continue;
+
+            const med = this.getMedicineById(item.medicineId);
+            if (!med) {
+                return { success: false, message: `Không tìm thấy thông tin thuốc [${item.medicineName}] trong hệ thống!` };
+            }
+
+            let unitsToDeduct = qtyToReturn;
+            if (item.unit === med.packUnit && med.packRatio > 1) {
+                unitsToDeduct = qtyToReturn * med.packRatio;
+            } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                unitsToDeduct = qtyToReturn * med.subRatio;
+            }
+
+            if ((med.stockUnits || 0) < unitsToDeduct) {
+                return { 
+                    success: false, 
+                    message: `Thuốc [${med.name}] hiện tại trong kho chỉ còn ${med.stockUnits || 0} ${med.baseUnit} (đã bán bớt cho khách), không đủ số lượng ${unitsToDeduct} ${med.baseUnit} để xuất trả lại nhà cung cấp!` 
+                };
+            }
+        }
+
+        let totalRefund = 0;
+
+        // 2. Trừ số lượng thuốc trong kho tương ứng
+        returnedItems.forEach(item => {
+            const qtyToReturn = parseInt(item.quantity) || 0;
+            if (qtyToReturn <= 0) return;
+
+            const lineRefund = qtyToReturn * (parseFloat(item.costPrice) || 0);
+            totalRefund += lineRefund;
+
+            const med = this.getMedicineById(item.medicineId);
+            if (med) {
+                let unitsToDeduct = qtyToReturn;
+                if (item.unit === med.packUnit && med.packRatio > 1) {
+                    unitsToDeduct = qtyToReturn * med.packRatio;
+                } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                    unitsToDeduct = qtyToReturn * med.subRatio;
+                }
+
+                med.stockUnits = Math.max(0, (med.stockUnits || 0) - unitsToDeduct);
+                this.saveMedicine(med);
+            }
+        });
+
+        if (totalRefund <= 0) {
+            return { success: false, message: 'Tổng số tiền hoàn trả phải lớn hơn 0!' };
+        }
+
+        // 3. Ghi nhận phiếu trả hàng vào danh sách returns của phiếu nhập gốc
+        if (!stockIn.returns) stockIn.returns = [];
+        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+        const returnId = `THN${dateStr}-${String(Math.floor(Math.random() * 900) + 100)}`;
+        
+        const returnRecord = {
+            id: returnId,
+            stockInId: stockIn.id,
+            supplierId: stockIn.supplierId || '',
+            supplierName: stockIn.supplierName || 'Nhà cung cấp',
+            createdAt: new Date().toISOString(),
+            paymentMethod: paymentMethod || 'cash', // 'cash' (tiền mặt) hoặc 'transfer' (chuyển khoản)
+            reason: returnReason || 'Trả hàng cho nhà cung cấp',
+            note: note || '',
+            items: returnedItems.map(i => ({
+                medicineId: i.medicineId,
+                medicineName: i.medicineName,
+                unit: i.unit,
+                quantity: parseInt(i.quantity) || 0,
+                costPrice: parseFloat(i.costPrice) || 0,
+                totalRefund: (parseInt(i.quantity) || 0) * (parseFloat(i.costPrice) || 0)
+            })),
+            refundTotal: totalRefund,
+            pharmacist: this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung'
+        };
+
+        stockIn.returns.push(returnRecord);
+        stockIn.totalRefunded = (stockIn.totalRefunded || 0) + totalRefund;
+
+        // Kiểm tra xem đã trả hết toàn bộ số lượng các món trong phiếu nhập chưa
+        let allReturned = true;
+        (stockIn.items || []).forEach(origItem => {
+            const totalReturnedQty = (stockIn.returns || []).reduce((sum, r) => {
+                const ri = (r.items || []).find(x => x.medicineId === origItem.medicineId && x.unit === origItem.unit);
+                return sum + (ri ? ri.quantity : 0);
+            }, 0);
+            if (totalReturnedQty < origItem.quantity) {
+                allReturned = false;
+            }
+        });
+        stockIn.returnStatus = allReturned ? 'fully_returned' : 'partially_returned';
+
+        // 4. Tự động thêm Phiếu Thu (Thu tiền hoàn trả từ NCC) vào Sổ Quỹ Thu Chi
+        // Vì đây là tiền Nhà Cung Cấp hoàn lại cho nhà thuốc -> Loại 'receipt' (Thu tiền vào quỹ hoặc tài khoản)
+        const methodText = paymentMethod === 'transfer' ? 'Chuyển khoản' : 'Tiền mặt';
+        this.addVoucher({
+            type: 'receipt',
+            paymentMethod: paymentMethod || 'cash', // 'cash' hoặc 'transfer'
+            category: 'Thu tiền hoàn trả hàng Nhà Cung Cấp',
+            targetType: 'supplier',
+            targetName: stockIn.supplierName || 'Nhà cung cấp',
+            amount: totalRefund,
+            note: `Thu tiền hoàn trả hàng nhập ${stockIn.id} (${returnRecord.id}) [${methodText}] - ${stockIn.supplierName || ''}: ${returnReason || ''}`,
+            isAccounting: true,
+            refId: returnRecord.id,
+            pharmacist: this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung',
+            createdAt: returnRecord.createdAt
+        });
+
+        localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(orders));
+        this.schedulePersistToServer();
+        this.emit('stockin:changed', orders);
+
+        return { success: true, stockIn, returnRecord };
+    }
+
     // --- Orders (Hóa đơn bán thuốc) ---
     getOrders() {
         const raw = localStorage.getItem(STORAGE_KEYS.ORDERS);

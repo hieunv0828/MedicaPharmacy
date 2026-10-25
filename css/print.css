@@ -23,13 +23,19 @@
         color: #000000 !important;
     }
 
-    /* Chỉ hiển thị khu vực hóa đơn in */
+    /* Chỉ hiển thị khu vực hóa đơn, phiếu thu chi, phiếu trả hàng */
     #receipt-print-content, 
-    #receipt-print-content * {
+    #receipt-print-content *,
+    #voucher-print-content,
+    #voucher-print-content *,
+    #purchase-return-print-content,
+    #purchase-return-print-content * {
         visibility: visible !important;
     }
 
-    #modal-receipt-preview {
+    #modal-receipt-preview,
+    #modal-voucher-print,
+    #modal-print-purchase-return {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
@@ -44,7 +50,11 @@
 
     #modal-receipt-preview .modal-backdrop,
     #modal-receipt-preview .modal-header,
-    #modal-receipt-preview .modal-actions {
+    #modal-receipt-preview .modal-actions,
+    #modal-voucher-print .modal-header,
+    #modal-voucher-print .pt-3,
+    #modal-print-purchase-return .pb-3,
+    #modal-print-purchase-return .pt-3 {
         display: none !important;
     }
 
