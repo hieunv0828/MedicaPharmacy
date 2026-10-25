@@ -12,3 +12,8 @@ tools/ngrok.exe
 Thumbs.db
 .DS_Store
 
+# Installer build artifacts (can be generated via build-installer.bat)
+installer/staging/
+installer/*.zip
+MedicaPharmacy_Setup.exe
+

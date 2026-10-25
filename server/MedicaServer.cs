@@ -32,9 +32,16 @@ namespace MedicaPharmacy
                 return;
             }
 
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MedicaTrayApplicationContext());
+            try
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new MedicaTrayApplicationContext());
+            }
+            catch (Exception ex)
+            {
+                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_err.txt"), ex.ToString());
+            }
         }
 
         public static void OpenBrowser(string url)
@@ -69,6 +76,8 @@ namespace MedicaPharmacy
         private readonly object _dbLock = new object();
         private const string StartupRegKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "MedicaPharmacyServer";
+        private Process _ngrokProcess = null;
+        private string _ngrokFixedUrl = "https://proofread-unissued-roundness.ngrok-free.dev";
 
         public MedicaTrayApplicationContext()
         {
@@ -86,12 +95,90 @@ namespace MedicaPharmacy
             if (!Directory.Exists(_dataDir)) Directory.CreateDirectory(_dataDir);
             _dbFile = Path.Combine(_dataDir, "database.json");
 
+            // Tải cấu hình tên miền remote ngrok nếu có
+            string domainConfigFile = Path.Combine(_dataDir, "remote_domain.txt");
+            if (File.Exists(domainConfigFile))
+            {
+                try
+                {
+                    string customUrl = File.ReadAllText(domainConfigFile, Encoding.UTF8).Trim();
+                    if (!string.IsNullOrEmpty(customUrl)) _ngrokFixedUrl = customUrl;
+                }
+                catch { }
+            }
+            else
+            {
+                try { File.WriteAllText(domainConfigFile, _ngrokFixedUrl, Encoding.UTF8); } catch { }
+            }
+
             InitDatabaseIfEmpty();
             StartServer();
+            StartNgrokTunnel();
             InitTrayIcon();
 
             string openUrl = (_activePort == 80) ? "http://medica.com" : ("http://localhost:" + _activePort);
             Program.OpenBrowser(openUrl);
+        }
+
+        private void StartNgrokTunnel()
+        {
+            string ngrokExe = Path.Combine(_webRoot, "tools", "ngrok.exe");
+            if (!File.Exists(ngrokExe)) return;
+
+            ThreadPool.QueueUserWorkItem((state) =>
+            {
+                while (_isRunning)
+                {
+                    try
+                    {
+                        if (_ngrokProcess == null || _ngrokProcess.HasExited)
+                        {
+                            foreach (Process p in Process.GetProcessesByName("ngrok"))
+                            {
+                                try { p.Kill(); } catch { }
+                            }
+                            Thread.Sleep(500);
+
+                            string logFile = Path.Combine(_webRoot, "tools", "ngrok.log");
+                            ProcessStartInfo psi = new ProcessStartInfo
+                            {
+                                FileName = ngrokExe,
+                                Arguments = string.Format("http {0} --url {1} --log \"{2}\"", _activePort, _ngrokFixedUrl, logFile),
+                                CreateNoWindow = true,
+                                WindowStyle = ProcessWindowStyle.Hidden,
+                                UseShellExecute = false,
+                                RedirectStandardInput = true
+                            };
+
+                            _ngrokProcess = Process.Start(psi);
+                        }
+                    }
+                    catch { }
+
+                    Thread.Sleep(5000);
+                }
+            });
+        }
+
+        private void StopNgrokTunnel()
+        {
+            try
+            {
+                if (_ngrokProcess != null && !_ngrokProcess.HasExited)
+                {
+                    _ngrokProcess.Kill();
+                }
+            }
+            catch { }
+
+            try
+            {
+                foreach (Process p in Process.GetProcessesByName("ngrok"))
+                {
+                    try { p.Kill(); } catch { }
+                }
+            }
+            catch { }
         }
 
         private void StartServer()
@@ -145,6 +232,25 @@ namespace MedicaPharmacy
                 Program.OpenBrowser(url);
             };
             menu.Items.Add(itemOpen);
+
+            // 1.1 Mở qua Internet / Từ xa bằng Ngrok
+            ToolStripMenuItem itemRemote = new ToolStripMenuItem("🌍 Mở Qua Internet (Từ Xa / Điện Thoại)");
+            itemRemote.Click += (s, e) => {
+                if (!string.IsNullOrEmpty(_ngrokFixedUrl)) Program.OpenBrowser(_ngrokFixedUrl);
+            };
+            menu.Items.Add(itemRemote);
+
+            // 1.2 Sao chép đường link từ xa
+            ToolStripMenuItem itemCopyLink = new ToolStripMenuItem("📋 Sao Chép Link Truy Cập Từ Xa");
+            itemCopyLink.Click += (s, e) => {
+                try
+                {
+                    Clipboard.SetText(_ngrokFixedUrl);
+                    _trayIcon.ShowBalloonTip(2000, "Đã Sao Chép Link Từ Xa", _ngrokFixedUrl + "\nBạn có thể gửi link này qua Zalo để mở trên điện thoại!", ToolTipIcon.Info);
+                }
+                catch { }
+            };
+            menu.Items.Add(itemCopyLink);
 
             menu.Items.Add(new ToolStripSeparator());
 
@@ -514,6 +620,7 @@ namespace MedicaPharmacy
         private void ExitServer()
         {
             _isRunning = false;
+            StopNgrokTunnel();
             try { if (_tcpListener != null) _tcpListener.Stop(); } catch { }
             if (_trayIcon != null)
             {
