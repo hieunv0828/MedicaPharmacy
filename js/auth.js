@@ -381,8 +381,8 @@ window.AuthModule = {
     canAccessTab(tabId) {
         if (!this.isAuthenticated()) return false;
         if (this.isAdmin()) return true;
-        // Staff chỉ được vào pos, inventory, orders
-        const allowedTabs = ['pos', 'inventory', 'orders'];
+        // Staff được vào pos, inventory, orders, customers
+        const allowedTabs = ['pos', 'inventory', 'orders', 'customers'];
         return allowedTabs.includes(tabId);
     },
 

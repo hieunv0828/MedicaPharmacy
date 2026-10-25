@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tài Liệu Thiết Kế Kiến Trúc & Function Call Flows - MedicaPharmacy GPP</title>
+    <!-- Tailwind CSS (Offline local) -->
+    <script src="vendor/tailwind.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        medical: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="vendor/lucide.min.js"></script>
+    <!-- Mermaid.js for Diagrams (Offline local) -->
+    <script src="vendor/mermaid.min.js"></script>
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-break { page-break-before: always; }
+            .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+            .border { border-color: #cbd5e1 !important; }
+        }
+        html { scroll-behavior: smooth; }
+        .doc-section { scroll-margin-top: 5rem; }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            background: #ffffff;
+            padding: 1.25rem;
+            border-radius: 1rem;
+            border: 1px solid #e2e8f0;
+            overflow-x: auto;
+        }
+        .mermaid svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- HEADER CỐ ĐỊNH -->
+    <header class="bg-emerald-900 text-white shadow-lg sticky top-0 z-50 border-b border-emerald-800 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Brand -->
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-white text-emerald-800 flex items-center justify-center font-black text-xl shadow-md">
+                        +
+                    </div>
+                    <div>
+                        <div class="font-black text-lg tracking-wide flex items-center gap-2">
+                            <span>MedicaPharmacy</span>
+                            <span class="text-[10px] bg-emerald-700 text-emerald-100 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Architecture v2.0</span>
+                        </div>
+                        <div class="text-xs text-emerald-200">Tài Liệu Thiết Kế Kỹ Thuật & Function Call Flows</div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-2.5">
+                    <button onclick="window.print()" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 rounded-lg text-xs font-semibold transition border border-emerald-700">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">In / Xuất PDF</span>
+                    </button>
+                    <a href="huong-dan-su-dung.html" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 rounded-lg text-xs font-semibold transition border border-emerald-700 no-underline">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">HD Sử Dụng</span>
+                    </a>
+                    <a href="index.html" class="flex items-center gap-1.5 px-3.5 py-1.5 bg-white text-emerald-900 hover:bg-emerald-50 rounded-lg text-xs font-bold transition shadow-sm no-underline">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        <span>Vào Ứng Dụng</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WRAPPER -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            
+            <!-- SIDEBAR NAVIGATION CỐ ĐỊNH -->
+            <aside class="hidden lg:block lg:col-span-1 no-print">
+                <div class="sticky top-24 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 text-xs">
+                    <div class="font-extrabold text-slate-900 uppercase tracking-wider px-2 py-1.5 mb-2 border-b border-slate-100 flex items-center justify-between">
+                        <span>Mục Lục Thiết Kế</span>
+                        <i data-lucide="compass" class="w-4 h-4 text-emerald-600"></i>
+                    </div>
+                    <nav class="space-y-0.5">
+                        <a href="#section-overview-io" class="block px-2.5 py-2 rounded-lg bg-emerald-50 text-emerald-900 font-extrabold transition flex items-center justify-between border border-emerald-200 shadow-xs mb-1">
+                            <span>⭐ Chức Năng, Thao Tác & I/O</span>
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        </a>
+                        <a href="#section-arch" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">1. Kiến Trúc Tổng Thể</a>
+                        <a href="#section-flow-pos" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">2. Flow 1: Bán Thuốc POS</a>
+                        <a href="#section-flow-stockin" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">3. Flow 2: Nhập Kho & Vốn</a>
+                        <a href="#section-flow-customers" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">4. Flow 3: Khách Hàng & Đơn</a>
+                        <a href="#section-flow-reports" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">5. Flow 4: Báo Cáo Lợi Nhuận</a>
+                        <a href="#section-flow-license" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">6. Flow 5: Bản Quyền & Server</a>
+                        <a href="#section-erd" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">7. Thực Thể Dữ Liệu (ERD)</a>
+                        <a href="#section-api" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">8. Ma Trận Core API</a>
+                    </nav>
+
+                    <div class="mt-4 pt-3 border-t border-slate-100">
+                        <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-[11px] text-emerald-800">
+                            <b>Kiến trúc Standalone:</b> Máy chủ C# HttpListener tích hợp, chạy trực tiếp cổng 80 mà không cần cài IIS / Node.js.
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- NỘI DUNG TÀI LIỆU CHÍNH -->
+            <main class="lg:col-span-3 space-y-10">
+
+                <!-- HERO INTRO -->
+                <section class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-emerald-100/60 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="relative z-10 space-y-3">
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase">
+                            <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+                            <span>System Architecture Specification</span>
+                        </div>
+                        <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                            Tài Liệu Thiết Kế Kỹ Thuật & Function Call Flows
+                        </h1>
+                        <p class="text-sm text-slate-600 leading-relaxed max-w-2xl">
+                            Đặc tả toàn diện về luồng gọi hàm giữa các Module giao diện (Frontend), tầng quản trị cơ sở dữ liệu (<code class="font-mono text-emerald-700 font-bold">Store</code>), máy chủ nhúng C# (<code class="font-mono text-emerald-700 font-bold">MedicaServer.exe</code>) và hệ thống lưu trữ tệp JSON tách theo năm.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 0. SƠ ĐỒ CHỨC NĂNG - THAO TÁC - INPUT / OUTPUT -->
+                <!-- ======================================================== -->
+                <section id="section-overview-io" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-emerald-200 shadow-md space-y-6 ring-1 ring-emerald-500/20">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shadow-emerald-500/20">
+                                ⭐
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h2 class="text-lg sm:text-xl font-black text-slate-900">Sơ Đồ Tổng Quan: Chức Năng - Thao Tác - Đầu Vào / Đầu Ra (I/O)</h2>
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase">Toàn Diện Tiếng Việt</span>
+                                </div>
+                                <p class="text-xs text-slate-500">Mô hình hóa toàn bộ 5 phân hệ cốt lõi: Dữ liệu đưa vào (Input), Thao tác dược sĩ & xử lý logic, Kết quả sinh ra (Output)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MERMAID DIAGRAM -->
+                    <div class="mermaid">
+flowchart TB
+    %% ========================================================
+    %% SƠ ĐỒ TỔNG QUAN CHỨC NĂNG - THAO TÁC - INPUT - OUTPUT
+    %% HỆ THỐNG QUẢN LÝ NHÀ THUỐC MEDICA PHARMACY GPP
+    %% ========================================================
+
+    subgraph POS["1. PHÂN HỆ BÁN THUỐC & THU NGÂN (POS)"]
+        direction LR
+        P_IN["📥 ĐẦU VÀO (INPUT)
+• Quét Barcode / Gõ tên hoạt chất
+• Chọn đơn vị bán: Hộp, Vỉ, Viên & Số lượng
+• Nhập SĐT / Tên khách hàng tra cứu
+• Áp mã giảm giá Voucher / Điểm thưởng
+• Tiền khách đưa hoặc chọn mã VietQR"]
+
+        P_ACT["⚙️ THAO TÁC & XỬ LÝ
+• Đổi đơn vị & tính chuẩn giá vốn lẻ
+• Tính chiết khấu & trừ điểm tích lũy
+• Tạo mã QR thanh toán động VietQR
+• Trừ kho tự động theo lô cận date (FIFO)
+• Thao tác: Bấm 'Thanh toán & In hóa đơn'"]
+
+        P_OUT["📤 ĐẦU RA (OUTPUT)
+• Hóa đơn bán lẻ (In nhiệt K80/K58 hoặc PDF)
+• Trừ kho tức thì trên hệ thống
+• Lưu hóa đơn mới vào orders_YYYY.json
+• Cộng điểm thưởng hồ sơ khách (+1đ / 10k)
+• Ghi nhận doanh thu, tiền vốn & lợi nhuận"]
+
+        P_IN --> P_ACT --> P_OUT
+    end
+
+    subgraph INV["2. PHÂN HỆ KHO THUỐC & NHẬP HÀNG (INVENTORY)"]
+        direction LR
+        I_IN["📥 ĐẦU VÀO (INPUT)
+• Thông tin thuốc, hoạt chất, quy cách
+• Tỷ lệ đóng gói quy đổi (packRatio, subRatio)
+• Chọn Nhà cung cấp & Số hóa đơn NCC
+• Số lô sản xuất (Lot No) & Hạn dùng (Exp)
+• Số lượng nhập, Giá vốn nhập & Giá bán lẻ"]
+
+        I_ACT["⚙️ THAO TÁC & XỬ LÝ
+• Thêm mới thuốc / Sửa thông tin định mức
+• Lập phiếu nhập kho & Tách lô HSD độc lập
+• Click 'Mã Phiếu' / 'Mã Đơn' xem chi tiết
+• Lọc cảnh báo cận date (&lt; 3-6 tháng) & Hết hàng
+• Tiếp nhận trả hàng nhập NCC / Khách trả thuốc
+• Thiết kế & Bấm in tem Barcode dán hộp"]
+
+        I_OUT["📤 ĐẦU RA (OUTPUT)
+• Phiếu nhập kho lưu stockin_YYYY.json
+• Lô thuốc mới trong kho theo dõi HSD
+• Tem mã vạch Barcode dán bao bì thuốc
+• Cảnh báo đỏ/vàng thuốc sắp hết hạn
+• Tệp Excel báo cáo xuất - nhập - tồn kho"]
+
+        I_IN --> I_ACT --> I_OUT
+    end
+
+    subgraph CUST["3. PHÂN HỆ QUẢN LÝ KHÁCH HÀNG (CRM)"]
+        direction LR
+        C_IN["📥 ĐẦU VÀO (INPUT)
+• Họ tên, Số điện thoại khách hàng
+• Địa chỉ, Tiền sử bệnh nền & Dị ứng thuốc
+• Từ khóa tìm kiếm (SĐT hoặc Tên)
+• Bộ lọc phân hạng (Kim Cương / Vàng / Bạc / TV)"]
+
+        C_ACT["⚙️ THAO TÁC & XỬ LÝ
+• Đăng ký khách hàng mới / Sửa thông tin
+• Click tên khách hàng xem toàn bộ đơn đã mua
+• Tự động xét thăng hạng thành viên theo chi tiêu
+• Truy vấn lịch sử đơn hàng qua getOrdersByCustomer
+• Thao tác: Xuất danh bạ khách hàng"]
+
+        C_OUT["📤 ĐẦU RA (OUTPUT)
+• Hồ sơ khách hàng lưu customers.json
+• Bảng lịch sử mua hàng kèm chi tiết từng đơn
+• Thẻ thành viên & Điểm tích lũy cập nhật
+• Danh sách khách hàng phân hạng VIP
+• File Excel danh bạ khách hàng CSKH"]
+
+        C_IN --> C_ACT --> C_OUT
+    end
+
+    subgraph REP["4. PHÂN HỆ BÁO CÁO & TÀI CHÍNH (ANALYTICS)"]
+        direction LR
+        R_IN["📥 ĐẦU VÀO (INPUT)
+• Khoảng thời gian (Hôm nay / Tuần / Tháng / Tùy chọn)
+• Bộ lọc Dược sĩ bán hàng / Ca làm việc
+• Chọn ngày cụ thể cần soi chi tiết thuốc đã bán
+• Thông tin lập phiếu thu / chi tiền mặt"]
+
+        R_ACT["⚙️ THAO TÁC & XỬ LÝ
+• Xem Dashboard 4 KPI: Doanh thu, Vốn, Lãi, Đơn
+• Bấm vào ngày để xem danh sách thuốc đã bán lẻ
+• Tính chuẩn giá vốn quy đổi (tránh âm lợi nhuận)
+• Thống kê xếp hạng Top thuốc bán chạy nhất
+• Lập & đối soát phiếu thu/chi trong sổ quỹ"]
+
+        R_OUT["📤 ĐẦU RA (OUTPUT)
+• Biểu đồ Doanh thu - Lợi nhuận gộp theo mốc
+• Bảng kê chi tiết mặt hàng bán & tỷ suất lãi %
+• Sổ quỹ tiền mặt lưu vouchers_YYYY.json
+• Báo cáo tổng kết quỹ & Dòng tiền ròng
+• File Excel báo cáo tài chính đầy đủ"]
+
+        R_IN --> R_ACT --> R_OUT
+    end
+
+    subgraph SYS["5. QUẢN TRỊ HỆ THỐNG & BẢN QUYỀN (SYSTEM)"]
+        direction LR
+        S_IN["📥 ĐẦU VÀO (INPUT)
+• Tài khoản & Mật khẩu đăng nhập Dược sĩ
+• Mã phần cứng máy (Serial CPU + Mainboard UUID)
+• Khóa bản quyền License Key từ MedicaKeyGen.exe
+• Tệp dữ liệu cần sao lưu / phục hồi"]
+
+        S_ACT["⚙️ THAO TÁC & XỬ LÝ
+• Khởi động máy chủ nhúng C# (MedicaServer.exe :80)
+• Đăng nhập & phân quyền (Admin / Nhân viên)
+• Nhập License Key trên màn hình kích hoạt
+• Xác thực chữ ký HMAC-SHA256 ngoại tuyến
+• Thao tác: Sao lưu (Backup) & Phục hồi CSDL"]
+
+        S_OUT["📤 ĐẦU RA (OUTPUT)
+• Máy chủ sẵn sàng kết nối qua trình duyệt mạng LAN
+• Phiên làm việc phân quyền an toàn
+• Tệp bản quyền vĩnh viễn license.key
+• Bản sao lưu an toàn cơ sở dữ liệu data/*.json"]
+
+        S_IN --> S_ACT --> S_OUT
+    end
+
+    %% ========================================================
+    %% LIÊN KẾT LUỒNG DỮ LIỆU GIỮA CÁC PHÂN HỆ
+    %% ========================================================
+    P_OUT ==>|"1. Tự động trừ tồn kho theo lô HSD"| I_ACT
+    P_OUT ==>|"2. Đẩy doanh thu, tiền vốn & lãi gộp"| R_ACT
+    P_OUT ==>|"3. Tích điểm thưởng & lưu lịch sử mua"| C_ACT
+    I_OUT -.->|"Cập nhật danh mục thuốc & số lượng khả dụng"| P_ACT
+    S_OUT -.->|"Cấp quyền truy cập & máy chủ LAN"| P_ACT
+                    </div>
+
+                    <!-- THẺ GIẢI THÍCH 5 PHÂN HỆ -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
+                        <div class="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200 text-xs space-y-1.5">
+                            <b class="text-emerald-900 flex items-center gap-1"><i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i> 1. Bán Thuốc POS</b>
+                            <p class="text-slate-600">Bán theo mọi đơn vị lẻ, tự động tính giá vốn theo tỷ lệ đóng gói, trừ kho theo lô hạn dùng FIFO và in hóa đơn nhiệt.</p>
+                        </div>
+                        <div class="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 text-xs space-y-1.5">
+                            <b class="text-blue-900 flex items-center gap-1"><i data-lucide="package" class="w-3.5 h-3.5"></i> 2. Kho & Nhập Hàng</b>
+                            <p class="text-slate-600">Quản lý nhiều lô HSD độc lập, cảnh báo cận hạn 3-6 tháng, click trực tiếp mã phiếu / mã đơn để xem chi tiết.</p>
+                        </div>
+                        <div class="p-3 bg-purple-50/70 rounded-2xl border border-purple-200 text-xs space-y-1.5">
+                            <b class="text-purple-900 flex items-center gap-1"><i data-lucide="users" class="w-3.5 h-3.5"></i> 3. Khách Hàng CRM</b>
+                            <p class="text-slate-600">Tích điểm tự động, thăng hạng thành viên, click tên khách để tra cứu toàn bộ các hóa đơn đã từng mua.</p>
+                        </div>
+                        <div class="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs space-y-1.5">
+                            <b class="text-amber-900 flex items-center gap-1"><i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> 4. Báo Cáo Tài Chính</b>
+                            <p class="text-slate-600">4 thẻ KPI, soi chi tiết danh sách bán lẻ theo ngày, bảo đảm lãi gộp dương chuẩn xác và quản lý thu chi tiền mặt.</p>
+                        </div>
+                        <div class="p-3 bg-slate-100 rounded-2xl border border-slate-300 text-xs space-y-1.5">
+                            <b class="text-slate-900 flex items-center gap-1"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> 5. Bản Quyền & Server</b>
+                            <p class="text-slate-600">Chạy độc lập cổng 80 không cần IIS, mã hóa SHA-256 + HMAC khóa cứng theo CPU & Mainboard chống copy lậu.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 1. KIẾN TRÚC TỔNG THỂ -->
+                <!-- ======================================================== -->
+                <section id="section-arch" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                1
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Kiến Trúc Tổng Thể Hệ Thống (Architecture Map)</h2>
+                                <p class="text-xs text-slate-500">Mô hình phân tầng Client - DataStore - Server - Modular Storage</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+flowchart TD
+    subgraph Client["Lớp Giao Diện & Logic Ứng Dụng (Frontend Client)"]
+        UI["HTML5 / Tailwind CSS / Lucide Icons"]
+        
+        subgraph BusinessModules["Các Module Nghiệp Vụ"]
+            App["App (Điều phối Tab & Modal)"]
+            AuthMod["AuthModule (Phân quyền Admin/Staff)"]
+            POSMod["POSModule (Bán hàng & In hóa đơn)"]
+            InvMod["InventoryModule (Kho & Nhập hàng)"]
+            OrdMod["OrdersModule (Hóa đơn & Trả hàng)"]
+            CustMod["CustomersModule (Khách hàng & Tích điểm)"]
+            VouchMod["VouchersModule (Sổ quỹ Thu/Chi)"]
+            RepMod["ReportsModule (Báo cáo & Doanh thu)"]
+            BarMod["BarcodePrinterModule (In tem mã vạch)"]
+        end
+
+        subgraph CoreServices["Dịch Vụ Tiện Ích"]
+            AppUtils["AppUtils (Format VND, Date, Barcode)"]
+            VietQR["VietQRService (Sinh mã QR MBBank)"]
+            ExportSvc["ExportService (Xuất Excel CSV)"]
+            SearchSel["SearchableSelect (Dropdown tìm kiếm)"]
+        end
+
+        subgraph DataLayer["Lớp Lưu Trữ Dữ Liệu Cục Bộ (DataStore)"]
+            Store["DataStore (Store Singleton)"]
+            MemState["Bộ nhớ tạm (RAM State)"]
+            LocalDB["LocalStorage (Offline Fallback)"]
+            EventBus["EventBus (Pub/Sub: medicines, orders, customers...)"]
+        end
+    end
+
+    subgraph Backend["Lớp Máy Chủ Cục Bộ & Mạng LAN (MedicaServer.exe)"]
+        Server["HttpListener Server (:80 / :8080)"]
+        LicMgr["LicenseManager (Xác thực phần cứng & HMAC Key)"]
+        JsonSplitter["Modular Database Engine (Tách JSON theo năm)"]
+        
+        subgraph Storage["Thư Mục Dữ Liệu (data/)"]
+        F_Meds["medicines.json"]
+        F_Cust["customers.json"]
+        F_Supp["suppliers.json"]
+        F_Sett["settings.json"]
+        F_Ord["orders_2026.json"]
+        F_Stk["stockin_2026.json"]
+        F_Vch["vouchers_2026.json"]
+        F_Lic["license.key"]
+        end
+    end
+
+    UI --> BusinessModules
+    BusinessModules --> CoreServices
+    BusinessModules --> Store
+    Store <--> MemState
+    Store <--> LocalDB
+    Store --> EventBus
+    EventBus -. Thông báo cập nhật .-> BusinessModules
+
+    Store -- "REST API: GET /api/database<br/>POST /api/database" --> Server
+    Server --> LicMgr
+    Server --> JsonSplitter
+    JsonSplitter <--> Storage
+    LicMgr <--> F_Lic
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <b class="text-slate-800 block mb-1">Frontend Tự Động:</b>
+                            Chạy độc lập trên trình duyệt, có EventBus thông báo tức thì giữa các tab và modal mà không cần reload trang.
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <b class="text-slate-800 block mb-1">Đồng Bộ 2 Lớp:</b>
+                            LocalStorage phản hồi tức thì dưới 1ms cho người dùng, sau đó Debounce 300ms đẩy lên máy chủ qua REST API.
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <b class="text-slate-800 block mb-1">Tách File Theo Năm:</b>
+                            Hóa đơn, phiếu nhập và sổ thu chi được tách thành <code>orders_2026.json</code>, giúp hệ thống hoạt động mượt mà trong 10-20 năm.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 2. LUỒNG BÁN THUỐC POS -->
+                <!-- ======================================================== -->
+                <section id="section-flow-pos" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                2
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Function Call: Bán Thuốc & Xuất Hóa Đơn POS</h2>
+                                <p class="text-xs text-slate-500">Quy trình chọn thuốc, đổi đơn vị bán, định giá vốn, VietQR và trừ kho</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Cashier as Dược Sĩ / Thu Ngân
+    participant UI as POS Interface
+    participant POS as POSModule
+    participant Store as DataStore
+    participant QR as VietQRService
+    participant Server as MedicaServer
+    participant Printer as Máy In Hóa Đơn
+
+    Cashier->>UI: Tìm kiếm thuốc (Tên / Mã / Barcode F2)
+    UI->>POS: onSelectMedicine(medId)
+    POS->>Store: getMedicineById(medId)
+    Store-->>POS: Trả về thông tin thuốc (packRatio, subRatio, costPrice...)
+    POS->>Store: getMedicineUnitCost(med, defaultUnit)
+    Store-->>POS: Trả về giá vốn chuẩn theo đơn vị
+    POS->>POS: addToCart(medId)
+    POS->>UI: renderCart() (Hiển thị giỏ hàng & tính tiền)
+
+    opt Đổi đơn vị bán (Hộp -> Vỉ hoặc Viên)
+        Cashier->>UI: Chọn dropdown đơn vị mới
+        UI->>POS: changeItemUnit(itemIdx, newUnit)
+        POS->>Store: getMedicineUnitCost(med, newUnit)
+        Store-->>POS: Trả về giá vốn quy đổi chính xác
+        POS->>POS: Cập nhật item.price & item.costPrice
+        POS->>UI: renderCart()
+    end
+
+    opt Nhập thông tin khách hàng tích điểm
+        Cashier->>UI: Nhập số điện thoại khách
+        UI->>POS: handleCustomerPhoneChange(phone)
+        POS->>Store: getCustomerByPhone(phone)
+        Store-->>POS: Trả về thông tin khách & điểm hiện có
+        POS->>UI: Cập nhật huy hiệu hạng thành viên & gợi ý dùng điểm
+    end
+
+    opt Chọn thanh toán Chuyển khoản VietQR
+        Cashier->>UI: Chọn Chuyển Khoản
+        UI->>POS: setPaymentMethod('transfer')
+        POS->>QR: generateMBBankQR(totalAmount, transferCode)
+        QR-->>UI: Hiển thị mã VietQR động kèm số tiền
+    end
+
+    Cashier->>UI: Bấm nút "Thanh Toán & In Hóa Đơn" (F9)
+    UI->>POS: checkout(shouldPrint = true)
+    
+    rect rgb(240, 253, 244)
+        Note over POS,Store: Khối Giao Dịch Bán Hàng & Lưu Trữ
+        POS->>Store: createOrder(orderData)
+        Store->>Store: Trừ tồn kho updateStockUnits(item.medicineId, -quantity)
+        Store->>Store: calculatePoints(totalAmount)
+        Store->>Store: addPointsToCustomer(phone, name, ptsEarned, totalAmount)
+        Store->>Store: createVoucher(Loại thu: 'sale_revenue', số tiền: totalAmount)
+        Store->>Store: saveOrders() -> Lưu LocalStorage
+        Store->>Store: schedulePersistToServer()
+        Store->>Server: POST /api/database (Đẩy toàn bộ state lên Server)
+        Server->>Server: Ghi atomic ra orders_2026.json, medicines.json, customers.json, vouchers_2026.json
+        Server-->>Store: HTTP 200 OK
+    end
+
+    POS->>POS: showReceiptPreview(newOrder)
+    POS->>Printer: window.print() (Mẫu in K80 / K58)
+    POS->>POS: resetCart() (Làm mới giỏ hàng cho đơn tiếp theo)
+                    </div>
+
+                    <div class="bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900 leading-relaxed">
+                        <b>Điểm lưu ý cốt lõi:</b> Hàm <code>Store.getMedicineUnitCost(med, unit)</code> tự động chia <code>costPrice</code> của hộp theo <code>packRatio</code> và <code>subRatio</code>. Nhờ đó, khi khách mua lẻ từng vỉ hay từng viên, giá vốn được lưu đúng tỷ lệ nhỏ, đảm bảo báo cáo lợi nhuận luôn phản ánh chính xác 100%.
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 3. LUỒNG NHẬP KHO THUỐC -->
+                <!-- ======================================================== -->
+                <section id="section-flow-stockin" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                                3
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Function Call: Nhập Kho & Định Giá Vốn Thuốc</h2>
+                                <p class="text-xs text-slate-500">Lập phiếu nhập kho, thêm nhanh thuốc mới, cộng dồn tồn kho và in tem nhãn</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Pharmacist as Dược Sĩ Quản Lý
+    participant UI as StockIn Modal
+    participant Inv as InventoryModule
+    participant Barcode as BarcodePrinterModule
+    participant Store as DataStore
+    participant Server as MedicaServer
+
+    Pharmacist->>UI: Chọn Nhà Cung Cấp & Tìm thuốc cần nhập
+    alt Thuốc chưa có trong danh mục
+        Pharmacist->>UI: Bấm "+ Thêm Thuốc Mới"
+        UI->>Inv: openAddMedicineModal()
+        Inv->>Store: saveMedicine(newMed)
+        Store-->>Inv: Thuốc mới được tạo
+    end
+
+    Pharmacist->>UI: Nhập số lượng, giá vốn nhập, số lô, hạn dùng
+    UI->>Inv: addStockInItem()
+    Inv->>UI: renderStockInItemsTable() (Cộng dồn thành tiền phiếu nhập)
+
+    Pharmacist->>UI: Bấm "Hoàn Tất & Lưu Phiếu Nhập"
+    UI->>Inv: saveStockInDraft()
+
+    rect rgb(238, 242, 255)
+        Note over Inv,Store: Khối Xử Lý Cập Nhật Kho & Sổ Quỹ
+        Inv->>Store: createStockIn(stockInData)
+        loop Với từng loại thuốc trong phiếu
+            Store->>Store: Cộng dồn tồn kho stockUnits
+            Store->>Store: Cập nhật hạn dùng (expiryDate) & số lô (batchNo)
+            Store->>Store: Cập nhật giá vốn mới chuẩn hóa về đơn vị Hộp (costPrice)
+            Store->>Store: saveMedicine(med)
+        end
+        Store->>Store: createVoucher(Loại chi: 'supplier_payment', số tiền: totalAmount)
+        Store->>Store: schedulePersistToServer()
+        Store->>Server: POST /api/database
+        Server->>Server: Ghi atomic ra stockin_2026.json, medicines.json, vouchers_2026.json
+        Server-->>Store: HTTP 200 OK
+    end
+
+    Inv->>UI: Hiển thị thông báo nhập kho thành công
+    Inv->>Barcode: openPromptModal(stockInId, items)
+    opt In tem mã vạch dán hộp thuốc
+        Pharmacist->>UI: Bấm "In Tem Ngay"
+        Barcode->>Barcode: openPrintModal(items)
+        Barcode->>Barcode: executePrint() (Khổ cuộn 3 tem 104x22mm)
+    end
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 4. LUỒNG KHÁCH HÀNG & LỊCH SỬ HÓA ĐƠN -->
+                <!-- ======================================================== -->
+                <section id="section-flow-customers" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                                4
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Function Call: Khách Hàng & Tra Cứu Toàn Bộ Hóa Đơn</h2>
+                                <p class="text-xs text-slate-500">Cơ chế click tên khách ở tab Khách Hàng hoặc tab Bán Thuốc để xem lịch sử mua</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User as Dược Sĩ / Thu Ngân
+    participant UI as Customer Views
+    participant CustMod as CustomersModule
+    participant OrdMod as OrdersModule
+    participant Store as DataStore
+
+    User->>UI: Click vào Tên Khách Hàng / Lượt Mua / Xem đơn
+    Note over UI,CustMod: Gọi CustomersModule.openCustomerOrdersModal(phoneOrId)
+    UI->>CustMod: openCustomerOrdersModal(phoneOrId)
+
+    CustMod->>Store: getCustomerByPhone(phoneOrId) || getCustomerById(phoneOrId)
+    Store-->>CustMod: Trả về hồ sơ khách hàng (Tên, SĐT, Điểm, Hạng, Chi tiêu)
+    
+    CustMod->>Store: getOrdersByCustomer(phone, name)
+    Store->>Store: Lọc trong getOrders() theo SĐT chuẩn hóa (normalizePhone) hoặc tên
+    Store-->>CustMod: Trả về danh sách tất cả hóa đơn khách từng mua
+
+    CustMod->>CustMod: renderCustomerOrdersTable()
+    CustMod->>UI: Mở modal-customer-orders-history (Z-Index 60)
+    UI-->>User: Hiển thị Header khách, KPI chi tiêu, và bảng chi tiết từng đơn
+
+    alt Xem chi tiết một hóa đơn cụ thể
+        User->>UI: Bấm vào Mã Hóa Đơn (HD...) hoặc icon 👁️ Xem Chi Tiết
+        UI->>OrdMod: openOrderDetails(orderId)
+        OrdMod->>Store: getOrderById(orderId)
+        Store-->>OrdMod: Trả về chi tiết đơn, danh mục thuốc, liều dùng dặn dò
+        OrdMod->>UI: Mở modal-order-details (Z-Index 80 nổi trên modal lịch sử)
+        UI-->>User: Xem chi tiết đơn bán lẻ
+        User->>UI: Đóng modal chi tiết
+        UI-->>User: Quay lại danh sách hóa đơn của khách mượt mà
+    end
+
+    alt In lại hóa đơn
+        User->>UI: Bấm icon 🖨️ In Hóa Đơn
+        UI->>OrdMod: reprintOrder(orderId)
+        OrdMod->>UI: Mở modal-receipt-preview (Z-Index 90) -> In nhiệt K80/K58
+    end
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 5. LUỒNG BÁO CÁO LỢI NHUẬN -->
+                <!-- ======================================================== -->
+                <section id="section-flow-reports" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                                5
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Function Call: Báo Cáo Doanh Thu & Lợi Nhuận Gộp</h2>
+                                <p class="text-xs text-slate-500">Khấu trừ thuốc trả lại, nhân đúng giá vốn đơn vị lẻ và hiển thị lãi lỗ</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Admin as Quản Trị Viên (Admin)
+    participant UI as Báo Cáo Interface
+    participant Rep as ReportsModule
+    participant Store as DataStore
+    participant Chart as Chart.js
+
+    Admin->>UI: Mở tab Báo Cáo & Chọn ngày cần xem (vd: 25/10/2026)
+    UI->>Rep: renderSelectedDateSales(dateStr)
+    Rep->>Store: getOrders()
+    Store-->>Rep: Trả về toàn bộ danh sách đơn hàng năm 2026
+
+    Rep->>Rep: Lọc dayOrders = orders.filter(!isCancelled && startsWith(dateStr))
+
+    loop Với từng đơn hàng và từng mặt hàng đã bán
+        Rep->>Rep: Tính returnedQty từ order.returns (số lượng khách trả)
+        Rep->>Rep: netQty = max(0, item.quantity - returnedQty)
+        Rep->>Rep: lineRevenue = netQty * item.price
+        Rep->>Rep: lineCost = netQty * item.costPrice (Giá vốn đúng theo đơn vị bán)
+        Rep->>Rep: Cộng dồn: dayRevenue += lineRevenue, dayCost += lineCost
+    end
+
+    Rep->>Rep: dayProfit = dayRevenue - dayCost (Lợi nhuận gộp thực tế)
+    Rep->>UI: Hiển thị Thẻ KPI Doanh Thu, Tiền Vốn, Lợi Nhuận
+    Rep->>UI: Render bảng chi tiết từng mặt hàng đã bán trong ngày
+    Rep->>Chart: Cập nhật biểu đồ doanh số theo giờ / theo nhóm thuốc
+    UI-->>Admin: Hiển thị báo cáo tài chính trực quan, chính xác 100%
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 6. LUỒNG BẢN QUYỀN MÁY CHỦ -->
+                <!-- ======================================================== -->
+                <section id="section-flow-license" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                                6
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Function Call: Xác Thực Bản Quyền Máy Chủ (License Guard)</h2>
+                                <p class="text-xs text-slate-500">Khóa cứng theo CPU, Mainboard, Ổ cứng và mã hóa HMAC-SHA256 chống copy lậu</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Admin as Chủ Phần Mềm (Key Maker)
+    actor Client as Người Dùng / Khách Hàng
+    participant Server as MedicaServer.exe
+    participant LicMgr as LicenseManager.cs
+    participant KeyGen as MedicaKeyGen.exe
+
+    Note over Client,Server: Khởi động máy chủ MedicaServer trên máy khách
+    Server->>LicMgr: CheckLicenseStatus()
+    LicMgr->>LicMgr: GetMachineHardwareId()
+    Note over LicMgr: Kết hợp CPU ID + Motherboard Serial + Disk Drive Serial -> Sinh mã MED-XXXX-XXXX-XXXX
+    
+    alt File data/license.key chưa có hoặc không hợp lệ
+        LicMgr-->>Server: LicenseStatus.Invalid / NotActivated
+        Server->>Server: Kích hoạt chế độ Khóa API (Locked Mode)
+        Client->>Server: Truy cập http://medica.com
+        Server-->>Client: Chuyển hướng sang license-activation.html kèm Mã Máy
+        Client->>Admin: Gửi Mã Máy (Hardware ID) để xin kích hoạt
+        Admin->>KeyGen: Nhập Hardware ID & Tên nhà thuốc
+        KeyGen->>KeyGen: HMAC-SHA256(Hardware ID, SecretKey) -> Sinh Key: LIC-XXXX-XXXX-XXXX-XXXX
+        Admin-->>Client: Gửi License Key
+        Client->>Server: Nhập License Key vào màn hình kích hoạt
+        Server->>LicMgr: ValidateLicenseKey(enteredKey)
+        LicMgr->>LicMgr: Lưu file data/license.key
+        LicMgr-->>Server: LicenseStatus.Valid
+        Server-->>Client: Mở khóa toàn bộ chức năng & vào trang chủ POS
+    else File data/license.key đã hợp lệ
+        LicMgr-->>Server: LicenseStatus.Valid
+        Server-->>Client: Cho phép truy cập bình thường
+    end
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 7. THỰC THỂ DỮ LIỆU (ERD) -->
+                <!-- ======================================================== -->
+                <section id="section-erd" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                                7
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Sơ Đồ Thực Thể Dữ Liệu (Entity-Relationship Diagram)</h2>
+                                <p class="text-xs text-slate-500">Mối quan hệ và thuộc tính của các tệp cơ sở dữ liệu JSON</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+erDiagram
+    MEDICINE ||--o{ ORDER_ITEM : "được bán trong"
+    MEDICINE ||--o{ STOCK_IN_ITEM : "được nhập trong"
+    MEDICINE }o--|| SUPPLIER : "cung cấp bởi"
+    CUSTOMER ||--o{ ORDER : "mua hàng"
+    ORDER ||--|{ ORDER_ITEM : "chứa"
+    ORDER ||--o{ ORDER_RETURN : "có thể bị trả"
+    ORDER ||--o| VOUCHER : "sinh phiếu thu"
+    STOCK_IN ||--|{ STOCK_IN_ITEM : "chứa"
+    STOCK_IN ||--o{ STOCK_IN_RETURN : "có thể xuất trả"
+    STOCK_IN }o--|| SUPPLIER : "nhập từ"
+    STOCK_IN ||--o| VOUCHER : "sinh phiếu chi"
+
+    MEDICINE {
+        string id PK "Mã thuốc (MED001...)"
+        string barcode "Mã vạch chuẩn"
+        string name "Tên thuốc thương mại"
+        string activeIngredient "Hoạt chất chính"
+        string category "Nhóm tác dụng dược lý"
+        string baseUnit "Đơn vị cơ bản nhỏ nhất (Viên/Gói/Chai)"
+        string packUnit "Đơn vị đóng gói lớn (Hộp/Thùng)"
+        int packRatio "Tỷ lệ quy đổi ra đơn vị cơ bản"
+        string subUnit "Đơn vị trung gian (Vỉ/Lốc)"
+        int subRatio "Tỷ lệ đơn vị trung gian"
+        double costPrice "Giá vốn đơn vị Hộp"
+        double priceBox "Giá bán 1 Hộp"
+        double priceSub "Giá bán 1 Vỉ"
+        double priceBase "Giá bán 1 Viên"
+        int stockUnits "Số lượng tồn quy đổi về baseUnit"
+        int minStock "Mức tồn kho an toàn"
+        string batchNo "Số lô sản xuất"
+        string expiryDate "Hạn sử dụng"
+    }
+
+    CUSTOMER {
+        string id PK "Mã khách hàng (KH0001...)"
+        string phone "Số điện thoại duy nhất"
+        string name "Họ và tên khách hàng"
+        int points "Điểm tích lũy hiện có"
+        double totalSpent "Tổng tiền đã thanh toán"
+        int ordersCount "Số hóa đơn đã mua"
+        string lastVisit "Lần ghé gần nhất"
+        string address "Địa chỉ / Khu vực sống"
+        string note "Dị ứng / Ghi chú bệnh nền"
+    }
+
+    ORDER {
+        string id PK "Mã hóa đơn (HD261025-001)"
+        string createdAt "Thời gian lập hóa đơn"
+        string customerPhone "SĐT khách hàng"
+        string customerName "Tên khách hàng"
+        string paymentMethod "cash | transfer"
+        string transferCode "Mã đối soát ngân hàng"
+        double subTotal "Tổng tiền hàng trước giảm"
+        double discount "Số tiền giảm giá trực tiếp"
+        int pointsUsed "Số điểm đã dùng"
+        double pointsDiscount "Số tiền giảm từ điểm"
+        double totalAmount "Số tiền khách phải trả"
+        int pointsEarned "Điểm cộng cho đơn này"
+        string pharmacist "Dược sĩ phụ trách bán"
+        boolean isCancelled "Đã bị hủy hay chưa"
+        string returnStatus "none | partial | fully_returned"
+    }
+
+    ORDER_ITEM {
+        string medicineId FK "Mã thuốc"
+        string medicineName "Tên thuốc tại thời điểm bán"
+        string unit "Đơn vị bán thực tế (Hộp/Vỉ/Viên)"
+        int quantity "Số lượng bán"
+        double price "Đơn giá bán tại thời điểm bán"
+        double costPrice "Giá vốn chuẩn quy đổi theo đơn vị bán"
+        string usage "Hướng dẫn liều dùng cho bệnh nhân"
+    }
+
+    STOCK_IN {
+        string id PK "Mã phiếu nhập (PN261025-01)"
+        string createdAt "Thời gian nhập kho"
+        string supplierId FK "Mã nhà cung cấp"
+        string supplierName "Tên nhà cung cấp"
+        string paymentMethod "cash | transfer"
+        double totalAmount "Tổng tiền hàng nhập"
+        string pharmacist "Người nhận hàng"
+        string note "Ghi chú hóa đơn NCC"
+        double totalRefunded "Số tiền NCC đã hoàn trả"
+        string returnStatus "none | partial | fully_returned"
+    }
+
+    STOCK_IN_ITEM {
+        string medicineId FK "Mã thuốc"
+        string medicineName "Tên thuốc"
+        string unit "Đơn vị nhập (Hộp/Thùng/Lọ)"
+        int quantity "Số lượng nhập"
+        double costPrice "Giá vốn nhập trên 1 đơn vị"
+        string batchNo "Số lô"
+        string expiryDate "Hạn dùng"
+        double total "Thành tiền dòng hàng"
+    }
+
+    SUPPLIER {
+        string id PK "Mã NCC (NCC001...)"
+        string name "Tên công ty dược phẩm"
+        string phone "Số hotline"
+        string address "Địa chỉ văn phòng"
+        string contactPerson "Dược sĩ đại diện bán hàng"
+    }
+
+    VOUCHER {
+        string id PK "Mã phiếu thu/chi (PT... | PC...)"
+        string createdAt "Thời gian ghi sổ"
+        string type "receipt (Thu) | payment (Chi)"
+        string category "Phân loại nguồn tiền"
+        double amount "Số tiền giao dịch"
+        string paymentMethod "cash | transfer"
+        string refType "Loại chứng từ gốc (order | stockin | custom)"
+        string refId "Mã chứng từ gốc liên kết"
+        string description "Diễn giải lý do thu/chi"
+        string personName "Người nộp / Người nhận tiền"
+    }
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
+                <!-- 8. MA TRẬN CORE API -->
+                <!-- ======================================================== -->
+                <section id="section-api" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
+                                8
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Ma Trận Core API & Function Reference</h2>
+                                <p class="text-xs text-slate-500">Bảng tra cứu chức năng và tham số của các hàm cốt lõi trong hệ thống</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-50 font-bold text-slate-700 uppercase border-b border-slate-200">
+                                <tr>
+                                    <th class="py-3 px-3.5">Module / File</th>
+                                    <th class="py-3 px-3.5 font-mono">Tên Hàm (Function Name)</th>
+                                    <th class="py-3 px-3.5">Tham Số (Parameters)</th>
+                                    <th class="py-3 px-3.5">Mô Tả & Trách Nhiệm Nghiệp Vụ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-slate-600">
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-emerald-800">Store (store.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-emerald-700 font-bold">getMedicineUnitCost()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(med, unit)</td>
+                                    <td class="py-2.5 px-3.5">Tính giá vốn chuẩn xác theo quy cách đóng gói (Hộp/Vỉ/Viên), phòng tránh âm lợi nhuận.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-emerald-800">Store (store.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-emerald-700 font-bold">createOrder()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(orderData)</td>
+                                    <td class="py-2.5 px-3.5">Lưu hóa đơn bán lẻ, trừ tồn kho, tính điểm thưởng, sinh phiếu thu tiền mặt/chuyển khoản.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-emerald-800">Store (store.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-emerald-700 font-bold">createStockIn()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(stockInData)</td>
+                                    <td class="py-2.5 px-3.5">Lưu phiếu nhập kho, cộng tồn kho, cập nhật hạn dùng/số lô/giá vốn nhập và sinh phiếu chi.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-emerald-800">Store (store.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-emerald-700 font-bold">getOrdersByCustomer()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(phoneOrId, name)</td>
+                                    <td class="py-2.5 px-3.5">Lọc danh sách toàn bộ các hóa đơn mà một khách hàng cụ thể đã mua trong lịch sử.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-purple-800">POS (pos.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-purple-700 font-bold">changeItemUnit()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(index, newUnit)</td>
+                                    <td class="py-2.5 px-3.5">Đổi đơn vị bán của dòng thuốc (Hộp $\leftrightarrow$ Vỉ $\leftrightarrow$ Viên), tự cập nhật giá bán và giá vốn.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-purple-800">POS (pos.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-purple-700 font-bold">checkout()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(shouldPrint = true)</td>
+                                    <td class="py-2.5 px-3.5">Xác nhận thanh toán đơn thuốc tại quầy POS, gọi Store lưu trữ và bật hộp thoại in nhiệt.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-blue-800">Inventory (inventory.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-blue-700 font-bold">openStockInDetailModal()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(orderId)</td>
+                                    <td class="py-2.5 px-3.5">Mở popup xem toàn bộ chi tiết phiếu nhập kho khi click vào Mã Phiếu (PN...).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-teal-800">Customers (customers.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-teal-700 font-bold">openCustomerOrdersModal()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(phoneOrId)</td>
+                                    <td class="py-2.5 px-3.5">Mở popup hiển thị toàn bộ hóa đơn khách đã từng mua khi click vào tên khách hàng.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-rose-800">Reports (reports.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-rose-700 font-bold">renderSelectedDateSales()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(dateStr)</td>
+                                    <td class="py-2.5 px-3.5">Lập bảng kê chi tiết mặt hàng đã bán theo ngày, tính doanh thu, giá vốn thực tế và lợi nhuận gộp.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-amber-800">Server (LicenseManager.cs)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-amber-700 font-bold">GetMachineHardwareId()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">()</td>
+                                    <td class="py-2.5 px-3.5">Thu thập chuỗi định danh phần cứng CPU, Motherboard, DiskDrive sinh mã MED-XXXX-XXXX-XXXX.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-12 text-center text-xs text-slate-500 no-print">
+        <div class="max-w-7xl mx-auto px-4">
+            <p>Phần Mềm Quản Lý Nhà Thuốc Chuẩn GPP <b>MedicaPharmacy</b> • Bản Quyền Thuộc Về Đội Ngũ Phát Triển Medica</p>
+            <p class="mt-1 text-slate-400">Tài liệu kiến trúc hệ thống phiên bản 2.0 • Xuất ngày 25/10/2026</p>
+        </div>
+    </footer>
+
+    <!-- KHỞI TẠO MERMAID VÀ LUCIDE ICONS -->
+    <script>
+        // Khởi tạo Lucide Icons
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+
+        // Cấu hình Mermaid Diagrams
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#ecfdf5',
+                primaryTextColor: '#065f46',
+                primaryBorderColor: '#059669',
+                lineColor: '#059669',
+                secondaryColor: '#eff6ff',
+                tertiaryColor: '#fffbeb'
+            },
+            flowchart: {
+                curve: 'basis'
+            },
+            sequence: {
+                showSequenceNumbers: true,
+                actorMargin: 50,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 35
+            }
+        });
+    </script>
+</body>
+</html>
+

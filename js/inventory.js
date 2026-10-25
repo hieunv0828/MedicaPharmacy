@@ -1915,7 +1915,15 @@ const InventoryModule = {
                     html += `
                         <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs">
                             <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
-                            <td class="p-2.5 font-mono font-bold text-emerald-700">${h.orderId}</td>
+                            <td class="p-2.5">
+                                <button type="button" 
+                                        onclick="InventoryModule.openStockInDetailModal('${h.orderId}')" 
+                                        class="font-mono font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer transition inline-flex items-center gap-1 group/btn text-left"
+                                        title="Bấm để xem toàn bộ chi tiết phiếu nhập kho ${h.orderId}">
+                                    <span>${h.orderId}</span>
+                                    <i data-lucide="external-link" class="w-3 h-3 opacity-60 group-hover/btn:opacity-100"></i>
+                                </button>
+                            </td>
                             <td class="p-2.5 text-slate-600">${AppUtils.formatDateTime(h.createdAt)}</td>
                             <td class="p-2.5 font-medium text-slate-800">${h.supplierName}</td>
                             <td class="p-2.5 font-mono text-slate-600">${h.batchNo} • HSD: ${AppUtils.formatDate(h.expiryDate)}</td>
@@ -1946,7 +1954,15 @@ const InventoryModule = {
                     html += `
                         <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs ${s.isCancelled ? 'opacity-50 line-through' : ''}">
                             <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
-                            <td class="p-2.5 font-mono font-bold text-slate-800">${s.orderId}</td>
+                            <td class="p-2.5">
+                                <button type="button" 
+                                        onclick="OrdersModule.openOrderDetails('${s.orderId}')" 
+                                        class="font-mono font-bold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1 group/btn text-left"
+                                        title="Bấm để xem toàn bộ chi tiết hóa đơn ${s.orderId}">
+                                    <span>${s.orderId}</span>
+                                    <i data-lucide="external-link" class="w-3 h-3 opacity-60 group-hover/btn:opacity-100"></i>
+                                </button>
+                            </td>
                             <td class="p-2.5 text-slate-600">${AppUtils.formatDateTime(s.createdAt)}</td>
                             <td class="p-2.5 font-medium text-slate-800">${s.customerName}</td>
                             <td class="p-2.5 text-center font-bold text-slate-800">
@@ -1962,6 +1978,8 @@ const InventoryModule = {
                 tbodySales.innerHTML = html;
             }
         }
+
+        if (window.lucide) lucide.createIcons();
     }
 };
 

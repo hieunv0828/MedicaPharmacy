@@ -17,7 +17,7 @@ if (!(Test-Path $csc)) {
 
 # 1. Bien dich MedicaServer.exe
 Write-Host "[1/4] Bien dich may chu MedicaServer.exe moi nhat..." -ForegroundColor Cyan
-& $csc /target:winexe /platform:anycpu /out:"$root\MedicaServer.new.exe" "$root\server\MedicaServer.cs" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Web.Extensions.dll | Out-Null
+& $csc /target:winexe /platform:anycpu /out:"$root\MedicaServer.new.exe" "$root\server\MedicaServer.cs" "$root\server\LicenseManager.cs" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Web.Extensions.dll | Out-Null
 if (Test-Path "$root\MedicaServer.new.exe") {
     # Thu thay the MedicaServer.exe neu khong bi khoa
     try {
@@ -26,6 +26,9 @@ if (Test-Path "$root\MedicaServer.new.exe") {
         Remove-Item -Path "$root\MedicaServer.new.exe" -Force -ErrorAction SilentlyContinue
     }
 }
+
+# 1.1 Bien dich MedicaKeyGen.exe (Cong cu tao key ban quyen cho Admin)
+& $csc /target:winexe /platform:anycpu /out:"$root\tools\MedicaKeyGen.exe" "$root\tools\KeyGen.cs" "$root\server\LicenseManager.cs" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll | Out-Null
 
 # 2. Chuan bi Payload Staging
 Write-Host "[2/4] Chuan bi du lieu ung dung vao thu muc staging..." -ForegroundColor Cyan
@@ -40,6 +43,7 @@ New-Item -ItemType Directory -Path $stagingDir | Out-Null
 # Copy tap tin goc
 $filesToCopy = @(
     "index.html",
+    "license-activation.html",
     "huong-dan-su-dung.html",
     "MedicaServer.exe",
     "Start-App.bat",
@@ -64,6 +68,12 @@ foreach ($d in $dirsToCopy) {
     }
 }
 
+# Xoa file license.key khoi goi cai dat de moi may bat buoc phai kich hoat key rieng
+$stagingLicenseKey = Join-Path $stagingDir "data\license.key"
+if (Test-Path $stagingLicenseKey) {
+    Remove-Item -Path $stagingLicenseKey -Force
+}
+
 # Copy tools (ngrok.exe)
 $stagingTools = Join-Path $stagingDir "tools"
 New-Item -ItemType Directory -Path $stagingTools | Out-Null
@@ -84,7 +94,7 @@ Write-Host "  -> Dung luong goi ung dung: $zipSizeMb MB" -ForegroundColor DarkGr
 Write-Host "[4/4] Bien dich file cai dat Standalone: MedicaPharmacy_Setup.exe..." -ForegroundColor Cyan
 $setupOut = "$root\MedicaPharmacy_Setup.exe"
 
-& $csc /target:winexe /platform:anycpu /out:"$setupOut" "$root\installer\MedicaInstaller.cs" /resource:"$zipPath,MedicaPayload" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll
+& $csc /target:winexe /platform:anycpu /out:"$setupOut" "$root\installer\MedicaInstaller.cs" "$root\server\LicenseManager.cs" /resource:"$zipPath,MedicaPayload" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll
 
 if (Test-Path $setupOut) {
     $setupItem = Get-Item $setupOut

@@ -80,6 +80,8 @@ namespace MedicaPharmacy
         private const string AppName = "MedicaPharmacyServer";
         private Process _ngrokProcess = null;
         private string _ngrokFixedUrl = "https://proofread-unissued-roundness.ngrok-free.dev";
+        private bool _isLicensed = false;
+        private string _machineCode = "";
 
         public MedicaTrayApplicationContext()
         {
@@ -113,6 +115,10 @@ namespace MedicaPharmacy
                 try { File.WriteAllText(domainConfigFile, _ngrokFixedUrl, Encoding.UTF8); } catch { }
             }
 
+            // Kiểm tra bản quyền máy tính hiện tại
+            _machineCode = LicenseManager.GetCurrentMachineCode();
+            CheckLicenseStatus();
+
             InitDatabaseIfEmpty();
             StartServer();
             StartNgrokTunnel();
@@ -120,6 +126,27 @@ namespace MedicaPharmacy
 
             string openUrl = (_activePort == 80) ? "http://medica.com" : ("http://localhost:" + _activePort);
             Program.OpenBrowser(openUrl);
+        }
+
+        private void CheckLicenseStatus()
+        {
+            lock (_dbLock)
+            {
+                string keyFile = Path.Combine(_dataDir, "license.key");
+                if (File.Exists(keyFile))
+                {
+                    try
+                    {
+                        string key = File.ReadAllText(keyFile, Encoding.UTF8).Trim();
+                        _isLicensed = LicenseManager.ValidateLicenseKey(_machineCode, key);
+                    }
+                    catch { _isLicensed = false; }
+                }
+                else
+                {
+                    _isLicensed = false;
+                }
+            }
         }
 
         private void StartNgrokTunnel()
@@ -227,7 +254,8 @@ namespace MedicaPharmacy
             menu.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             // 1. Mở giao diện bán thuốc
-            ToolStripMenuItem itemOpen = new ToolStripMenuItem("🌐 Mở Phần Mềm (http://medica.com)");
+            string openLabel = _isLicensed ? "🌐 Mở Phần Mềm (http://medica.com)" : "🔒 Kích Hoạt Bản Quyền (http://medica.com)";
+            ToolStripMenuItem itemOpen = new ToolStripMenuItem(openLabel);
             itemOpen.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             itemOpen.Click += (s, e) => {
                 string url = (_activePort == 80) ? "http://medica.com" : ("http://localhost:" + _activePort);
@@ -297,12 +325,24 @@ namespace MedicaPharmacy
             };
 
             // Thông báo bong bóng nhỏ lúc khởi động
-            _trayIcon.ShowBalloonTip(
-                3000,
-                "MedicaPharmacy Server Đang Chạy Nền",
-                "Máy chủ đang hoạt động êm ái tại http://medica.com.\nNhấp đúp chuột vào icon này để mở phần mềm bất cứ lúc nào!",
-                ToolTipIcon.Info
-            );
+            if (_isLicensed)
+            {
+                _trayIcon.ShowBalloonTip(
+                    3000,
+                    "MedicaPharmacy Server Đang Chạy Nền",
+                    "Máy chủ đang hoạt động êm ái tại http://medica.com.\nNhấp đúp chuột vào icon này để mở phần mềm bất cứ lúc nào!",
+                    ToolTipIcon.Info
+                );
+            }
+            else
+            {
+                _trayIcon.ShowBalloonTip(
+                    4000,
+                    "MedicaPharmacy - Chưa Kích Hoạt Bản Quyền",
+                    "Phần mềm chưa được cấp quyền trên máy tính này (Mã: " + _machineCode + ").\nNhấp đúp chuột vào icon này để kích hoạt!",
+                    ToolTipIcon.Warning
+                );
+            }
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
@@ -479,17 +519,72 @@ namespace MedicaPharmacy
                             List<string> ips = GetLocalIPv4Addresses();
                             string ipsJson = string.Join(",", ips.ConvertAll(ip => "\"" + ip + "\"").ToArray());
                             string json = string.Format(
-                                "{{\"status\":\"online\",\"app\":\"MedicaPharmacy\",\"port\":{0},\"domain\":\"medica.com\",\"ips\":[{1}],\"time\":\"{2}\"}}",
+                                "{{\"status\":\"online\",\"app\":\"MedicaPharmacy\",\"port\":{0},\"domain\":\"medica.com\",\"ips\":[{1}],\"time\":\"{2}\",\"licensed\":{3},\"machineCode\":\"{4}\"}}",
                                 _activePort,
                                 ipsJson,
-                                DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss")
+                                DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+                                _isLicensed ? "true" : "false",
+                                _machineCode
                             );
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(json));
                             return;
                         }
 
+                        // API kiểm tra trạng thái bản quyền thiết bị
+                        if (rawUrl.Equals("/api/license/status", StringComparison.OrdinalIgnoreCase))
+                        {
+                            CheckLicenseStatus();
+                            string statusJson = string.Format(
+                                "{{\"licensed\":{0},\"machineCode\":\"{1}\",\"message\":\"{2}\"}}",
+                                _isLicensed ? "true" : "false",
+                                _machineCode,
+                                _isLicensed ? "Bản quyền hợp lệ cho thiết bị này" : "Chưa kích hoạt bản quyền thiết bị"
+                            );
+                            SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(statusJson));
+                            return;
+                        }
+
+                        // API kích hoạt bản quyền trực tiếp từ trình duyệt
+                        if (rawUrl.Equals("/api/license/activate", StringComparison.OrdinalIgnoreCase) && method == "POST")
+                        {
+                            string inputKey = "";
+                            try
+                            {
+                                var serializer = new JavaScriptSerializer();
+                                var dict = serializer.Deserialize<Dictionary<string, object>>(body);
+                                if (dict != null && dict.ContainsKey("key") && dict["key"] != null)
+                                {
+                                    inputKey = dict["key"].ToString().Trim();
+                                }
+                            }
+                            catch { }
+
+                            if (!string.IsNullOrEmpty(inputKey) && LicenseManager.ValidateLicenseKey(_machineCode, inputKey))
+                            {
+                                lock (_dbLock)
+                                {
+                                    File.WriteAllText(Path.Combine(_dataDir, "license.key"), inputKey, Encoding.UTF8);
+                                    _isLicensed = true;
+                                }
+                                SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":true,\"message\":\"Kích hoạt bản quyền thành công!\"}"));
+                            }
+                            else
+                            {
+                                SendResponse(stream, 400, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":false,\"message\":\"Mã kích hoạt không hợp lệ với máy tính này!\"}"));
+                            }
+                            return;
+                        }
+
                         if (rawUrl.Equals("/api/database", StringComparison.OrdinalIgnoreCase))
                         {
+                            CheckLicenseStatus();
+                            if (!_isLicensed)
+                            {
+                                string forbid = string.Format("{{\"error\":\"license_required\",\"machineCode\":\"{0}\",\"message\":\"Phần mềm chưa kích hoạt bản quyền trên máy tính này!\"}}", _machineCode);
+                                SendResponse(stream, 403, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(forbid));
+                                return;
+                            }
+
                             if (method == "GET")
                             {
                                 string dbJson = GetFullDatabaseJson();
@@ -512,7 +607,18 @@ namespace MedicaPharmacy
                             return;
                         }
 
-                        if (rawUrl == "/") rawUrl = "/index.html";
+                        if (rawUrl == "/" || rawUrl.Equals("/index.html", StringComparison.OrdinalIgnoreCase))
+                        {
+                            CheckLicenseStatus();
+                            if (!_isLicensed)
+                            {
+                                rawUrl = "/license-activation.html";
+                            }
+                            else
+                            {
+                                rawUrl = "/index.html";
+                            }
+                        }
                         string cleanPath = rawUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
                         string filePath = Path.Combine(_webRoot, cleanPath);
 

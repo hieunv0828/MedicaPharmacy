@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kích Hoạt Bản Quyền - MedicaPharmacy GPP</title>
+    <script src="vendor/tailwind.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        @keyframes pulseSlow {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        .pulse-icon { animation: pulseSlow 3s infinite ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans antialiased">
+    <div class="max-w-md w-full bg-slate-800/90 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-6 sm:p-8 text-center relative overflow-hidden">
+        <!-- Background Glow -->
+        <div class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Lock Icon -->
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-4 pulse-icon shadow-lg">
+            <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+        </div>
+
+        <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight">Kích Hoạt Bản Quyền Thiết Bị</h1>
+        <p class="text-xs text-slate-400 mt-1 font-medium">Hệ Thống Quản Lý Nhà Thuốc Chuẩn GPP - MedicaPharmacy</p>
+
+        <!-- Warning Card -->
+        <div class="mt-5 p-3.5 bg-amber-950/40 border border-amber-500/30 rounded-xl text-left text-xs text-amber-200/90 leading-relaxed">
+            <div class="flex items-start gap-2.5">
+                <span class="text-amber-400 font-bold text-sm">⚠️</span>
+                <div>
+                    Phần mềm phát hiện đang được chạy trên một thiết bị máy tính mới chưa được đăng ký bản quyền. Mỗi bản quyền được gắn liền với phần cứng của từng máy.
+                </div>
+            </div>
+        </div>
+
+        <!-- Machine Code Box -->
+        <div class="mt-5 text-left">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Mã Thiết Bị Của Máy Này:
+            </label>
+            <div class="flex items-center gap-2">
+                <input type="text" id="input-machine-code" readonly value="Đang kiểm tra..."
+                       class="w-full bg-slate-950/70 border border-slate-700 text-emerald-400 font-mono font-bold text-sm px-3.5 py-2.5 rounded-xl select-all focus:outline-none">
+                <button type="button" onclick="copyMachineCode()" id="btn-copy"
+                        class="shrink-0 px-3.5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 shadow-sm">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    <span>Chép Mã</span>
+                </button>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">
+                👉 Hãy bấm <b>Chép Mã</b> và gửi mã này qua Zalo để nhận <b>Mã Kích Hoạt</b>.
+            </p>
+        </div>
+
+        <!-- License Input Box -->
+        <div class="mt-4 text-left">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Nhập Mã Kích Hoạt (License Key):
+            </label>
+            <input type="text" id="input-license-key" placeholder="Dán mã LIC-XXXX-XXXX-XXXX-XXXX vào đây..."
+                   class="w-full bg-slate-950/70 border border-slate-700 text-white font-mono font-bold text-sm px-3.5 py-2.5 rounded-xl uppercase tracking-wider focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder-slate-600">
+        </div>
+
+        <!-- Feedback Alert -->
+        <div id="status-msg" class="hidden mt-3 p-2.5 rounded-xl text-xs font-semibold"></div>
+
+        <!-- Submit Button -->
+        <button type="button" onclick="activateLicense()" id="btn-activate"
+                class="w-full mt-5 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 cursor-pointer">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>KÍCH HOẠT PHẦN MỀM NGAY</span>
+        </button>
+
+        <!-- Contact Support -->
+        <div class="mt-6 pt-5 border-t border-slate-700/60 text-xs text-slate-400">
+            <div class="font-semibold text-slate-300">Liên hệ cấp bản quyền chính hãng:</div>
+            <div class="mt-1 flex items-center justify-center gap-2 font-mono text-emerald-400 font-bold">
+                <span>📞 Hotline / Zalo: 0982.149.806</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Dược Sĩ Nguyễn Thanh Dung (MedicaPharmacy)</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadLicenseStatus() {
+            try {
+                const res = await fetch('/api/license/status', { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('input-machine-code').value = data.machineCode || 'Lỗi mã máy';
+                    if (data.licensed) {
+                        window.location.href = '/index.html';
+                    }
+                }
+            } catch (e) {
+                document.getElementById('input-machine-code').value = 'MED-OFFLINE-ERROR';
+            }
+        }
+
+        function copyMachineCode() {
+            const input = document.getElementById('input-machine-code');
+            input.select();
+            navigator.clipboard.writeText(input.value).then(() => {
+                const btn = document.getElementById('btn-copy');
+                const oldHtml = btn.innerHTML;
+                btn.innerHTML = '<span>✅ Đã Chép</span>';
+                btn.classList.add('bg-emerald-700');
+                setTimeout(() => {
+                    btn.innerHTML = oldHtml;
+                    btn.classList.remove('bg-emerald-700');
+                }, 2000);
+            });
+        }
+
+        async function activateLicense() {
+            const key = document.getElementById('input-license-key').value.trim();
+            const statusEl = document.getElementById('status-msg');
+            const btn = document.getElementById('btn-activate');
+
+            if (!key) {
+                statusEl.className = 'mt-3 p-2.5 rounded-xl text-xs font-semibold bg-rose-950/50 border border-rose-500/40 text-rose-300 block';
+                statusEl.innerText = '⚠️ Vui lòng nhập hoặc dán Mã Kích Hoạt!';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-pulse">Đang xác thực mã bản quyền...</span>';
+
+            try {
+                const res = await fetch('/api/license/activate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    statusEl.className = 'mt-3 p-3 rounded-xl text-xs font-semibold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 block';
+                    statusEl.innerHTML = '🎉 <b>Kích hoạt bản quyền thành công!</b> Đang mở phần mềm...';
+                    setTimeout(() => {
+                        window.location.href = '/index.html';
+                    }, 1200);
+                } else {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>KÍCH HOẠT PHẦN MỀM NGAY</span>';
+                    statusEl.className = 'mt-3 p-2.5 rounded-xl text-xs font-semibold bg-rose-950/50 border border-rose-500/40 text-rose-300 block';
+                    statusEl.innerText = '❌ ' + (data.message || 'Mã kích hoạt không hợp lệ với máy tính này!');
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = '<span>KÍCH HOẠT PHẦN MỀM NGAY</span>';
+                statusEl.className = 'mt-3 p-2.5 rounded-xl text-xs font-semibold bg-rose-950/50 border border-rose-500/40 text-rose-300 block';
+                statusEl.innerText = '❌ Lỗi kết nối tới máy chủ kích hoạt!';
+            }
+        }
+
+        // Bấm Enter ở ô nhập key thì kích hoạt luôn
+        document.getElementById('input-license-key').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') activateLicense();
+        });
+
+        loadLicenseStatus();
+    </script>
+</body>
+</html>

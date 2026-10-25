@@ -131,6 +131,12 @@ const App = {
                 VouchersModule.renderSummaryCards();
                 VouchersModule.renderVouchersTable();
             }
+        } else if (tabId === 'customers') {
+            if (window.CustomersModule) {
+                CustomersModule.init();
+                CustomersModule.renderSummaryCards();
+                CustomersModule.renderCustomersTable();
+            }
         } else if (tabId === 'settings') {
             this.renderSettingsHistory();
         }
@@ -543,12 +549,21 @@ const App = {
         let html = '';
         customers.forEach((c, idx) => {
             const tier = Store.getCustomerTier(c.points || 0);
+            const safeName = (c.name || 'Khách hàng').replace(/'/g, "\\'");
+            const safePhone = (c.phone || '').replace(/'/g, "\\'");
+
             html += `
                 <tr class="hover:bg-slate-50 transition border-b border-slate-100">
                     <td class="py-2.5 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
                     <td class="py-2.5 px-3 font-semibold text-slate-800">
                         <div class="flex items-center gap-1.5">
-                            <span>${c.name}</span>
+                            <button type="button" 
+                                    onclick="CustomersModule.openCustomerOrdersModal('${safePhone || c.id}')" 
+                                    class="text-left font-bold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer flex items-center gap-1"
+                                    title="Bấm để xem các đơn khách từng mua">
+                                <span>${c.name}</span>
+                                <i data-lucide="receipt" class="w-3 h-3 text-emerald-600 opacity-60"></i>
+                            </button>
                             <span class="px-1.5 py-0.2 rounded text-[10px] font-bold border ${tier.badge}">
                                 ${tier.icon} ${tier.name}
                             </span>
@@ -562,14 +577,26 @@ const App = {
                         </span>
                     </td>
                     <td class="py-2.5 px-3 text-right font-medium text-slate-700 font-mono">${AppUtils.formatVND(c.totalSpent || 0)}</td>
-                    <td class="py-2.5 px-3 text-center font-mono font-semibold">${c.ordersCount || 0}</td>
+                    <td class="py-2.5 px-3 text-center font-mono font-semibold">
+                        <button type="button" 
+                                onclick="CustomersModule.openCustomerOrdersModal('${safePhone || c.id}')" 
+                                class="px-2 py-0.5 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 rounded font-bold transition cursor-pointer"
+                                title="Bấm để xem danh sách hóa đơn">
+                            ${c.ordersCount || 0}
+                        </button>
+                    </td>
                     <td class="py-2.5 px-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="App.selectCustomerForPOS('${c.phone}', '${c.name.replace(/'/g, "\\'")}')" 
+                            <button onclick="CustomersModule.openCustomerOrdersModal('${safePhone || c.id}')" 
+                                    class="p-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded text-[11px] transition cursor-pointer" 
+                                    title="Xem các hóa đơn từng mua">
+                                <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="App.selectCustomerForPOS('${safePhone}', '${safeName}')" 
                                     class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[11px] shadow-sm transition" title="Chọn khách cho đơn hiện tại">
                                 Chọn
                             </button>
-                            <button onclick="App.adjustPointsPrompt('${c.phone}')" 
+                            <button onclick="App.adjustPointsPrompt('${safePhone}')" 
                                     class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[11px] transition" title="Cộng / Trừ điểm thủ công">
                                 +/-
                             </button>

@@ -191,6 +191,12 @@ const POSModule = {
         // Đơn vị mặc định: ưu tiên hộp, nếu không có thì đơn vị cơ bản
         let selectedUnit = defaultUnit || med.packUnit || med.baseUnit;
         let unitPrice = med.priceBox || med.priceBase;
+        if (selectedUnit === med.subUnit && med.priceSub > 0) {
+            unitPrice = med.priceSub;
+        } else if (selectedUnit === med.baseUnit && med.priceBase > 0) {
+            unitPrice = med.priceBase;
+        }
+        const unitCostPrice = Store.getMedicineUnitCost(med, selectedUnit);
 
         // Kiểm tra xem mặt hàng cùng ID và cùng đơn vị đã có trong giỏ chưa
         const existingIndex = this.cart.findIndex(i => i.medicineId === medicineId && i.unit === selectedUnit);
@@ -209,7 +215,7 @@ const POSModule = {
                 unit: selectedUnit,
                 quantity: 1,
                 price: unitPrice,
-                costPrice: med.costPrice || 0,
+                costPrice: unitCostPrice,
                 usage: med.usageDefault || 'Uống sau ăn theo hướng dẫn của dược sĩ.',
                 maxAvailableUnits: med.stockUnits || 0
             });
@@ -227,12 +233,13 @@ const POSModule = {
 
         item.unit = newUnit;
         if (newUnit === med.packUnit) {
-            item.price = med.priceBox;
+            item.price = med.priceBox || med.priceBase;
         } else if (newUnit === med.subUnit && med.priceSub > 0) {
             item.price = med.priceSub;
         } else {
             item.price = med.priceBase;
         }
+        item.costPrice = Store.getMedicineUnitCost(med, newUnit);
 
         this.renderCart();
     },
@@ -636,7 +643,9 @@ const POSModule = {
             const nextTotal = Math.max(0, custPoints - this.pointsUsed) + pointsEarned;
 
             if (elCustStatus) {
-                elCustStatus.innerHTML = `Khách: <b class="text-slate-900">${cust.name}</b> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span>`;
+                const safePhone = (cust.phone || phone).replace(/'/g, "\\'");
+                elCustStatus.innerHTML = `Khách: <a href="javascript:void(0)" onclick="CustomersModule.openCustomerOrdersModal('${safePhone}')" class="text-emerald-700 hover:text-emerald-900 underline font-bold cursor-pointer inline-flex items-center gap-1" title="Bấm để xem toàn bộ hóa đơn khách đã từng mua"><span>${cust.name}</span> <i data-lucide="receipt" class="w-3.5 h-3.5 text-emerald-600"></i></a> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span> <button type="button" onclick="CustomersModule.openCustomerOrdersModal('${safePhone}')" class="ml-1 text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.2 rounded font-bold cursor-pointer transition">Xem lịch sử đơn</button>`;
+                if (window.lucide) lucide.createIcons();
             }
 
             if (custPoints > 0) {
@@ -676,7 +685,10 @@ const POSModule = {
                 }
             }
         } else {
-            if (elCustStatus) elCustStatus.innerHTML = `Khách mới: <b class="font-mono text-slate-800">${phone}</b>`;
+            if (elCustStatus) {
+                const safePhone = phone.replace(/'/g, "\\'");
+                elCustStatus.innerHTML = `Khách mới: <b class="font-mono text-slate-800">${phone}</b> <button type="button" onclick="CustomersModule.openCustomerOrdersModal('${safePhone}')" class="ml-1 text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.2 rounded font-bold cursor-pointer transition">Lịch sử đơn</button>`;
+            }
             if (elCurrBalance) elCurrBalance.innerHTML = `Tích lũy đơn đầu tiên: <b class="text-emerald-700 font-bold">+${pointsEarned} điểm</b> khi thanh toán`;
             if (elRateHint) elRateHint.innerText = 'Khách mới: 0 điểm (1 điểm = 1.000đ)';
             if (pointsInput) {

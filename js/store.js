@@ -244,6 +244,24 @@ class DataStore {
         return this.getMedicines().find(m => m.id === id);
     }
 
+    getMedicineUnitCost(med, unit) {
+        if (!med) return 0;
+        const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
+        const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
+        const baseCost = (med.costPrice || 0) / packRatio;
+
+        if (unit && unit === med.packUnit) {
+            return med.costPrice || 0;
+        }
+        if (unit && unit === med.subUnit && med.subUnit !== med.packUnit) {
+            return Math.round(baseCost * subRatio);
+        }
+        if (unit && unit === med.baseUnit) {
+            return Math.round(baseCost);
+        }
+        return Math.round(baseCost);
+    }
+
     saveMedicine(med) {
         const medicines = this.getMedicines();
         const index = medicines.findIndex(m => m.id === med.id);
@@ -875,6 +893,93 @@ class DataStore {
     normalizePhone(phone) {
         if (!phone) return '';
         return phone.toString().replace(/[\s.-]/g, '');
+    }
+
+    getCustomerById(id) {
+        if (!id) return null;
+        const customers = this.getCustomers();
+        return customers.find(c => c.id === id) || null;
+    }
+
+    saveCustomer(cust) {
+        const customers = this.getCustomers();
+        const normPhone = cust.phone ? this.normalizePhone(cust.phone) : '';
+        const now = new Date().toISOString();
+
+        let existingIndex = -1;
+        if (cust.id) {
+            existingIndex = customers.findIndex(c => c.id === cust.id);
+        }
+        if (existingIndex === -1 && normPhone) {
+            existingIndex = customers.findIndex(c => this.normalizePhone(c.phone) === normPhone);
+        }
+
+        if (existingIndex >= 0) {
+            const existing = customers[existingIndex];
+            customers[existingIndex] = {
+                ...existing,
+                ...cust,
+                phone: cust.phone !== undefined ? cust.phone.trim() : existing.phone,
+                name: cust.name !== undefined ? cust.name.trim() : existing.name,
+                points: cust.points !== undefined ? Number(cust.points) : (existing.points || 0),
+                totalSpent: cust.totalSpent !== undefined ? Number(cust.totalSpent) : (existing.totalSpent || 0),
+                ordersCount: cust.ordersCount !== undefined ? Number(cust.ordersCount) : (existing.ordersCount || 0),
+                note: cust.note !== undefined ? cust.note : (existing.note || ''),
+                address: cust.address !== undefined ? cust.address : (existing.address || ''),
+                lastVisit: existing.lastVisit || now
+            };
+            this.saveCustomers(customers);
+            return customers[existingIndex];
+        } else {
+            const newId = cust.id || ('KH' + (customers.length + 1).toString().padStart(4, '0'));
+            const newCustomer = {
+                id: newId,
+                phone: cust.phone ? cust.phone.trim() : '',
+                name: (cust.name && cust.name.trim()) || 'Khách hàng',
+                points: Number(cust.points || 0),
+                totalSpent: Number(cust.totalSpent || 0),
+                ordersCount: Number(cust.ordersCount || 0),
+                note: cust.note || '',
+                address: cust.address || '',
+                createdAt: now,
+                lastVisit: now
+            };
+            customers.push(newCustomer);
+            this.saveCustomers(customers);
+            return newCustomer;
+        }
+    }
+
+    deleteCustomer(id) {
+        let customers = this.getCustomers();
+        const initialLen = customers.length;
+        customers = customers.filter(c => c.id !== id && c.phone !== id);
+        if (customers.length !== initialLen) {
+            this.saveCustomers(customers);
+            return true;
+        }
+        return false;
+    }
+
+    getOrdersByCustomer(phoneOrId, customerName = '') {
+        const orders = this.getOrders();
+        const cust = this.getCustomerById(phoneOrId) || this.getCustomerByPhone(phoneOrId);
+        const targetPhone = cust ? cust.phone : phoneOrId;
+        const targetNorm = targetPhone ? this.normalizePhone(targetPhone) : '';
+        const targetName = (cust ? cust.name : customerName || '').trim().toLowerCase();
+
+        return orders.filter(o => {
+            if (targetNorm && o.customerPhone) {
+                if (this.normalizePhone(o.customerPhone) === targetNorm) return true;
+            }
+            if (targetName && o.customerName) {
+                const oName = o.customerName.trim().toLowerCase();
+                if (oName && oName !== 'khách vãng lai' && oName !== 'khách lẻ' && oName !== 'khách hàng' && oName === targetName) {
+                    return true;
+                }
+            }
+            return false;
+        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
     getCustomerTier(points) {
