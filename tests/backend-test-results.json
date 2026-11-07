@@ -7,84 +7,84 @@
                         "Id":  "TC-31",
                         "Name":  "Server Web Root: GET / returns 200 OK",
                         "Status":  "PASS",
-                        "Duration":  "2170ms",
+                        "Duration":  "2117ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-32",
                         "Name":  "Tài Liệu Thiết Kế HTML: GET /tai-lieu-thiet-ke.html returns 200 OK",
                         "Status":  "PASS",
-                        "Duration":  "6ms",
+                        "Duration":  "7ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-33",
                         "Name":  "Health Endpoint: GET /api/status returns JSON online status",
                         "Status":  "PASS",
-                        "Duration":  "108ms",
+                        "Duration":  "102ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-34",
                         "Name":  "License Status: GET /api/license/status returns hardware machineCode",
                         "Status":  "PASS",
-                        "Duration":  "15ms",
+                        "Duration":  "14ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-35",
                         "Name":  "License Anti-Tamper: POST /api/license/activate with fake key correctly rejected (HTTP 400)",
                         "Status":  "PASS",
-                        "Duration":  "66ms",
+                        "Duration":  "63ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-36",
                         "Name":  "Database Fetch: GET /api/database returns all collections",
                         "Status":  "PASS",
-                        "Duration":  "946ms",
+                        "Duration":  "1305ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-37",
                         "Name":  "Storage Integrity: orders_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "260ms",
+                        "Duration":  "43ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-38",
                         "Name":  "Storage Integrity: stockin_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "3ms",
+                        "Duration":  "2ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-39",
                         "Name":  "Offline Assets: vendor/mermaid.min.js exists and is \u003e 1MB",
                         "Status":  "PASS",
-                        "Duration":  "9ms",
+                        "Duration":  "6ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-40",
                         "Name":  "Offline Assets: vendor/tailwind.js exists and is valid",
                         "Status":  "PASS",
-                        "Duration":  "2ms",
+                        "Duration":  "1ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-41",
                         "Name":  "Performance Benchmark: 10 consecutive GET /api/database latency",
                         "Status":  "PASS",
-                        "Duration":  "1177ms",
+                        "Duration":  "1693ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-42",
                         "Name":  "Concurrency Stress: 5 simultaneous requests without deadlock",
                         "Status":  "PASS",
-                        "Duration":  "10832ms",
+                        "Duration":  "14083ms",
                         "Error":  ""
                     }
                 ]

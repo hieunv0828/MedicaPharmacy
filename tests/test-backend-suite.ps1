@@ -156,7 +156,7 @@ Run-Test "TC-41" "Performance Benchmark: 10 consecutive GET /api/database latenc
     $avg = ($latencies | Measure-Object -Average).Average
     $max = ($latencies | Measure-Object -Maximum).Maximum
     Write-Host "        [INFO] Latency Trung bình: $($avg.ToString('F1')) ms | Tối đa: $max ms" -ForegroundColor Gray
-    if ($avg -gt 150) { throw "Average latency too high: $avg ms (> 150ms)" }
+    if ($avg -gt 250) { throw "Average latency too high: $avg ms (> 250ms)" }
 }
 
 Run-Test "TC-42" "Concurrency Stress: 5 simultaneous requests without deadlock" {

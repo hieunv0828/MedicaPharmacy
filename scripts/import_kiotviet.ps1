@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # MedicaPharmacy - Script Import Danh Mục KiotViet (7,980 Dòng -> 5,780 Thuốc)
 # Tự động gộp đa đơn vị tính (Viên / Vỉ / Hộp / Lọ / Tuýp...)
 # Xóa sạch dữ liệu mẫu giao dịch cũ để đưa nhà thuốc vào vận hành thực tế
