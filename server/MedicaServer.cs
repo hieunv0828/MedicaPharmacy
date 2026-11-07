@@ -277,6 +277,8 @@ namespace MedicaPharmacy
             try
             {
                 _tcpListener = new TcpListener(IPAddress.Any, port);
+                _tcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                _tcpListener.ExclusiveAddressUse = false;
                 _tcpListener.Start();
                 _activePort = port;
 

@@ -219,13 +219,13 @@ foreach ($grp in $grouped) {
         $medName_e = Escape-Json $line.medName
         $unit_e    = Escape-Json $line.unit
 
-        $itemJsonArr.Add("{`"medicineId`":`"$medId_e`",`"medicineCode`":`"$medCode_e`",`"medicineName`":`"$medName_e`",`"unit`":`"$unit_e`",`"quantity`":$qty,`"unitPrice`":$unitPrice,`"costPrice`":0,`"lineTotal`":$lineTotal}")
+        $itemJsonArr.Add("{`"medicineId`":`"$medId_e`",`"medicineCode`":`"$medCode_e`",`"medicineName`":`"$medName_e`",`"unit`":`"$unit_e`",`"quantity`":$qty,`"price`":$unitPrice,`"unitPrice`":$unitPrice,`"costPrice`":0,`"lineTotal`":$lineTotal}")
     }
 
     $itemsJson = "[" + ($itemJsonArr -join ',') + "]"
     $id_e = Escape-Json $invoiceId
 
-    $orderJsonLines.Add("  {`"id`":`"$id_e`",`"createdAt`":`"$createdAt`",`"customerId`":`"$custId_e`",`"customerName`":`"$custName_e`",`"customerPhone`":`"$custPhone_e`",`"paymentMethod`":`"$payMethod`",`"totalAmount`":$totalAmt,`"discountAmount`":$discountHD,`"finalAmount`":$finalAmt,`"items`":$itemsJson,`"status`":`"$statusStr`",`"pharmacist`":`"$seller_e`",`"note`":`"$note_e`"}")
+    $orderJsonLines.Add("  {`"id`":`"$id_e`",`"createdAt`":`"$createdAt`",`"customerId`":`"$custId_e`",`"customerName`":`"$custName_e`",`"customerPhone`":`"$custPhone_e`",`"paymentMethod`":`"$payMethod`",`"subTotal`":$totalAmt,`"discount`":$discountHD,`"totalAmount`":$finalAmt,`"finalAmount`":$finalAmt,`"items`":$itemsJson,`"status`":`"$statusStr`",`"pharmacist`":`"$seller_e`",`"note`":`"$note_e`"}")
 }
 
 Write-Host "Built $($orderJsonLines.Count) order objects"

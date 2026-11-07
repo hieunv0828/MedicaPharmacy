@@ -433,8 +433,8 @@ const OrdersModule = {
                         ${item.quantity} ${item.unit}
                         ${returnedQty > 0 ? `<div class="text-[10px] text-rose-600 font-bold">(Đã trả: ${returnedQty} ${item.unit})</div>` : ''}
                     </td>
-                    <td class="py-2.5 px-2 text-right">${AppUtils.formatVND(item.price)}</td>
-                    <td class="py-2.5 px-2 text-right font-bold text-emerald-700">${AppUtils.formatVND(item.quantity * item.price)}</td>
+                    <td class="py-2.5 px-2 text-right">${AppUtils.formatVND(item.price || item.unitPrice || 0)}</td>
+                    <td class="py-2.5 px-2 text-right font-bold text-emerald-700">${AppUtils.formatVND((item.price || item.unitPrice || 0) * (item.quantity || 1))}</td>
                 </tr>
             `;
         });
@@ -537,7 +537,7 @@ const OrdersModule = {
                 <div class="border-t border-slate-200 pt-3 space-y-1.5 text-xs">
                     <div class="flex justify-between">
                         <span class="text-slate-600">Tiền hàng gốc:</span>
-                        <span class="font-medium">${AppUtils.formatVND(order.subTotal)}</span>
+                        <span class="font-medium">${AppUtils.formatVND(order.subTotal || order.totalAmount || 0)}</span>
                     </div>
                     ${order.discount > 0 ? `
                     <div class="flex justify-between text-rose-600">
