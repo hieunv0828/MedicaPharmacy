@@ -276,7 +276,17 @@ class DataStore {
         if (this._cachedMedicines && Array.isArray(this._cachedMedicines)) {
             for (let i = 0; i < this._cachedMedicines.length; i++) {
                 const m = this._cachedMedicines[i];
-                if (m && m.id) this._medicineMap[m.id] = m;
+                if (!m) continue;
+                if (m.id) this._medicineMap[m.id] = m;
+                if (m.barcode) {
+                    const parts = m.barcode.split(/[,;\s]+/);
+                    for (let j = 0; j < parts.length; j++) {
+                        const code = parts[j].trim();
+                        if (code && !this._medicineMap[code]) {
+                            this._medicineMap[code] = m;
+                        }
+                    }
+                }
             }
         }
     }

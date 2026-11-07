@@ -141,7 +141,7 @@ const ReportsModule = {
 
                     let unitCost = item.costPrice || 0;
                     if (unitCost <= 0) {
-                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? Store._medicineMap[item.medicineCode] : null);
+                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
                         if (med) unitCost = Store.getMedicineUnitCost(med, item.unit);
                     }
                     const lineCost = unitCost * netQty;
@@ -305,10 +305,12 @@ const ReportsModule = {
                 }, 0);
                 const netQty = Math.max(0, (item.quantity || 1) - returnedQty);
                 if (netQty > 0 || returnedQty > 0) {
-                    const key = `${item.medicineId || item.medicineName}_${item.unit}`;
+                    const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
+                    const effectiveMedId = (med ? med.id : '') || item.medicineId || item.medicineCode || '---';
+                    const key = `${effectiveMedId}_${item.unit}`;
                     if (!itemsMap[key]) {
                         itemsMap[key] = {
-                            medicineId: item.medicineId || '---',
+                            medicineId: effectiveMedId,
                             medicineName: item.medicineName,
                             unit: item.unit,
                             quantity: 0,
@@ -321,12 +323,14 @@ const ReportsModule = {
                         };
                     }
                     let unitCost = item.costPrice || 0;
-                    if (unitCost <= 0) {
-                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? Store._medicineMap[item.medicineCode] : null);
-                        if (med) unitCost = Store.getMedicineUnitCost(med, item.unit);
+                    if (unitCost <= 0 && med) {
+                        unitCost = Store.getMedicineUnitCost(med, item.unit);
                     }
                     if (itemsMap[key].costPrice <= 0 && unitCost > 0) {
                         itemsMap[key].costPrice = unitCost;
+                    }
+                    if (itemsMap[key].medicineId === '---' && effectiveMedId !== '---') {
+                        itemsMap[key].medicineId = effectiveMedId;
                     }
                     itemsMap[key].quantity += netQty;
                     itemsMap[key].returnedQuantity += returnedQty;

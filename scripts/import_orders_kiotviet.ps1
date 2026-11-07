@@ -1,4 +1,4 @@
-# Import Hoa Don Chi Tiet from KiotViet XLSX
+﻿# Import Hoa Don Chi Tiet from KiotViet XLSX
 # Columns (1-indexed):
 # A=Chi nhanh, B=Ma hoa don, C=Thoi gian, D=Thoi gian tao, E=Ngay cap nhat,
 # F=Ma tra hang, G=Ma KH, H=Ten KH, I=Email, J=Dien thoai,
@@ -22,12 +22,20 @@ $medContent = [System.IO.File]::ReadAllText($medicinesPath, [System.Text.Encodin
 $medicines = $medContent | ConvertFrom-Json
 $medMap = @{}
 foreach ($m in $medicines) {
-    # Medicine id IS the product code (e.g. SP027206)
     if ($m.id -and -not $medMap.ContainsKey($m.id)) {
         $medMap[$m.id] = $m
     }
+    if ($m.barcode) {
+        $parts = $m.barcode -split '[,;\s]+'
+        foreach ($p in $parts) {
+            $p = $p.Trim()
+            if ($p -and -not $medMap.ContainsKey($p)) {
+                $medMap[$p] = $m
+            }
+        }
+    }
 }
-Write-Host "Loaded $($medicines.Count) medicines, $($medMap.Count) with id/code"
+Write-Host "Loaded $($medicines.Count) medicines, $($medMap.Count) with id/barcode"
 
 # Extract XLSX
 $tmpDir = "$env:TEMP\hd_import_$(Get-Random)"
@@ -220,6 +228,8 @@ foreach ($grp in $grouped) {
             $medObj = $medMap[$line.medCode]
             $medId = $medObj.id
             $costPrice = Get-UnitCost $medObj $line.unit
+        } else {
+            $medId = $line.medCode
         }
 
         $qty = 0
