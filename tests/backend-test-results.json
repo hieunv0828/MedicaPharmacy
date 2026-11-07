@@ -7,14 +7,14 @@
                         "Id":  "TC-31",
                         "Name":  "Server Web Root: GET / returns 200 OK",
                         "Status":  "PASS",
-                        "Duration":  "2331ms",
+                        "Duration":  "2363ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-32",
                         "Name":  "TÃ i Liá»‡u Thiáº¿t Káº¿ HTML: GET /tai-lieu-thiet-ke.html returns 200 OK",
                         "Status":  "PASS",
-                        "Duration":  "66ms",
+                        "Duration":  "106ms",
                         "Error":  ""
                     },
                     {
@@ -28,35 +28,35 @@
                         "Id":  "TC-34",
                         "Name":  "License Status: GET /api/license/status returns hardware machineCode",
                         "Status":  "PASS",
-                        "Duration":  "29ms",
+                        "Duration":  "31ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-35",
                         "Name":  "License Anti-Tamper: POST /api/license/activate with fake key correctly rejected (HTTP 400)",
                         "Status":  "PASS",
-                        "Duration":  "82ms",
+                        "Duration":  "53ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-36",
                         "Name":  "Database Fetch: GET /api/database returns all collections",
                         "Status":  "PASS",
-                        "Duration":  "145ms",
+                        "Duration":  "108ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-37",
                         "Name":  "Storage Integrity: orders_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "58ms",
+                        "Duration":  "54ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-38",
                         "Name":  "Storage Integrity: stockin_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "5ms",
+                        "Duration":  "7ms",
                         "Error":  ""
                     },
                     {
@@ -70,21 +70,21 @@
                         "Id":  "TC-40",
                         "Name":  "Offline Assets: vendor/tailwind.js exists and is valid",
                         "Status":  "PASS",
-                        "Duration":  "1ms",
+                        "Duration":  "2ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-41",
                         "Name":  "Performance Benchmark: 10 consecutive GET /api/database latency",
                         "Status":  "PASS",
-                        "Duration":  "861ms",
+                        "Duration":  "825ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-42",
                         "Name":  "Concurrency Stress: 5 simultaneous requests without deadlock",
                         "Status":  "PASS",
-                        "Duration":  "3483ms",
+                        "Duration":  "3611ms",
                         "Error":  ""
                     }
                 ]

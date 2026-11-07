@@ -154,8 +154,9 @@ const POSModule = {
                 <div onclick="POSModule.addToCart('${m.id}')" 
                      class="p-2.5 hover:bg-emerald-50 transition border-b border-slate-100 cursor-pointer flex items-center justify-between group ${isOutOfStock ? 'opacity-60 bg-slate-50' : ''}">
                     <div>
-                        <div class="font-bold text-slate-800 text-sm group-hover:text-emerald-700 flex items-center gap-2">
-                            ${m.name}
+                        <div class="font-bold text-slate-800 text-sm group-hover:text-emerald-700 flex items-center gap-2 flex-wrap">
+                            <span class="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">${m.id}</span>
+                            <span>${m.name}</span>
                             ${isOutOfStock ? '<span class="text-[10px] bg-rose-100 text-rose-700 font-semibold px-1.5 py-0.5 rounded">Hết hàng</span>' : ''}
                         </div>
                         <div class="text-xs text-slate-500 line-clamp-1 italic">${m.activeIngredient || ''}</div>

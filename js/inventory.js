@@ -488,7 +488,10 @@ const InventoryModule = {
                 <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-sm">
                     <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
                     <td class="py-3 px-3">
-                        <div class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="Mã thuốc">${m.id || '---'}</span>
+                            <span class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</span>
+                        </div>
                         <div class="text-xs text-slate-500 line-clamp-1 italic">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
                         <div class="flex items-center gap-2 mt-1">
                             <span class="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${m.category || 'Thuốc chung'}</span>
@@ -534,7 +537,11 @@ const InventoryModule = {
         this.currentEditingMedId = null;
         document.getElementById('modal-medicine-title').innerText = 'Thêm Thuốc Mới Vào Danh Mục';
         document.getElementById('form-medicine').reset();
-        document.getElementById('med-id').value = '';
+        const medIdInput = document.getElementById('med-id');
+        if (medIdInput) {
+            medIdInput.value = '';
+            medIdInput.readOnly = false;
+        }
 
         // Nạp nhóm thuốc vào form
         this.populateCategoryOptions('med-category');
@@ -565,7 +572,11 @@ const InventoryModule = {
         this.populateCategoryOptions('med-category');
         this.populateSupplierOptions('med-supplier');
 
-        document.getElementById('med-id').value = med.id;
+        const medIdInput = document.getElementById('med-id');
+        if (medIdInput) {
+            medIdInput.value = med.id;
+            medIdInput.readOnly = true;
+        }
         document.getElementById('med-name').value = med.name || '';
         document.getElementById('med-barcode').value = med.barcode || '';
         document.getElementById('med-active-ingredient').value = med.activeIngredient || '';
@@ -620,7 +631,11 @@ const InventoryModule = {
 
         document.getElementById('modal-medicine-title').innerText = 'Thêm Thuốc Mới Vào Kho (Cho Phiếu Nhập)';
         document.getElementById('form-medicine').reset();
-        document.getElementById('med-id').value = '';
+        const medIdInput = document.getElementById('med-id');
+        if (medIdInput) {
+            medIdInput.value = '';
+            medIdInput.readOnly = false;
+        }
 
         // Nạp nhóm thuốc & nhà cung cấp
         this.populateCategoryOptions('med-category');

@@ -416,8 +416,9 @@ const OrdersModule = {
                     <td class="py-2.5 px-2">
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                             <button type="button" onclick="OrdersModule.viewMedicineWarehouseDetails('${medId}')" 
-                                class="text-left font-bold text-emerald-700 hover:text-emerald-900 hover:underline inline-flex items-center gap-1.5 group cursor-pointer" 
+                                class="text-left font-bold text-emerald-700 hover:text-emerald-900 hover:underline inline-flex items-center gap-1.5 group cursor-pointer flex-wrap" 
                                 title="Nhấn để xem số lượng tồn kho & toàn bộ lịch sử xuất/nhập/bán của thuốc này">
+                                <span class="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">${item.medicineId || medId}</span>
                                 <span class="text-xs sm:text-sm font-bold">${item.medicineName}</span>
                                 <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 text-emerald-600 shrink-0"></i>
                             </button>
