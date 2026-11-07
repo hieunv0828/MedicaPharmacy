@@ -413,13 +413,28 @@ class DataStore {
 
     // --- Stock-In (Phiếu nhập thuốc) ---
     getStockInOrders() {
+        if (this._cachedStockIns && Array.isArray(this._cachedStockIns)) {
+            return this._cachedStockIns;
+        }
         const raw = localStorage.getItem(STORAGE_KEYS.STOCK_IN);
         if (!raw) return [];
         try {
-            return JSON.parse(raw);
+            this._cachedStockIns = JSON.parse(raw);
+            return this._cachedStockIns;
         } catch(e) {
             return [];
         }
+    }
+
+    saveStockInOrders(orders) {
+        this._cachedStockIns = orders;
+        try {
+            localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(orders));
+        } catch(e) {
+            console.warn('Could not save stockInOrders to localStorage quota, using memory cache:', e);
+        }
+        this.schedulePersistToServer();
+        this.emit('stockin:changed', orders);
     }
 
     addStockInOrder(stockIn) {
@@ -435,7 +450,7 @@ class DataStore {
         stockIn.paymentMethod = stockIn.paymentMethod || 'cash';
 
         orders.unshift(stockIn);
-        localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(orders));
+        this.saveStockInOrders(orders);
 
         // Tự động tăng tồn kho thuốc tương ứng
         if (stockIn.items && Array.isArray(stockIn.items)) {
@@ -541,7 +556,7 @@ class DataStore {
 
         // 3. Cập nhật phiếu nhập trong danh sách
         orders[index] = { ...oldOrder, ...updatedStockIn, updatedAt: new Date().toISOString() };
-        localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(orders));
+        this.saveStockInOrders(orders);
 
         // 4. Cập nhật phiếu chi tương ứng trong Sổ Thu Chi
         const vouchers = this.getVouchers();
@@ -695,10 +710,7 @@ class DataStore {
             createdAt: returnRecord.createdAt
         });
 
-        localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(orders));
-        this.schedulePersistToServer();
-        this.emit('stockin:changed', orders);
-
+        this.saveStockInOrders(orders);
         return { success: true, stockIn, returnRecord };
     }
 

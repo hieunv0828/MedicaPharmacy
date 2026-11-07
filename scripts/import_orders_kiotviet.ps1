@@ -1,4 +1,4 @@
-﻿# Import Hoa Don Chi Tiet from KiotViet XLSX
+# Import Hoa Don Chi Tiet from KiotViet XLSX
 # Columns (1-indexed):
 # A=Chi nhanh, B=Ma hoa don, C=Thoi gian, D=Thoi gian tao, E=Ngay cap nhat,
 # F=Ma tra hang, G=Ma KH, H=Ten KH, I=Email, J=Dien thoai,
