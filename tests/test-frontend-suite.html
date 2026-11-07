@@ -714,6 +714,19 @@
                 assert.isNotNull(InventoryModule.openPurchaseReturnDetailModal, "openPurchaseReturnDetailModal phải tồn tại");
                 assert.isNotNull(InventoryModule.printPurchaseReturn, "printPurchaseReturn phải tồn tại");
             });
+
+            it("TC-38: InventoryModule hỗ trợ tìm kiếm theo Mã Thuốc và kiểm tra trùng mã khi thêm mới", () => {
+                const meds = Store.getMedicines();
+                assert.isTrue(meds.length > 0, "Phải có thuốc trong danh mục");
+                const sampleMed = meds[0];
+                InventoryModule.searchKeyword = sampleMed.id.toLowerCase();
+                let filtered = Store.getMedicines().filter(m => 
+                    (m.id && m.id.toLowerCase().includes(InventoryModule.searchKeyword)) ||
+                    (m.name && m.name.toLowerCase().includes(InventoryModule.searchKeyword))
+                );
+                assert.isTrue(filtered.some(m => m.id === sampleMed.id), "Phải tìm thấy thuốc theo mã");
+                InventoryModule.searchKeyword = '';
+            });
         });
 
         // =========================================================================

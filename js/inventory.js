@@ -362,6 +362,7 @@ const InventoryModule = {
         // Lọc theo từ khóa
         if (this.searchKeyword) {
             medicines = medicines.filter(m => 
+                (m.id && m.id.toLowerCase().includes(this.searchKeyword)) ||
                 (m.name && m.name.toLowerCase().includes(this.searchKeyword)) ||
                 (m.activeIngredient && m.activeIngredient.toLowerCase().includes(this.searchKeyword)) ||
                 (m.barcode && m.barcode.toLowerCase().includes(this.searchKeyword)) ||
@@ -486,10 +487,11 @@ const InventoryModule = {
 
             html += `
                 <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-sm">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
+                    <td class="py-3 px-3 whitespace-nowrap">
+                        <span class="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block hover:bg-emerald-100 transition cursor-pointer" ${nameClickAction} title="Mã thuốc: ${m.id} (nhấn để mở)">${m.id || '---'}</span>
+                    </td>
                     <td class="py-3 px-3">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="Mã thuốc">${m.id || '---'}</span>
+                        <div>
                             <span class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</span>
                         </div>
                         <div class="text-xs text-slate-500 line-clamp-1 italic">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
@@ -685,8 +687,17 @@ const InventoryModule = {
             return;
         }
 
+        const rawId = document.getElementById('med-id')?.value.trim();
+        if (!this.currentEditingMedId && rawId) {
+            const existing = Store.getMedicineById(rawId);
+            if (existing) {
+                alert(`Mã thuốc "${rawId}" đã tồn tại trong hệ thống (${existing.name})! Vui lòng nhập mã khác hoặc để trống.`);
+                return;
+            }
+        }
+
         const medData = {
-            id: document.getElementById('med-id').value || undefined,
+            id: rawId || (this.currentEditingMedId ? this.currentEditingMedId : undefined),
             name: name,
             barcode: document.getElementById('med-barcode').value.trim(),
             activeIngredient: document.getElementById('med-active-ingredient').value.trim(),
@@ -939,7 +950,7 @@ const InventoryModule = {
         if (!sel) return;
         const medicines = Store.getMedicines();
         sel.innerHTML = '<option value="">-- Chọn thuốc cần nhập --</option>' + 
-            medicines.map(m => `<option value="${m.id}">${m.name} [${m.packUnit || 'Hộp'}] (Hiện còn: ${m.stockUnits || 0} ${m.baseUnit})</option>`).join('');
+            medicines.map(m => `<option value="${m.id}">[${m.id}] ${m.name} [${m.packUnit || 'Hộp'}] (Hiện còn: ${m.stockUnits || 0} ${m.baseUnit})</option>`).join('');
     },
 
     onStockInMedicineChange() {
@@ -2478,7 +2489,7 @@ const InventoryModule = {
         if (medSel) {
             const medicines = Store.getMedicines();
             medSel.innerHTML = '<option value="">-- Chọn thuốc trong kho cần xuất trả --</option>' +
-                medicines.map(m => `<option value="${m.id}">${m.name} [${m.packUnit || 'Hộp'}] (Kho còn: ${m.stockUnits || 0} ${m.baseUnit})</option>`).join('');
+                medicines.map(m => `<option value="${m.id}">[${m.id}] ${m.name} [${m.packUnit || 'Hộp'}] (Kho còn: ${m.stockUnits || 0} ${m.baseUnit})</option>`).join('');
         }
 
         // Reset inputs
