@@ -16,7 +16,7 @@ const OrdersModule = {
 
     init() {
         this.bindEvents();
-        this.renderOrdersTable();
+        this.setTab('all');
         this.updateTabSummaryCards();
 
         Store.on('orders:changed', () => {
@@ -33,6 +33,7 @@ const OrdersModule = {
                 this.searchKeyword = e.target.value.trim().toLowerCase();
                 this.currentPage = 1;
                 this.renderOrdersTable();
+                this.updateTabSummaryCards();
             });
         }
 
@@ -43,6 +44,7 @@ const OrdersModule = {
                 this.timeFilter = e.target.value;
                 this.currentPage = 1;
                 this.renderOrdersTable();
+                this.updateTabSummaryCards();
             });
         }
     },
@@ -51,22 +53,14 @@ const OrdersModule = {
         this.currentTab = tab;
         this.currentPage = 1;
 
-        // Cập nhật giao diện tab buttons
+        // Cập nhật giao diện tab buttons với highlight & gạch chân rõ nét
         const tabAll = document.getElementById('tab-btn-orders-all');
         const tabCash = document.getElementById('tab-btn-orders-cash');
         const tabTransfer = document.getElementById('tab-btn-orders-transfer');
 
-        const activeClass = ['border-emerald-600', 'text-emerald-700', 'font-bold'];
-        const inactiveClass = ['border-transparent', 'text-slate-500', 'font-medium'];
-
-        [tabAll, tabCash, tabTransfer].forEach(t => {
-            t?.classList.remove(...activeClass);
-            t?.classList.add(...inactiveClass);
-        });
-
-        if (tab === 'all') tabAll?.classList.add(...activeClass);
-        if (tab === 'cash') tabCash?.classList.add(...activeClass);
-        if (tab === 'transfer') tabTransfer?.classList.add(...activeClass);
+        if (tabAll) tabAll.className = 'tab-filter-btn' + (tab === 'all' ? ' active-emerald' : '');
+        if (tabCash) tabCash.className = 'tab-filter-btn' + (tab === 'cash' ? ' active-amber' : '');
+        if (tabTransfer) tabTransfer.className = 'tab-filter-btn' + (tab === 'transfer' ? ' active-blue' : '');
 
         this.renderOrdersTable();
     },
@@ -82,24 +76,7 @@ const OrdersModule = {
         }
 
         // 2. Lọc theo Thời gian
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-
-        if (this.timeFilter === 'today') {
-            orders = orders.filter(o => o.createdAt && o.createdAt.startsWith(todayStr));
-        } else if (this.timeFilter === 'yesterday') {
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yestStr = yesterday.toISOString().slice(0, 10);
-            orders = orders.filter(o => o.createdAt && o.createdAt.startsWith(yestStr));
-        } else if (this.timeFilter === 'last_7_days') {
-            const sevenDaysAgo = new Date(now);
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            orders = orders.filter(o => new Date(o.createdAt) >= sevenDaysAgo);
-        } else if (this.timeFilter === 'this_month') {
-            const yearMonth = now.toISOString().slice(0, 7); // '2026-10'
-            orders = orders.filter(o => o.createdAt && o.createdAt.startsWith(yearMonth));
-        }
+        orders = orders.filter(o => AppUtils.matchesTimeFilter(o.createdAt, this.timeFilter));
 
         // 3. Lọc theo từ khóa tìm kiếm
         if (this.searchKeyword) {
@@ -119,8 +96,24 @@ const OrdersModule = {
     updateTabSummaryCards() {
         const allOrders = Store.getOrders();
         
-        // Chỉ tính các đơn không bị hủy
-        const validOrders = allOrders.filter(o => !o.isCancelled);
+        // 1. Chỉ tính các đơn không bị hủy
+        let validOrders = allOrders.filter(o => !o.isCancelled);
+
+        // 2. Lọc theo mốc thời gian đang chọn
+        validOrders = validOrders.filter(o => AppUtils.matchesTimeFilter(o.createdAt, this.timeFilter));
+
+        // 3. Lọc theo từ khóa tìm kiếm (nếu có)
+        if (this.searchKeyword) {
+            const q = this.searchKeyword;
+            validOrders = validOrders.filter(o => 
+                (o.id && o.id.toLowerCase().includes(q)) ||
+                (o.customerName && o.customerName.toLowerCase().includes(q)) ||
+                (o.customerPhone && o.customerPhone.includes(q)) ||
+                (o.transferCode && o.transferCode.toLowerCase().includes(q)) ||
+                (o.items && o.items.some(i => i.medicineName && i.medicineName.toLowerCase().includes(q)))
+            );
+        }
+
         const cashOrders = validOrders.filter(o => o.paymentMethod === 'cash');
         const transferOrders = validOrders.filter(o => o.paymentMethod === 'transfer');
 
@@ -128,7 +121,7 @@ const OrdersModule = {
         const totalTransferAmount = transferOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         const totalAllAmount = validOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
-        // Update badge counts trên tabs
+        // Update badge counts trên tabs tương ứng theo bộ lọc
         const badgeAll = document.getElementById('badge-count-all');
         const badgeCash = document.getElementById('badge-count-cash');
         const badgeTransfer = document.getElementById('badge-count-transfer');
@@ -137,7 +130,7 @@ const OrdersModule = {
         if (badgeCash) badgeCash.innerText = cashOrders.length;
         if (badgeTransfer) badgeTransfer.innerText = transferOrders.length;
 
-        // Update thẻ thống kê trên cùng trang Đơn Hàng
+        // Update thẻ thống kê trên cùng trang Đơn Hàng tương ứng theo bộ lọc
         const cardTotalAll = document.getElementById('card-orders-total-all');
         const cardTotalCash = document.getElementById('card-orders-total-cash');
         const cardTotalTransfer = document.getElementById('card-orders-total-transfer');

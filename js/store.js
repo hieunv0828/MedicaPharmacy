@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
     STOCK_IN: 'medica_stock_in_v1',
     CUSTOMERS: 'medica_customers_v1',
     SETTINGS_HISTORY: 'medica_settings_history_v1',
-    VOUCHERS: 'medica_vouchers_v1'
+    VOUCHERS: 'medica_vouchers_v1',
+    PURCHASE_RETURNS: 'medica_purchase_returns_v1'
 };
 
 class DataStore {
@@ -127,6 +128,7 @@ class DataStore {
             if (db.customers) localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(db.customers));
             if (db.settingsHistory) localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory));
             if (db.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers));
+            if (db.purchaseReturns) localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(db.purchaseReturns));
         } catch (e) {
             console.warn('LocalStorage quota limit reached, maintaining state in-memory:', e);
         }
@@ -142,6 +144,7 @@ class DataStore {
             customers: this.getCustomers(),
             settingsHistory: this.getSettingsHistory(),
             vouchers: this.getVouchers(),
+            purchaseReturns: this.getPurchaseReturns(),
             lastUpdated: new Date().toISOString()
         };
     }
@@ -623,6 +626,173 @@ class DataStore {
         this.emit('stockin:changed', orders);
 
         return { success: true, stockIn, returnRecord };
+    }
+
+    // --- XUẤT TRẢ HÀNG CHO NHÀ CUNG CẤP TỔNG HỢP (GENERAL PURCHASE RETURN) ---
+    getPurchaseReturns() {
+        const raw = localStorage.getItem(STORAGE_KEYS.PURCHASE_RETURNS);
+        if (!raw) return [];
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    savePurchaseReturns(returns) {
+        localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(returns));
+        this.schedulePersistToServer();
+        this.emit('returns:changed', returns);
+    }
+
+    addPurchaseReturn(record) {
+        const list = this.getPurchaseReturns();
+        list.unshift(record);
+        this.savePurchaseReturns(list);
+        return record;
+    }
+
+    // Lấy toàn bộ phiếu trả hàng (gồm cả trả theo đơn nhập THN và trả tổng hợp PTH)
+    getAllPurchaseReturns() {
+        const list = [];
+        // 1. Trả theo đơn nhập kho (THN)
+        const stockIns = this.getStockInOrders();
+        stockIns.forEach(s => {
+            (s.returns || []).forEach(r => {
+                list.push({
+                    ...r,
+                    returnType: 'stockin_return',
+                    stockInId: s.id,
+                    supplierId: r.supplierId || s.supplierId || '',
+                    supplierName: r.supplierName || s.supplierName || 'Nhà cung cấp'
+                });
+            });
+        });
+        // 2. Trả tổng hợp độc lập (PTH)
+        const generals = this.getPurchaseReturns();
+        generals.forEach(g => {
+            list.push({
+                ...g,
+                returnType: 'general_return'
+            });
+        });
+
+        // Sắp xếp theo thời gian tạo mới nhất lên đầu
+        list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        return list;
+    }
+
+    getPurchaseReturnById(returnId) {
+        return this.getAllPurchaseReturns().find(r => r.id === returnId) || null;
+    }
+
+    returnGeneralPurchaseItems({ supplierId = '', supplierName = '', returnedItems = [], returnReason = '', paymentMethod = 'cash', note = '' }) {
+        if (!Array.isArray(returnedItems) || returnedItems.length === 0) {
+            return { success: false, message: 'Vui lòng chọn ít nhất một mặt hàng thuốc để xuất trả!' };
+        }
+
+        // 1. Kiểm tra tồn kho thực tế của từng thuốc
+        for (const item of returnedItems) {
+            const qtyToReturn = parseInt(item.quantity) || 0;
+            if (qtyToReturn <= 0) continue;
+
+            const med = this.getMedicineById(item.medicineId);
+            if (!med) {
+                return { success: false, message: `Không tìm thấy thuốc [${item.medicineName}] trong hệ thống kho!` };
+            }
+
+            let unitsToDeduct = qtyToReturn;
+            if (item.unit === med.packUnit && med.packRatio > 1) {
+                unitsToDeduct = qtyToReturn * med.packRatio;
+            } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                unitsToDeduct = qtyToReturn * med.subRatio;
+            }
+
+            if ((med.stockUnits || 0) < unitsToDeduct) {
+                return {
+                    success: false,
+                    message: `Thuốc [${med.name}] hiện trong kho chỉ còn ${med.stockUnits || 0} ${med.baseUnit}, không đủ để xuất trả ${unitsToDeduct} ${med.baseUnit}!`
+                };
+            }
+        }
+
+        let totalRefund = 0;
+
+        // 2. Trừ kho thuốc
+        returnedItems.forEach(item => {
+            const qtyToReturn = parseInt(item.quantity) || 0;
+            if (qtyToReturn <= 0) return;
+
+            const lineRefund = qtyToReturn * (parseFloat(item.costPrice) || 0);
+            totalRefund += lineRefund;
+
+            const med = this.getMedicineById(item.medicineId);
+            if (med) {
+                let unitsToDeduct = qtyToReturn;
+                if (item.unit === med.packUnit && med.packRatio > 1) {
+                    unitsToDeduct = qtyToReturn * med.packRatio;
+                } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                    unitsToDeduct = qtyToReturn * med.subRatio;
+                }
+
+                med.stockUnits = Math.max(0, (med.stockUnits || 0) - unitsToDeduct);
+                this.saveMedicine(med);
+            }
+        });
+
+        if (totalRefund <= 0) {
+            return { success: false, message: 'Tổng số tiền hoàn trả phải lớn hơn 0!' };
+        }
+
+        // 3. Tạo mã phiếu trả hàng tổng hợp PTHyymmdd-xxx
+        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+        const allReturns = this.getAllPurchaseReturns();
+        const countToday = allReturns.filter(r => r.id && r.id.startsWith('PTH' + dateStr)).length + 1;
+        const returnId = `PTH${dateStr}-${String(countToday).padStart(3, '0')}`;
+
+        const returnRecord = {
+            id: returnId,
+            type: 'general_return',
+            returnType: 'general_return',
+            supplierId: supplierId || '',
+            supplierName: supplierName || 'Nhà cung cấp',
+            createdAt: new Date().toISOString(),
+            paymentMethod: paymentMethod || 'cash',
+            reason: returnReason || 'Xuất trả hàng cho nhà cung cấp (tổng hợp)',
+            note: note || '',
+            items: returnedItems.map(i => ({
+                medicineId: i.medicineId,
+                medicineName: i.medicineName,
+                unit: i.unit,
+                quantity: parseInt(i.quantity) || 0,
+                costPrice: parseFloat(i.costPrice) || 0,
+                batchNo: i.batchNo || '',
+                expiryDate: i.expiryDate || '',
+                totalRefund: (parseInt(i.quantity) || 0) * (parseFloat(i.costPrice) || 0)
+            })),
+            refundTotal: totalRefund,
+            pharmacist: this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung'
+        };
+
+        this.addPurchaseReturn(returnRecord);
+
+        // 4. Tự động sinh Phiếu Thu trong Sổ Quỹ Thu Chi
+        const methodText = paymentMethod === 'transfer' ? 'Chuyển khoản' : 'Tiền mặt';
+        this.addVoucher({
+            type: 'receipt',
+            paymentMethod: paymentMethod || 'cash',
+            category: 'Thu tiền hoàn trả hàng Nhà Cung Cấp',
+            targetType: 'supplier',
+            targetName: returnRecord.supplierName || 'Nhà cung cấp',
+            amount: totalRefund,
+            note: `Thu tiền xuất trả hàng NCC tổng hợp ${returnRecord.id} [${methodText}] - ${returnRecord.supplierName}: ${returnRecord.reason}`,
+            isAccounting: true,
+            refId: returnRecord.id,
+            pharmacist: this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung',
+            createdAt: returnRecord.createdAt
+        });
+
+        return { success: true, returnRecord };
     }
 
     // --- Orders (Hóa đơn bán thuốc) ---
@@ -1321,28 +1491,8 @@ class DataStore {
     getCashFlowSummary(timeFilter = 'all', dateFrom = '', dateTo = '') {
         const vouchers = this.getVouchers();
 
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yestStr = yesterday.toISOString().slice(0, 10);
-        const sevenDaysAgo = new Date(now);
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const monthPrefix = now.toISOString().slice(0, 7);
-
         const filterFn = (dateStr) => {
-            if (!dateStr) return false;
-            const d = dateStr.slice(0, 10);
-            if (timeFilter === 'today') return d === todayStr;
-            if (timeFilter === 'yesterday') return d === yestStr;
-            if (timeFilter === 'last_7_days') return new Date(dateStr) >= sevenDaysAgo;
-            if (timeFilter === 'this_month') return d.startsWith(monthPrefix);
-            if (timeFilter === 'custom') {
-                if (dateFrom && d < dateFrom) return false;
-                if (dateTo && d > dateTo) return false;
-                return true;
-            }
-            return true;
+            return window.AppUtils ? AppUtils.matchesTimeFilter(dateStr, timeFilter, dateFrom, dateTo) : true;
         };
 
         // 1. Quỹ tổng thể
@@ -1549,6 +1699,55 @@ window.AppUtils = {
         const hours = String(d.getHours()).padStart(2, '0');
         const mins = String(d.getMinutes()).padStart(2, '0');
         return `${day}/${month}/${year} ${hours}:${mins}`;
+    },
+
+    getLocalDateStr(dateInput = new Date()) {
+        if (!dateInput) return '';
+        const d = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
+        if (isNaN(d.getTime())) return String(dateInput).slice(0, 10);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    },
+
+    matchesTimeFilter(dateStr, filterType = 'all', customFrom = '', customTo = '') {
+        if (!dateStr) return false;
+        if (!filterType || filterType === 'all') return true;
+
+        const recordDate = this.getLocalDateStr(dateStr);
+        const now = new Date();
+        const todayStr = this.getLocalDateStr(now);
+
+        if (filterType === 'today') {
+            return recordDate === todayStr;
+        }
+
+        if (filterType === 'yesterday') {
+            const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+            const yestStr = this.getLocalDateStr(yesterday);
+            return recordDate === yestStr;
+        }
+
+        if (filterType === 'last_7_days') {
+            const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+            sevenDaysAgo.setHours(0, 0, 0, 0);
+            const d = new Date(dateStr);
+            return d >= sevenDaysAgo;
+        }
+
+        if (filterType === 'this_month') {
+            const monthPrefix = todayStr.slice(0, 7);
+            return recordDate.startsWith(monthPrefix);
+        }
+
+        if (filterType === 'custom') {
+            if (customFrom && recordDate < customFrom) return false;
+            if (customTo && recordDate > customTo) return false;
+            return true;
+        }
+
+        return true;
     },
 
     checkExpiryStatus(expiryDateStr) {

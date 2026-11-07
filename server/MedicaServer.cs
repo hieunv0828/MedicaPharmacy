@@ -731,7 +731,7 @@ namespace MedicaPharmacy
             sb.Append("Access-Control-Allow-Origin: *\r\n");
             sb.Append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
             sb.Append("Access-Control-Allow-Headers: Content-Type\r\n");
-            if (contentType.StartsWith("application/json") || contentType.Contains("text/html"))
+            if (contentType.StartsWith("application/json") || contentType.Contains("text/html") || contentType.Contains("javascript") || contentType.Contains("text/css"))
             {
                 sb.Append("Cache-Control: no-cache, no-store, must-revalidate\r\n");
             }
@@ -840,6 +840,7 @@ namespace MedicaPharmacy
                 fullDb["orders"] = ReadPartitionedList("orders_*.json");
                 fullDb["stockInOrders"] = ReadPartitionedList("stockin_*.json");
                 fullDb["vouchers"] = ReadPartitionedList("vouchers_*.json");
+                fullDb["purchaseReturns"] = ReadPartitionedList("returns_*.json");
 
                 fullDb["lastUpdated"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
 
@@ -973,6 +974,34 @@ namespace MedicaPharmacy
                     foreach (var kvp in byYear)
                     {
                         string fPath = Path.Combine(_dataDir, string.Format("vouchers_{0}.json", kvp.Key));
+                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                    }
+                }
+
+                // 5. Phân vùng Phiếu trả hàng tổng hợp (Returns) theo từng năm
+                if (dict.ContainsKey("purchaseReturns") && dict["purchaseReturns"] is ArrayList)
+                {
+                    var list = (ArrayList)dict["purchaseReturns"];
+                    var byYear = new Dictionary<string, List<object>>();
+
+                    foreach (var item in list)
+                    {
+                        string y = curYear;
+                        if (item is Dictionary<string, object>)
+                        {
+                            var d = (Dictionary<string, object>)item;
+                            if (d.ContainsKey("createdAt")) y = ExtractYear(d["createdAt"], curYear);
+                            else if (d.ContainsKey("date")) y = ExtractYear(d["date"], curYear);
+                        }
+                        if (!byYear.ContainsKey(y)) byYear[y] = new List<object>();
+                        byYear[y].Add(item);
+                    }
+
+                    if (byYear.Count == 0) byYear[curYear] = new List<object>();
+
+                    foreach (var kvp in byYear)
+                    {
+                        string fPath = Path.Combine(_dataDir, string.Format("returns_{0}.json", kvp.Key));
                         WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
                     }
                 }

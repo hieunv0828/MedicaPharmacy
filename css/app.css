@@ -159,6 +159,125 @@ code, .font-mono {
     transform: translateY(0) !important;
 }
 
+/* ========================================================
+   ENHANCED SELECTION TABS & HIGHLIGHT UNDERLINE SYSTEM
+   ======================================================== */
+.tab-filter-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    border-top-left-radius: 0.625rem;
+    border-top-right-radius: 0.625rem;
+    color: #64748b;
+    background-color: transparent;
+    transition: all 0.15s ease-in-out;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none !important;
+}
+
+.tab-filter-btn:hover {
+    color: #1e293b;
+    background-color: rgba(241, 245, 249, 0.85);
+}
+
+.tab-filter-btn svg,
+.tab-filter-btn i {
+    width: 1rem;
+    height: 1rem;
+    color: inherit;
+    transition: color 0.15s ease-in-out;
+}
+
+/* Active Highlight & Underline Variants */
+.tab-filter-btn.active-emerald {
+    font-weight: 700 !important;
+    color: #065f46 !important;
+    background-color: #ecfdf5 !important;
+    border-bottom: 2px solid #059669 !important;
+}
+
+.tab-filter-btn.active-amber {
+    font-weight: 700 !important;
+    color: #92400e !important;
+    background-color: #fffbeb !important;
+    border-bottom: 2px solid #d97706 !important;
+}
+
+.tab-filter-btn.active-blue {
+    font-weight: 700 !important;
+    color: #1e40af !important;
+    background-color: #eff6ff !important;
+    border-bottom: 2px solid #2563eb !important;
+}
+
+.tab-filter-btn.active-rose {
+    font-weight: 700 !important;
+    color: #9f1239 !important;
+    background-color: #fff1f2 !important;
+    border-bottom: 2px solid #e11d48 !important;
+}
+
+.tab-filter-btn.active-purple {
+    font-weight: 700 !important;
+    color: #581c87 !important;
+    background-color: #faf5ff !important;
+    border-bottom: 2px solid #9333ea !important;
+}
+
+/* Badges inside filter tabs */
+.tab-filter-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    line-height: 1rem;
+    background-color: #e2e8f0;
+    color: #475569;
+    transition: all 0.15s ease-in-out;
+}
+
+.tab-filter-btn.active-emerald .tab-filter-badge {
+    background-color: #059669 !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(5, 150, 105, 0.25);
+}
+
+.tab-filter-btn.active-amber .tab-filter-badge {
+    background-color: #d97706 !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(217, 119, 6, 0.25);
+}
+
+.tab-filter-btn.active-blue .tab-filter-badge {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
+}
+
+.tab-filter-btn.active-rose .tab-filter-badge {
+    background-color: #e11d48 !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(225, 29, 72, 0.25);
+}
+
+.tab-filter-btn.active-purple .tab-filter-badge {
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(147, 51, 234, 0.25);
+}
+
 
 
 

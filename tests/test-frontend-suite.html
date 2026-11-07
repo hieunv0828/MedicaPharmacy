@@ -100,6 +100,12 @@
                     throw new Error(msg || `Expected false but got ${value}`);
                 }
             },
+            isTrue(value, msg) {
+                this.true(value, msg);
+            },
+            isFalse(value, msg) {
+                this.false(value, msg);
+            },
             closeTo(actual, expected, delta = 0.01, msg) {
                 if (Math.abs(actual - expected) > delta) {
                     throw new Error(msg || `Expected ${actual} to be close to ${expected} within +/-${delta}`);
@@ -619,6 +625,94 @@
 
             it("TC-33: Khách hàng có thể được tra cứu từ hóa đơn để mở modal hồ sơ", () => {
                 assert.isNotNull(CustomersModule.openCustomerOrdersModal, "CustomersModule.openCustomerOrdersModal phải tồn tại");
+            });
+        });
+
+        // =========================================================================
+        // SUITE 11: NGHIỆP VỤ XUẤT TRẢ HÀNG NCC TỔNG HỢP (PHƯƠNG ÁN A)
+        // =========================================================================
+        describe("SUITE 11: NGHIỆP VỤ XUẤT TRẢ HÀNG NCC TỔNG HỢP & QUẢN LÝ TRẢ HÀNG", () => {
+            it("TC-34: Xuất trả hàng tổng hợp (PTH) trừ tồn kho và sinh Phiếu Thu tiền hoàn trong Sổ Quỹ", () => {
+                const med = Store.getMedicines()[0];
+                assert.isNotNull(med, "Phải có ít nhất 1 loại thuốc trong kho");
+                const initialStock = med.stockUnits || 0;
+                assert.isTrue(initialStock >= 2, "Thuốc test phải còn ít nhất 2 viên tồn kho");
+
+                const res = Store.returnGeneralPurchaseItems({
+                    supplierId: "NCC001",
+                    supplierName: "Công ty Cổ phần Dược Hậu Giang",
+                    returnedItems: [
+                        {
+                            medicineId: med.id,
+                            medicineName: med.name,
+                            unit: med.baseUnit,
+                            quantity: 1,
+                            costPrice: 5000,
+                            batchNo: "TEST_LOT",
+                            expiryDate: "2027-12-31"
+                        }
+                    ],
+                    returnReason: "Test xuất trả hàng cận date",
+                    paymentMethod: "cash",
+                    note: "Biên bản kiểm kho"
+                });
+
+                assert.isTrue(res.success, "Hàm returnGeneralPurchaseItems phải trả về success: true");
+                assert.isTrue(res.returnRecord.id.startsWith("PTH"), "Mã phiếu trả tổng hợp phải bắt đầu bằng PTH");
+                assert.equal(res.returnRecord.refundTotal, 5000, "Tổng tiền hoàn phải đúng 5.000đ");
+
+                // Kiểm tra trừ kho
+                const updatedMed = Store.getMedicineById(med.id);
+                assert.equal(updatedMed.stockUnits, initialStock - 1, "Tồn kho của thuốc phải giảm đi 1 đơn vị");
+
+                // Kiểm tra sinh phiếu thu trong Sổ Quỹ
+                const vouchers = Store.getVouchers();
+                const matchedVoucher = vouchers.find(v => v.refId === res.returnRecord.id);
+                assert.isNotNull(matchedVoucher, "Phải tự động sinh Phiếu Thu trong Sổ Quỹ Thu Chi");
+                assert.equal(matchedVoucher.type, "receipt", "Loại phiếu phải là phiếu thu (receipt)");
+                assert.equal(matchedVoucher.amount, 5000, "Số tiền thu phải bằng tiền hoàn 5.000đ");
+
+                // Dọn dẹp test: hoàn lại stock và xóa voucher test
+                updatedMed.stockUnits = initialStock;
+                Store.saveMedicine(updatedMed);
+                Store.deleteVoucher(matchedVoucher.id);
+                const returns = Store.getPurchaseReturns().filter(r => r.id !== res.returnRecord.id);
+                Store.savePurchaseReturns(returns);
+            });
+
+            it("TC-35: Chặn xuất trả hàng khi số lượng yêu cầu vượt quá tồn kho khả dụng", () => {
+                const med = Store.getMedicines()[0];
+                const res = Store.returnGeneralPurchaseItems({
+                    supplierId: "NCC001",
+                    supplierName: "NCC Test",
+                    returnedItems: [
+                        {
+                            medicineId: med.id,
+                            medicineName: med.name,
+                            unit: med.baseUnit,
+                            quantity: (med.stockUnits || 0) + 9999, // Vượt quá tồn kho
+                            costPrice: 10000
+                        }
+                    ],
+                    returnReason: "Test quá tồn kho",
+                    paymentMethod: "cash"
+                });
+
+                assert.isFalse(res.success, "Phải từ chối xuất trả vượt quá tồn kho khả dụng");
+            });
+
+            it("TC-36: Store.getAllPurchaseReturns tập hợp đầy đủ cả phiếu trả theo đơn nhập và trả tổng hợp", () => {
+                assert.isNotNull(Store.getAllPurchaseReturns, "Store.getAllPurchaseReturns phải tồn tại");
+                const all = Store.getAllPurchaseReturns();
+                assert.isTrue(Array.isArray(all), "getAllPurchaseReturns phải trả về một mảng");
+            });
+
+            it("TC-37: InventoryModule hỗ trợ đầy đủ các hàm giao diện Sub-Tab Quản Lý Trả Hàng (Phương án A)", () => {
+                assert.isNotNull(InventoryModule.switchStockInSubTab, "switchStockInSubTab phải tồn tại");
+                assert.isNotNull(InventoryModule.setReturnsFilterType, "setReturnsFilterType phải tồn tại");
+                assert.isNotNull(InventoryModule.openGeneralPurchaseReturnModal, "openGeneralPurchaseReturnModal phải tồn tại");
+                assert.isNotNull(InventoryModule.openPurchaseReturnDetailModal, "openPurchaseReturnDetailModal phải tồn tại");
+                assert.isNotNull(InventoryModule.printPurchaseReturn, "printPurchaseReturn phải tồn tại");
             });
         });
 

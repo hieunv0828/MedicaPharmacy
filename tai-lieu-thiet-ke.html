@@ -113,6 +113,7 @@
                         <a href="#section-arch" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">1. Kiến Trúc Tổng Thể</a>
                         <a href="#section-flow-pos" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">2. Flow 1: Bán Thuốc POS</a>
                         <a href="#section-flow-stockin" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">3. Flow 2: Nhập Kho & Vốn</a>
+                        <a href="#section-flow-returns" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">3b. Flow 2b: Quản Lý Trả Hàng NCC</a>
                         <a href="#section-flow-customers" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">4. Flow 3: Khách Hàng & Đơn</a>
                         <a href="#section-flow-reports" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">5. Flow 4: Báo Cáo Lợi Nhuận</a>
                         <a href="#section-flow-license" class="block px-2.5 py-2 rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold transition">6. Flow 5: Bản Quyền & Server</a>
@@ -397,6 +398,7 @@ flowchart TD
         F_Sett["settings.json"]
         F_Ord["orders_2026.json"]
         F_Stk["stockin_2026.json"]
+        F_Ret["returns_2026.json"]
         F_Vch["vouchers_2026.json"]
         F_Lic["license.key"]
         end
@@ -588,6 +590,77 @@ sequenceDiagram
                 </section>
 
                 <!-- ======================================================== -->
+                <!-- 3B. LUỒNG QUẢN LÝ & XUẤT TRẢ HÀNG NCC (PHƯƠNG ÁN A) -->
+                <!-- ======================================================== -->
+                <section id="section-flow-returns" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                                3b
+                            </div>
+                            <div>
+                                <h2 class="text-lg sm:text-xl font-black text-slate-900">Function Call: Quản Lý & Xuất Trả Hàng Nhà Cung Cấp (Phương Án A)</h2>
+                                <p class="text-xs text-slate-500">Phân luồng Trả Theo Đơn Nhập (THN) & Trả Hàng Tổng Hợp (PTH), trừ kho và tự động ghi phiếu thu hoàn tiền</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Pharmacist as Dược Sĩ Quản Lý
+    participant UI as StockIn Views
+    participant Inv as InventoryModule
+    participant Store as DataStore
+    participant Server as MedicaServer
+
+    Pharmacist->>UI: Chuyển sang Sub-Tab "Quản Lý Trả Hàng NCC"
+    UI->>Inv: switchStockInSubTab('returns')
+    Inv->>Store: getAllPurchaseReturns()
+    Store-->>Inv: Tổng hợp mảng trả theo đơn (stockIns[i].returns) + trả tổng hợp (purchaseReturns)
+    Inv->>UI: renderReturnsHistory() & renderReturnsSummaryCards()
+
+    alt Xuất Trả Hàng Tổng Hợp Nhiều Mã Thuốc
+        Pharmacist->>UI: Bấm nút "↺ Tạo Phiếu Trả Hàng"
+        UI->>Inv: openGeneralPurchaseReturnModal()
+        Pharmacist->>UI: Chọn Nhà Cung Cấp & Chọn các mã thuốc cần trả
+        UI->>Inv: addItemToGeneralReturnDraft()
+        Pharmacist->>UI: Chọn hình thức hoàn tiền (Tiền mặt / Chuyển khoản) & Bấm Xác nhận
+        UI->>Inv: confirmGeneralPurchaseReturn()
+        Inv->>Store: returnGeneralPurchaseItems(data)
+        rect rgb(254, 243, 199)
+            Note over Store: Kiểm tra tồn kho & trừ kho an toàn
+            Store->>Store: Deduct batch/stockUnits tương ứng
+            Store->>Store: addPurchaseReturn(newPTH) -> Lưu vào returns_2026.json
+            Store->>Store: createVoucher(Loại thu: 'other_revenue', Nguồn: Hoàn tiền trả hàng NCC)
+            Store->>Store: schedulePersistToServer()
+            Store->>Server: POST /api/database
+            Server->>Server: Ghi atomic ra returns_2026.json, medicines.json, vouchers_2026.json
+        end
+        Inv->>Inv: printPurchaseReturn(newPTH.id) (In biên bản trả hàng GPP)
+    else Trả Hàng Theo Đơn Nhập Cụ Thể
+        Pharmacist->>UI: Bấm "Trả hàng" trên dòng phiếu nhập (Sub-tab Phiếu Nhập Hàng)
+        UI->>Inv: openReturnStockInModal(orderId)
+        Pharmacist->>UI: Nhập số lượng trả theo từng dòng của hóa đơn nhập đó
+        UI->>Inv: confirmReturnStockIn()
+        Inv->>Store: returnStockInItems(orderId, items, ...)
+        Store->>Store: Cập nhật stockIns[i].returns (Mã THN...) & tạo Phiếu Thu
+    end
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <b class="text-slate-800 block mb-1">Badge Phân Loại Trực Quan:</b>
+                            Hệ thống hiển thị rõ ràng <code>[Theo đơn nhập PN...]</code> màu xanh dương đối với mã <code>THN...</code> và <code>[Trả tổng hợp]</code> màu hổ phách đối với mã <code>PTH...</code>.
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <b class="text-slate-800 block mb-1">Tự Động Ghi Sổ Quỹ Thu Chi:</b>
+                            Mỗi phiếu trả xuất kho thành công đều tự động sinh Phiếu Thu tiền mặt hoặc chuyển khoản, đảm bảo dòng tiền quỹ khớp 100%.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ======================================================== -->
                 <!-- 4. LUỒNG KHÁCH HÀNG & LỊCH SỬ HÓA ĐƠN -->
                 <!-- ======================================================== -->
                 <section id="section-flow-customers" class="doc-section bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
@@ -774,6 +847,9 @@ erDiagram
     STOCK_IN ||--o{ STOCK_IN_RETURN : "có thể xuất trả"
     STOCK_IN }o--|| SUPPLIER : "nhập từ"
     STOCK_IN ||--o| VOUCHER : "sinh phiếu chi"
+    SUPPLIER ||--o{ PURCHASE_RETURN : "nhận xuất trả"
+    PURCHASE_RETURN ||--|{ PURCHASE_RETURN_ITEM : "chứa"
+    PURCHASE_RETURN ||--o| VOUCHER : "sinh phiếu thu"
 
     MEDICINE {
         string id PK "Mã thuốc (MED001...)"
@@ -858,6 +934,29 @@ erDiagram
         string batchNo "Số lô"
         string expiryDate "Hạn dùng"
         double total "Thành tiền dòng hàng"
+    }
+
+    PURCHASE_RETURN {
+        string id PK "Mã phiếu trả (THN... | PTH...)"
+        string createdAt "Thời gian xuất trả"
+        string returnType "by_order (Theo đơn) | general (Tổng hợp)"
+        string originalStockInId FK "Mã đơn nhập gốc nếu trả theo đơn"
+        string supplierId FK "Mã nhà cung cấp"
+        string supplierName "Tên nhà cung cấp"
+        double totalRefund "Tổng tiền hoàn trả"
+        string paymentMethod "cash | transfer"
+        string reason "Lý do hoàn trả"
+        string pharmacist "Người lập phiếu"
+    }
+
+    PURCHASE_RETURN_ITEM {
+        string medicineId FK "Mã thuốc"
+        string medicineName "Tên thuốc"
+        string unit "Đơn vị tính"
+        int quantity "Số lượng trả"
+        double costPrice "Đơn giá hoàn tiền"
+        string batchNo "Số lô xuất trả"
+        double total "Thành tiền"
     }
 
     SUPPLIER {
@@ -951,6 +1050,30 @@ erDiagram
                                     <td class="py-2.5 px-3.5 font-mono text-blue-700 font-bold">openStockInDetailModal()</td>
                                     <td class="py-2.5 px-3.5 font-mono text-[11px]">(orderId)</td>
                                     <td class="py-2.5 px-3.5">Mở popup xem toàn bộ chi tiết phiếu nhập kho khi click vào Mã Phiếu (PN...).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-emerald-800">Store (store.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-emerald-700 font-bold">returnGeneralPurchaseItems()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(data)</td>
+                                    <td class="py-2.5 px-3.5">Xử lý xuất trả hàng tổng hợp nhiều mã thuốc: kiểm tra tồn kho, trừ kho an toàn, lưu PTH và sinh Phiếu Thu.</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-emerald-800">Store (store.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-emerald-700 font-bold">getAllPurchaseReturns()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">()</td>
+                                    <td class="py-2.5 px-3.5">Hợp nhất toàn bộ dữ liệu trả hàng: bao gồm cả trả theo đơn (stockIns[i].returns) và trả tổng hợp (purchaseReturns).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-blue-800">Inventory (inventory.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-blue-700 font-bold">switchStockInSubTab()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">(subTab)</td>
+                                    <td class="py-2.5 px-3.5">Chuyển đổi linh hoạt giữa 2 sub-tab: 'orders' (Phiếu Nhập Hàng) và 'returns' (Quản Lý Trả Hàng NCC).</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-2.5 px-3.5 font-bold text-blue-800">Inventory (inventory.js)</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-blue-700 font-bold">openGeneralPurchaseReturnModal()</td>
+                                    <td class="py-2.5 px-3.5 font-mono text-[11px]">()</td>
+                                    <td class="py-2.5 px-3.5">Mở hộp thoại lập Phiếu Trả Hàng tổng hợp, nạp danh sách NCC và thuốc tồn kho khả dụng.</td>
                                 </tr>
                                 <tr class="hover:bg-slate-50 transition">
                                     <td class="py-2.5 px-3.5 font-bold text-teal-800">Customers (customers.js)</td>

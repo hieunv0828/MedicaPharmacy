@@ -38,6 +38,7 @@ const VouchersModule = {
 
     init() {
         this.bindEvents();
+        this.setTab('all');
         this.renderSummaryCards();
         this.renderVouchersTable();
 
@@ -62,6 +63,7 @@ const VouchersModule = {
                 this.searchKeyword = e.target.value.trim().toLowerCase();
                 this.currentPage = 1;
                 this.renderVouchersTable();
+                this.renderSummaryCards();
             });
         }
 
@@ -112,17 +114,9 @@ const VouchersModule = {
         const btnReceipt = document.getElementById('tab-btn-vouchers-receipt');
         const btnPayment = document.getElementById('tab-btn-vouchers-payment');
 
-        const activeClass = ['border-emerald-600', 'text-emerald-700', 'font-bold'];
-        const inactiveClass = ['border-transparent', 'text-slate-500', 'font-medium'];
-
-        [btnAll, btnReceipt, btnPayment].forEach(b => {
-            b?.classList.remove(...activeClass);
-            b?.classList.add(...inactiveClass);
-        });
-
-        if (tab === 'all') btnAll?.classList.add(...activeClass);
-        if (tab === 'receipt') btnReceipt?.classList.add(...activeClass);
-        if (tab === 'payment') btnPayment?.classList.add(...activeClass);
+        if (btnAll) btnAll.className = 'tab-filter-btn' + (tab === 'all' ? ' active-emerald' : '');
+        if (btnReceipt) btnReceipt.className = 'tab-filter-btn' + (tab === 'receipt' ? ' active-emerald' : '');
+        if (btnPayment) btnPayment.className = 'tab-filter-btn' + (tab === 'payment' ? ' active-rose' : '');
 
         this.renderVouchersTable();
     },
@@ -148,6 +142,7 @@ const VouchersModule = {
         if (method === 'transfer') btnTransfer?.classList.add(...activeClass);
 
         this.renderVouchersTable();
+        this.renderSummaryCards();
     },
 
     renderSummaryCards() {
@@ -172,15 +167,37 @@ const VouchersModule = {
             }
         }
 
-        // Cập nhật số lượng trên các tab
-        const vouchers = Store.getVouchers();
+        // Cập nhật số lượng trên các tab theo đúng mốc thời gian và bộ lọc
+        let periodVouchers = Store.getVouchers().filter(v =>
+            AppUtils.matchesTimeFilter(v.createdAt, this.timeFilter, this.dateFrom, this.dateTo)
+        );
+
+        // Lọc theo phương thức tiền mặt/chuyển khoản
+        if (this.paymentFilter === 'cash') {
+            periodVouchers = periodVouchers.filter(v => v.paymentMethod === 'cash');
+        } else if (this.paymentFilter === 'transfer') {
+            periodVouchers = periodVouchers.filter(v => v.paymentMethod === 'transfer');
+        }
+
+        // Lọc theo từ khóa tìm kiếm (nếu có)
+        if (this.searchKeyword) {
+            const q = this.searchKeyword;
+            periodVouchers = periodVouchers.filter(v =>
+                (v.id && v.id.toLowerCase().includes(q)) ||
+                (v.category && v.category.toLowerCase().includes(q)) ||
+                (v.targetName && v.targetName.toLowerCase().includes(q)) ||
+                (v.note && v.note.toLowerCase().includes(q)) ||
+                (v.refId && v.refId.toLowerCase().includes(q))
+            );
+        }
+
         const badgeAll = document.getElementById('badge-vouchers-all');
         const badgeReceipt = document.getElementById('badge-vouchers-receipt');
         const badgePayment = document.getElementById('badge-vouchers-payment');
 
-        if (badgeAll) badgeAll.innerText = vouchers.length;
-        if (badgeReceipt) badgeReceipt.innerText = vouchers.filter(v => v.type === 'receipt').length;
-        if (badgePayment) badgePayment.innerText = vouchers.filter(v => v.type === 'payment').length;
+        if (badgeAll) badgeAll.innerText = periodVouchers.length;
+        if (badgeReceipt) badgeReceipt.innerText = periodVouchers.filter(v => v.type === 'receipt').length;
+        if (badgePayment) badgePayment.innerText = periodVouchers.filter(v => v.type === 'payment').length;
     },
 
     getFilteredVouchers() {
@@ -201,27 +218,9 @@ const VouchersModule = {
         }
 
         // 3. Lọc theo thời gian
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yestStr = yesterday.toISOString().slice(0, 10);
-        const sevenDaysAgo = new Date(now);
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const monthPrefix = now.toISOString().slice(0, 7);
-
-        if (this.timeFilter === 'today') {
-            vouchers = vouchers.filter(v => v.createdAt && v.createdAt.startsWith(todayStr));
-        } else if (this.timeFilter === 'yesterday') {
-            vouchers = vouchers.filter(v => v.createdAt && v.createdAt.startsWith(yestStr));
-        } else if (this.timeFilter === 'last_7_days') {
-            vouchers = vouchers.filter(v => new Date(v.createdAt) >= sevenDaysAgo);
-        } else if (this.timeFilter === 'this_month') {
-            vouchers = vouchers.filter(v => v.createdAt && v.createdAt.startsWith(monthPrefix));
-        } else if (this.timeFilter === 'custom') {
-            if (this.dateFrom) vouchers = vouchers.filter(v => v.createdAt && v.createdAt.slice(0, 10) >= this.dateFrom);
-            if (this.dateTo) vouchers = vouchers.filter(v => v.createdAt && v.createdAt.slice(0, 10) <= this.dateTo);
-        }
+        vouchers = vouchers.filter(v =>
+            AppUtils.matchesTimeFilter(v.createdAt, this.timeFilter, this.dateFrom, this.dateTo)
+        );
 
         // 4. Tìm kiếm từ khóa
         if (this.searchKeyword) {
