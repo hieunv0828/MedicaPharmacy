@@ -101,12 +101,18 @@ foreach ($row in $rows) {
     $paymentMethod = 'cash'
     if ($vId -match '^CK' -or $vId -match 'CK$') { $paymentMethod = 'transfer' }
 
+    $refId = ''
+    if ($vId -match '^TT(HD\w+)') { $refId = $matches[1] }
+    elseif ($vId -match '^PC(PN\w+)') { $refId = $matches[1] }
+    elseif ($vId -match '^PT(THN\w+)') { $refId = $matches[1] }
+
     $vId_e     = Escape-Json $vId
     $cat_e     = Escape-Json $category
     $person_e  = Escape-Json $person
     $loaiTC_e  = Escape-Json $loaiTC
+    $refId_e   = Escape-Json $refId
 
-    $vouchers.Add("  {`"id`":`"$vId_e`",`"type`":`"$vtype`",`"amount`":$amountNum,`"category`":`"$cat_e`",`"reason`":`"$loaiTC_e`",`"person`":`"$person_e`",`"paymentMethod`":`"$paymentMethod`",`"createdAt`":`"$createdAt`"}")
+    $vouchers.Add("  {`"id`":`"$vId_e`",`"type`":`"$vtype`",`"amount`":$amountNum,`"category`":`"$cat_e`",`"reason`":`"$loaiTC_e`",`"person`":`"$person_e`",`"paymentMethod`":`"$paymentMethod`",`"refId`":`"$refId_e`",`"createdAt`":`"$createdAt`"}")
     $idx++
     if ($idx % 2000 -eq 0) { Write-Host "  Processed $idx vouchers..." }
 }
