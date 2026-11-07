@@ -139,7 +139,12 @@ const ReportsModule = {
                     }, 0);
                     const netQty = Math.max(0, (item.quantity || 1) - returnedQty);
 
-                    const lineCost = (item.costPrice || 0) * netQty;
+                    let unitCost = item.costPrice || 0;
+                    if (unitCost <= 0) {
+                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? Store._medicineMap[item.medicineCode] : null);
+                        if (med) unitCost = Store.getMedicineUnitCost(med, item.unit);
+                    }
+                    const lineCost = unitCost * netQty;
                     orderCost += lineCost;
 
                     // Cộng dồn vào top thuốc (chỉ cộng số lượng thực bán)
@@ -315,10 +320,18 @@ const ReportsModule = {
                             orderIds: []
                         };
                     }
+                    let unitCost = item.costPrice || 0;
+                    if (unitCost <= 0) {
+                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? Store._medicineMap[item.medicineCode] : null);
+                        if (med) unitCost = Store.getMedicineUnitCost(med, item.unit);
+                    }
+                    if (itemsMap[key].costPrice <= 0 && unitCost > 0) {
+                        itemsMap[key].costPrice = unitCost;
+                    }
                     itemsMap[key].quantity += netQty;
                     itemsMap[key].returnedQuantity += returnedQty;
                     itemsMap[key].revenue += (netQty * (item.price || 0));
-                    itemsMap[key].cost += (netQty * (item.costPrice || 0));
+                    itemsMap[key].cost += (netQty * unitCost);
                     if (!itemsMap[key].orderIds.includes(o.id)) {
                         itemsMap[key].orderIds.push(o.id);
                     }

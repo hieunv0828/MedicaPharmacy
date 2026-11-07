@@ -86,6 +86,18 @@ function Get-PaymentMethod($row_X, $row_AA) {
     return 'cash'
 }
 
+function Get-UnitCost($m, $unit) {
+    if (-not $m -or -not $m.costPrice) { return 0 }
+    $pr = if ($m.packRatio -and $m.packRatio -gt 0) { [double]$m.packRatio } else { 1.0 }
+    $sr = if ($m.subRatio -and $m.subRatio -gt 0) { [double]$m.subRatio } else { 1.0 }
+    $baseCost = [double]$m.costPrice / $pr
+
+    if ($unit -and $unit -eq $m.packUnit) { return [Math]::Round([double]$m.costPrice) }
+    if ($unit -and $unit -eq $m.subUnit -and $m.subUnit -ne $m.packUnit) { return [Math]::Round($baseCost * $sr) }
+    if ($unit -and $unit -eq $m.baseUnit) { return [Math]::Round($baseCost) }
+    return [Math]::Round($baseCost)
+}
+
 # Column letter to index helper
 function Col-To-Index($col) {
     $col = $col.ToUpper()
@@ -203,8 +215,11 @@ foreach ($grp in $grouped) {
         if ([string]::IsNullOrEmpty($line.medCode) -and [string]::IsNullOrEmpty($line.medName)) { continue }
 
         $medId = ''
+        $costPrice = 0
         if ($medMap.ContainsKey($line.medCode)) {
-            $medId = $medMap[$line.medCode].id
+            $medObj = $medMap[$line.medCode]
+            $medId = $medObj.id
+            $costPrice = Get-UnitCost $medObj $line.unit
         }
 
         $qty = 0
@@ -219,7 +234,7 @@ foreach ($grp in $grouped) {
         $medName_e = Escape-Json $line.medName
         $unit_e    = Escape-Json $line.unit
 
-        $itemJsonArr.Add("{`"medicineId`":`"$medId_e`",`"medicineCode`":`"$medCode_e`",`"medicineName`":`"$medName_e`",`"unit`":`"$unit_e`",`"quantity`":$qty,`"price`":$unitPrice,`"unitPrice`":$unitPrice,`"costPrice`":0,`"lineTotal`":$lineTotal}")
+        $itemJsonArr.Add("{`"medicineId`":`"$medId_e`",`"medicineCode`":`"$medCode_e`",`"medicineName`":`"$medName_e`",`"unit`":`"$unit_e`",`"quantity`":$qty,`"price`":$unitPrice,`"unitPrice`":$unitPrice,`"costPrice`":$costPrice,`"lineTotal`":$lineTotal}")
     }
 
     $itemsJson = "[" + ($itemJsonArr -join ',') + "]"
