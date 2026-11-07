@@ -45,8 +45,10 @@ $filesToCopy = @(
     "index.html",
     "license-activation.html",
     "huong-dan-su-dung.html",
+    "tai-lieu-thiet-ke.html",
     "MedicaServer.exe",
     "Start-App.bat",
+    "start-app-without-ngrok.bat",
     "Stop-Server.bat",
     "Setup-Domain-Medica.bat",
     "README.md"

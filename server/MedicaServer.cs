@@ -44,7 +44,7 @@ namespace MedicaPharmacy
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new MedicaTrayApplicationContext());
+                Application.Run(new MedicaTrayApplicationContext(args));
             }
             catch (Exception ex)
             {
@@ -86,11 +86,27 @@ namespace MedicaPharmacy
         private const string AppName = "MedicaPharmacyServer";
         private Process _ngrokProcess = null;
         private string _ngrokFixedUrl = "https://proofread-unissued-roundness.ngrok-free.dev";
+        private bool _enableNgrok = true;
         private bool _isLicensed = false;
         private string _machineCode = "";
 
-        public MedicaTrayApplicationContext()
+        public MedicaTrayApplicationContext(string[] args = null)
         {
+            if (args != null)
+            {
+                foreach (string arg in args)
+                {
+                    if (arg.Equals("--no-ngrok", StringComparison.OrdinalIgnoreCase) ||
+                        arg.Equals("-no-ngrok", StringComparison.OrdinalIgnoreCase) ||
+                        arg.Equals("/no-ngrok", StringComparison.OrdinalIgnoreCase) ||
+                        arg.Equals("--lan-only", StringComparison.OrdinalIgnoreCase) ||
+                        arg.Equals("--local-only", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _enableNgrok = false;
+                    }
+                }
+            }
+
             _webRoot = AppDomain.CurrentDomain.BaseDirectory;
             if (!File.Exists(Path.Combine(_webRoot, "index.html")))
             {
@@ -157,6 +173,12 @@ namespace MedicaPharmacy
 
         private void StartNgrokTunnel()
         {
+            if (!_enableNgrok)
+            {
+                StopNgrokTunnel();
+                return;
+            }
+
             string ngrokExe = Path.Combine(_webRoot, "tools", "ngrok.exe");
             if (!File.Exists(ngrokExe)) return;
 
@@ -269,24 +291,33 @@ namespace MedicaPharmacy
             };
             menu.Items.Add(itemOpen);
 
-            // 1.1 Mở qua Internet / Từ xa bằng Ngrok
-            ToolStripMenuItem itemRemote = new ToolStripMenuItem("🌍 Mở Qua Internet (Từ Xa / Điện Thoại)");
-            itemRemote.Click += (s, e) => {
-                if (!string.IsNullOrEmpty(_ngrokFixedUrl)) Program.OpenBrowser(_ngrokFixedUrl);
-            };
-            menu.Items.Add(itemRemote);
+            if (_enableNgrok)
+            {
+                // 1.1 Mở qua Internet / Từ xa bằng Ngrok
+                ToolStripMenuItem itemRemote = new ToolStripMenuItem("🌍 Mở Qua Internet (Từ Xa / Điện Thoại)");
+                itemRemote.Click += (s, e) => {
+                    if (!string.IsNullOrEmpty(_ngrokFixedUrl)) Program.OpenBrowser(_ngrokFixedUrl);
+                };
+                menu.Items.Add(itemRemote);
 
-            // 1.2 Sao chép đường link từ xa
-            ToolStripMenuItem itemCopyLink = new ToolStripMenuItem("📋 Sao Chép Link Truy Cập Từ Xa");
-            itemCopyLink.Click += (s, e) => {
-                try
-                {
-                    Clipboard.SetText(_ngrokFixedUrl);
-                    _trayIcon.ShowBalloonTip(2000, "Đã Sao Chép Link Từ Xa", _ngrokFixedUrl + "\nBạn có thể gửi link này qua Zalo để mở trên điện thoại!", ToolTipIcon.Info);
-                }
-                catch { }
-            };
-            menu.Items.Add(itemCopyLink);
+                // 1.2 Sao chép đường link từ xa
+                ToolStripMenuItem itemCopyLink = new ToolStripMenuItem("📋 Sao Chép Link Truy Cập Từ Xa");
+                itemCopyLink.Click += (s, e) => {
+                    try
+                    {
+                        Clipboard.SetText(_ngrokFixedUrl);
+                        _trayIcon.ShowBalloonTip(2000, "Đã Sao Chép Link Từ Xa", _ngrokFixedUrl + "\nBạn có thể gửi link này qua Zalo để mở trên điện thoại!", ToolTipIcon.Info);
+                    }
+                    catch { }
+                };
+                menu.Items.Add(itemCopyLink);
+            }
+            else
+            {
+                ToolStripMenuItem itemRemoteDisabled = new ToolStripMenuItem("🌍 Mở Qua Internet (ĐÃ TẮT - Nhường máy khách)");
+                itemRemoteDisabled.Enabled = false;
+                menu.Items.Add(itemRemoteDisabled);
+            }
 
             menu.Items.Add(new ToolStripSeparator());
 
@@ -320,7 +351,7 @@ namespace MedicaPharmacy
             {
                 Icon = CreateMedicalIcon(),
                 ContextMenuStrip = menu,
-                Text = "MedicaPharmacy (http://medica.com)",
+                Text = _enableNgrok ? "MedicaPharmacy (http://medica.com)" : "MedicaPharmacy [No-Ngrok] (http://medica.com)",
                 Visible = true
             };
 
@@ -333,10 +364,15 @@ namespace MedicaPharmacy
             // Thông báo bong bóng nhỏ lúc khởi động
             if (_isLicensed)
             {
+                string balloonTitle = _enableNgrok ? "MedicaPharmacy Server Đang Chạy Nền" : "MedicaPharmacy (Chế Độ Nội Bộ / Không Ngrok)";
+                string balloonMsg = _enableNgrok
+                    ? "Máy chủ đang hoạt động êm ái tại http://medica.com.\nNhấp đúp chuột vào icon này để mở phần mềm bất cứ lúc nào!"
+                    : "Máy chủ đang hoạt động tại http://medica.com.\nĐã tắt Ngrok để tránh xung đột tên miền từ xa với máy khách!";
+
                 _trayIcon.ShowBalloonTip(
                     3000,
-                    "MedicaPharmacy Server Đang Chạy Nền",
-                    "Máy chủ đang hoạt động êm ái tại http://medica.com.\nNhấp đúp chuột vào icon này để mở phần mềm bất cứ lúc nào!",
+                    balloonTitle,
+                    balloonMsg,
                     ToolTipIcon.Info
                 );
             }
@@ -533,12 +569,13 @@ namespace MedicaPharmacy
                             List<string> ips = GetLocalIPv4Addresses();
                             string ipsJson = string.Join(",", ips.ConvertAll(ip => "\"" + ip + "\"").ToArray());
                             string json = string.Format(
-                                "{{\"status\":\"online\",\"app\":\"MedicaPharmacy\",\"port\":{0},\"domain\":\"medica.com\",\"ips\":[{1}],\"time\":\"{2}\",\"licensed\":{3},\"machineCode\":\"{4}\"}}",
+                                "{{\"status\":\"online\",\"app\":\"MedicaPharmacy\",\"port\":{0},\"domain\":\"medica.com\",\"ips\":[{1}],\"time\":\"{2}\",\"licensed\":{3},\"machineCode\":\"{4}\",\"ngrokEnabled\":{5}}}",
                                 _activePort,
                                 ipsJson,
                                 DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
                                 _isLicensed ? "true" : "false",
-                                _machineCode
+                                _machineCode,
+                                _enableNgrok ? "true" : "false"
                             );
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(json));
                             return;
