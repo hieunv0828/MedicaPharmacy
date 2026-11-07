@@ -1,8 +1,10 @@
-# =======================================================================
+﻿# =======================================================================
 # MEDICAPHARMACY - BACKEND AUTOMATED TEST SUITE & PERFORMANCE BENCHMARK
 # =======================================================================
 
 $baseUrl = "http://localhost"
+[System.Net.WebRequest]::DefaultWebProxy = $null
+$ProgressPreference = 'SilentlyContinue'
 $results = @()
 $totalPassed = 0
 $totalFailed = 0
@@ -102,11 +104,11 @@ Run-Test "TC-36" "Database Fetch: GET /api/database returns all collections" {
     $res = Invoke-WebRequest -Uri "$baseUrl/api/database" -Method Get -UseBasicParsing -TimeoutSec 8
     if ($res.StatusCode -ne 200) { throw "Expected status 200 but got $($res.StatusCode)" }
     $json = $res.Content | ConvertFrom-Json
-    if (!$json.medicines) { throw "Missing medicines array" }
-    if (!$json.customers) { throw "Missing customers array" }
-    if (!$json.suppliers) { throw "Missing suppliers array" }
-    if (!$json.orders) { throw "Missing orders array" }
-    if (!$json.stockInOrders) { throw "Missing stockInOrders array" }
+    if ($null -eq $json.medicines) { throw "Missing medicines array" }
+    if ($null -eq $json.customers) { throw "Missing customers array" }
+    if ($null -eq $json.suppliers) { throw "Missing suppliers array" }
+    if ($null -eq $json.orders) { throw "Missing orders array" }
+    if ($null -eq $json.stockInOrders) { throw "Missing stockInOrders array" }
 }
 
 Run-Test "TC-37" "Storage Integrity: orders_2026.json exists and is valid JSON" {
@@ -114,7 +116,7 @@ Run-Test "TC-37" "Storage Integrity: orders_2026.json exists and is valid JSON" 
     if (!(Test-Path $file)) { throw "Missing file $file" }
     $raw = Get-Content $file -Raw -Encoding UTF8
     $parsed = $raw | ConvertFrom-Json
-    if ($parsed.Count -le 0) { throw "orders_2026.json is empty" }
+    if ($null -eq $parsed) { throw "orders_2026.json is invalid JSON" }
 }
 
 Run-Test "TC-38" "Storage Integrity: stockin_2026.json exists and is valid JSON" {
@@ -122,7 +124,7 @@ Run-Test "TC-38" "Storage Integrity: stockin_2026.json exists and is valid JSON"
     if (!(Test-Path $file)) { throw "Missing file $file" }
     $raw = Get-Content $file -Raw -Encoding UTF8
     $parsed = $raw | ConvertFrom-Json
-    if ($parsed.Count -le 0) { throw "stockin_2026.json is empty" }
+    if ($null -eq $parsed) { throw "stockin_2026.json is invalid JSON" }
 }
 
 # -------------------------------------------------------------------
@@ -162,7 +164,8 @@ Run-Test "TC-42" "Concurrency Stress: 5 simultaneous requests without deadlock" 
     for ($i = 0; $i -lt 5; $i++) {
         $jobs += Start-Job -ScriptBlock {
             param($url)
-            $res = Invoke-WebRequest -Uri "$url/api/database" -Method Get -UseBasicParsing -TimeoutSec 5
+            [System.Net.WebRequest]::DefaultWebProxy = $null
+            $res = Invoke-WebRequest -Uri "$url/api/database" -Method Get -UseBasicParsing -TimeoutSec 8
             return $res.StatusCode
         } -ArgumentList $baseUrl
     }

@@ -20,6 +20,7 @@ namespace MedicaPharmacy
         [STAThread]
         static void Main(string[] args)
         {
+            try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Main started: otherCount check...\r\n"); } catch { }
             AppDomain.CurrentDomain.UnhandledException += (s, e) => {
                 try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_err.txt"), e.ExceptionObject.ToString()); } catch { }
             };
@@ -33,8 +34,10 @@ namespace MedicaPharmacy
             {
                 if (p.Id != currentId) otherCount++;
             }
+            try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - otherCount=" + otherCount + "\r\n"); } catch { }
             if (otherCount > 0)
             {
+                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Exiting because otherCount > 0\r\n"); } catch { }
                 // Đã có máy chủ chạy rồi -> chỉ cần mở trình duyệt tới web
                 OpenBrowser("http://medica.com");
                 return;
@@ -42,12 +45,15 @@ namespace MedicaPharmacy
 
             try
             {
+                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Starting Application.Run...\r\n"); } catch { }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new MedicaTrayApplicationContext(args));
+                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Application.Run EXITED NORMALLY\r\n"); } catch { }
             }
             catch (Exception ex)
             {
+                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Application.Run EXCEPTION: " + ex + "\r\n"); } catch { }
                 try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_err.txt"), ex.ToString()); } catch { }
             }
         }
@@ -144,9 +150,10 @@ namespace MedicaPharmacy
             InitDatabaseIfEmpty();
             StartServer();
             StartNgrokTunnel();
-            InitTrayIcon();
+            try { InitTrayIcon(); } catch { }
 
             string openUrl = (_activePort == 80) ? "http://medica.com" : ("http://localhost:" + _activePort);
+            try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - MedicaTrayApplicationContext ctor finished, activePort=" + _activePort + "\r\n"); } catch { }
             Program.OpenBrowser(openUrl);
         }
 
@@ -498,6 +505,7 @@ namespace MedicaPharmacy
             {
                 try
                 {
+                    client.NoDelay = true;
                     client.ReceiveTimeout = 10000;
                     client.SendTimeout = 10000;
 
@@ -743,11 +751,13 @@ namespace MedicaPharmacy
             sb.Append("\r\n");
 
             byte[] headerBytes = Encoding.UTF8.GetBytes(sb.ToString());
-            stream.Write(headerBytes, 0, headerBytes.Length);
+            byte[] fullPacket = new byte[headerBytes.Length + outputBytes.Length];
+            Buffer.BlockCopy(headerBytes, 0, fullPacket, 0, headerBytes.Length);
             if (outputBytes.Length > 0)
             {
-                stream.Write(outputBytes, 0, outputBytes.Length);
+                Buffer.BlockCopy(outputBytes, 0, fullPacket, headerBytes.Length, outputBytes.Length);
             }
+            stream.Write(fullPacket, 0, fullPacket.Length);
             stream.Flush();
         }
 
@@ -824,28 +834,79 @@ namespace MedicaPharmacy
             }
         }
 
+        private string ReadRawJsonFile(string path, string defaultJson)
+        {
+            if (!File.Exists(path)) return defaultJson;
+            try
+            {
+                string content = File.ReadAllText(path, Encoding.UTF8).Trim();
+                return string.IsNullOrEmpty(content) ? defaultJson : content;
+            }
+            catch
+            {
+                return defaultJson;
+            }
+        }
+
+        private string ReadPartitionedListRaw(string pattern)
+        {
+            try
+            {
+                string[] files = Directory.GetFiles(_dataDir, pattern);
+                if (files.Length == 0) return "[]";
+                if (files.Length == 1) return ReadRawJsonFile(files[0], "[]");
+
+                var items = new List<string>();
+                Array.Sort(files);
+                foreach (string file in files)
+                {
+                    string content = ReadRawJsonFile(file, "[]").Trim();
+                    if (content.StartsWith("[") && content.EndsWith("]"))
+                    {
+                        string inner = content.Substring(1, content.Length - 2).Trim();
+                        if (!string.IsNullOrEmpty(inner)) items.Add(inner);
+                    }
+                }
+                return "[" + string.Join(",", items.ToArray()) + "]";
+            }
+            catch
+            {
+                return "[]";
+            }
+        }
+
         private string GetFullDatabaseJson()
         {
             lock (_dbLock)
             {
                 MigrateSingleDatabaseIfPresent();
 
-                var fullDb = new Dictionary<string, object>();
-                fullDb["settings"] = ReadJsonFile(Path.Combine(_dataDir, "settings.json"), new Dictionary<string, object>());
-                fullDb["medicines"] = ReadJsonFile(Path.Combine(_dataDir, "medicines.json"), new ArrayList());
-                fullDb["suppliers"] = ReadJsonFile(Path.Combine(_dataDir, "suppliers.json"), new ArrayList());
-                fullDb["customers"] = ReadJsonFile(Path.Combine(_dataDir, "customers.json"), new ArrayList());
-                fullDb["settingsHistory"] = ReadJsonFile(Path.Combine(_dataDir, "settings_history.json"), new ArrayList());
+                string settingsJson = ReadRawJsonFile(Path.Combine(_dataDir, "settings.json"), "{}");
+                string medicinesJson = ReadRawJsonFile(Path.Combine(_dataDir, "medicines.json"), "[]");
+                string suppliersJson = ReadRawJsonFile(Path.Combine(_dataDir, "suppliers.json"), "[]");
+                string customersJson = ReadRawJsonFile(Path.Combine(_dataDir, "customers.json"), "[]");
+                string historyJson = ReadRawJsonFile(Path.Combine(_dataDir, "settings_history.json"), "[]");
 
-                fullDb["orders"] = ReadPartitionedList("orders_*.json");
-                fullDb["stockInOrders"] = ReadPartitionedList("stockin_*.json");
-                fullDb["vouchers"] = ReadPartitionedList("vouchers_*.json");
-                fullDb["purchaseReturns"] = ReadPartitionedList("returns_*.json");
+                string ordersJson = ReadPartitionedListRaw("orders_*.json");
+                string stockinJson = ReadPartitionedListRaw("stockin_*.json");
+                string vouchersJson = ReadPartitionedListRaw("vouchers_*.json");
+                string returnsJson = ReadPartitionedListRaw("returns_*.json");
 
-                fullDb["lastUpdated"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                string lastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
 
-                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
-                return serializer.Serialize(fullDb);
+                var sb = new StringBuilder(medicinesJson.Length + 4096);
+                sb.Append("{\"settings\":").Append(settingsJson)
+                  .Append(",\"medicines\":").Append(medicinesJson)
+                  .Append(",\"suppliers\":").Append(suppliersJson)
+                  .Append(",\"customers\":").Append(customersJson)
+                  .Append(",\"settingsHistory\":").Append(historyJson)
+                  .Append(",\"orders\":").Append(ordersJson)
+                  .Append(",\"stockInOrders\":").Append(stockinJson)
+                  .Append(",\"vouchers\":").Append(vouchersJson)
+                  .Append(",\"purchaseReturns\":").Append(returnsJson)
+                  .Append(",\"lastUpdated\":\"").Append(lastUpdated).Append("\"}");
+
+                return sb.ToString();
             }
         }
 

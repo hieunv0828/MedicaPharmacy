@@ -121,7 +121,11 @@ class DataStore {
     saveToLocalCache(db) {
         try {
             if (db.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(db.settings));
-            if (db.medicines) localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines));
+            if (db.medicines) {
+                this._cachedMedicines = db.medicines;
+                this._rebuildMedicineMap();
+                localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines));
+            }
             if (db.suppliers) localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers));
             if (db.orders) localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders));
             if (db.stockInOrders) localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders));
@@ -237,18 +241,35 @@ class DataStore {
     }
 
     // --- Medicines (Danh mục thuốc & Tồn kho) ---
+    _rebuildMedicineMap() {
+        this._medicineMap = {};
+        if (this._cachedMedicines && Array.isArray(this._cachedMedicines)) {
+            for (let i = 0; i < this._cachedMedicines.length; i++) {
+                const m = this._cachedMedicines[i];
+                if (m && m.id) this._medicineMap[m.id] = m;
+            }
+        }
+    }
+
     getMedicines() {
+        if (this._cachedMedicines) return this._cachedMedicines;
         const raw = localStorage.getItem(STORAGE_KEYS.MEDICINES);
         if (!raw) return [];
         try {
-            return JSON.parse(raw);
+            this._cachedMedicines = JSON.parse(raw);
+            this._rebuildMedicineMap();
+            return this._cachedMedicines;
         } catch(e) {
             return [];
         }
     }
 
     getMedicineById(id) {
-        return this.getMedicines().find(m => m.id === id);
+        if (!id) return null;
+        if (!this._medicineMap) {
+            this.getMedicines();
+        }
+        return (this._medicineMap && this._medicineMap[id]) ? this._medicineMap[id] : null;
     }
 
     getMedicineUnitCost(med, unit) {
@@ -280,7 +301,11 @@ class DataStore {
             }
             medicines.unshift(med);
         }
-        localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
+        this._cachedMedicines = medicines;
+        this._rebuildMedicineMap();
+        try {
+            localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
+        } catch(e) {}
         this.schedulePersistToServer();
         this.emit('medicines:changed', medicines);
         return med;
@@ -289,17 +314,23 @@ class DataStore {
     deleteMedicine(id) {
         let medicines = this.getMedicines();
         medicines = medicines.filter(m => m.id !== id);
-        localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
+        this._cachedMedicines = medicines;
+        this._rebuildMedicineMap();
+        try {
+            localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
+        } catch(e) {}
         this.schedulePersistToServer();
         this.emit('medicines:changed', medicines);
     }
 
     updateStockUnits(medicineId, unitsDelta) {
         const medicines = this.getMedicines();
-        const med = medicines.find(m => m.id === medicineId);
+        const med = this.getMedicineById(medicineId);
         if (med) {
             med.stockUnits = Math.max(0, (med.stockUnits || 0) + unitsDelta);
-            localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
+            try {
+                localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
+            } catch(e) {}
             this.schedulePersistToServer();
             this.emit('medicines:changed', medicines);
             return med;
