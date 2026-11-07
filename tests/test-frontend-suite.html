@@ -124,6 +124,14 @@
         };
 
         // =========================================================================
+        // Khóa đồng bộ lên Server trong môi trường kiểm thử để tránh làm bẩn database
+        // =========================================================================
+        if (window.Store) {
+            Store.schedulePersistToServer = () => {};
+            Store.uploadDatabaseToServer = () => Promise.resolve();
+        }
+
+        // =========================================================================
         // SUITE 1: TÍNH GIÁ VỐN ĐƠN VỊ LẺ (COGS & UNIT CONVERSION)
         // =========================================================================
         describe("Suite 1: Tính Chuẩn Giá Vốn Theo Đơn Vị Lẻ (Store.getMedicineUnitCost)", () => {
