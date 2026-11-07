@@ -67,8 +67,7 @@ function Convert-OADate($oaVal) {
     if ([string]::IsNullOrEmpty($oaVal)) { return '' }
     try {
         $dt = [DateTime]::FromOADate([double]$oaVal)
-        $dtVN = $dt.AddHours(7)
-        return $dtVN.ToString('yyyy-MM-ddTHH:mm:ss+07:00')
+        return $dt.ToString('yyyy-MM-ddTHH:mm:ss+07:00')
     } catch { return '' }
 }
 

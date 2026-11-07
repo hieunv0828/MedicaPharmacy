@@ -44,9 +44,7 @@ function Convert-OADate($oaVal) {
     if ([string]::IsNullOrEmpty($oaVal)) { return '' }
     try {
         $dt = [DateTime]::FromOADate([double]$oaVal)
-        # Add 7h for Vietnam timezone
-        $dtVN = $dt.AddHours(7)
-        return $dtVN.ToString('yyyy-MM-ddTHH:mm:sszzz').Replace('+00:00', '+07:00')
+        return $dt.ToString('yyyy-MM-ddTHH:mm:ss+07:00')
     } catch { return '' }
 }
 
