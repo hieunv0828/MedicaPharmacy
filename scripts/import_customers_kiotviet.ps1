@@ -1,4 +1,4 @@
-﻿# scripts/import_customers_kiotviet.ps1
+# scripts/import_customers_kiotviet.ps1
 # Script phân tích và import danh mục 2.651 khách hàng từ file KiotViet vào MedicaPharmacy
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8

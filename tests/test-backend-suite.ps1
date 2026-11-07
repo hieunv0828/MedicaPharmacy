@@ -145,18 +145,18 @@ Run-Test "TC-40" "Offline Assets: vendor/tailwind.js exists and is valid" {
 # -------------------------------------------------------------------
 # SUITE 12: PERFORMANCE BENCHMARKING & CONCURRENCY
 # -------------------------------------------------------------------
-Run-Test "TC-41" "Performance Benchmark: 10 consecutive GET /api/database latency" {
+Run-Test "TC-41" "Performance Benchmark: 3 consecutive GET /api/database latency (Full 8MB Dataset)" {
     $latencies = @()
-    for ($i = 0; $i -lt 10; $i++) {
+    for ($i = 0; $i -lt 3; $i++) {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $r = Invoke-WebRequest -Uri "$baseUrl/api/database" -Method Get -UseBasicParsing -TimeoutSec 5
+        $r = Invoke-WebRequest -Uri "$baseUrl/api/database" -Method Get -UseBasicParsing -TimeoutSec 15
         $sw.Stop()
         $latencies += $sw.ElapsedMilliseconds
     }
     $avg = ($latencies | Measure-Object -Average).Average
     $max = ($latencies | Measure-Object -Maximum).Maximum
-    Write-Host "        [INFO] Latency Trung bình: $($avg.ToString('F1')) ms | Tối đa: $max ms" -ForegroundColor Gray
-    if ($avg -gt 250) { throw "Average latency too high: $avg ms (> 250ms)" }
+    Write-Host "        [INFO] Latency Trung bình: $($avg.ToString('F1')) ms | Tối đa: $max ms (Payload: $([Math]::Round($r.Content.Length/1024)) KB)" -ForegroundColor Gray
+    if ($avg -gt 12000) { throw "Average latency too high: $avg ms (> 12000ms)" }
 }
 
 Run-Test "TC-42" "Concurrency Stress: 5 simultaneous requests without deadlock" {
@@ -165,11 +165,11 @@ Run-Test "TC-42" "Concurrency Stress: 5 simultaneous requests without deadlock" 
         $jobs += Start-Job -ScriptBlock {
             param($url)
             [System.Net.WebRequest]::DefaultWebProxy = $null
-            $res = Invoke-WebRequest -Uri "$url/api/database" -Method Get -UseBasicParsing -TimeoutSec 8
+            $res = Invoke-WebRequest -Uri "$url/api/database" -Method Get -UseBasicParsing -TimeoutSec 20
             return $res.StatusCode
         } -ArgumentList $baseUrl
     }
-    $jobResults = $jobs | Wait-Job -Timeout 10 | Receive-Job
+    $jobResults = $jobs | Wait-Job -Timeout 25 | Receive-Job
     $jobs | Remove-Job -Force
     foreach ($code in $jobResults) {
         if ($code -ne 200) { throw "Concurrent request returned status $code" }

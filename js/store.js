@@ -23,6 +23,14 @@ class DataStore {
         this.isServerMode = window.location.protocol.startsWith('http');
         this.syncInProgress = false;
         this.lastServerSyncTime = null;
+        this._cachedMedicines = null;
+        this._medicineMap = null;
+        this._cachedOrders = null;
+        this._cachedSuppliers = null;
+        this._cachedCustomers = null;
+        this._cachedVouchers = null;
+        this._cachedStockIns = null;
+        this._cachedReturns = null;
         this.init();
     }
 
@@ -120,19 +128,41 @@ class DataStore {
 
     saveToLocalCache(db) {
         try {
-            if (db.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(db.settings));
+            if (db.settings) {
+                try { localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(db.settings)); } catch(e){}
+            }
             if (db.medicines) {
                 this._cachedMedicines = db.medicines;
                 this._rebuildMedicineMap();
-                localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines));
+                try { localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines)); } catch(e){}
             }
-            if (db.suppliers) localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers));
-            if (db.orders) localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders));
-            if (db.stockInOrders) localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders));
-            if (db.customers) localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(db.customers));
-            if (db.settingsHistory) localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory));
-            if (db.vouchers) localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers));
-            if (db.purchaseReturns) localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(db.purchaseReturns));
+            if (db.suppliers) {
+                this._cachedSuppliers = db.suppliers;
+                try { localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers)); } catch(e){}
+            }
+            if (db.orders) {
+                this._cachedOrders = db.orders;
+                try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders)); } catch(e){}
+            }
+            if (db.stockInOrders) {
+                this._cachedStockIns = db.stockInOrders;
+                try { localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders)); } catch(e){}
+            }
+            if (db.customers) {
+                this._cachedCustomers = db.customers;
+                try { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(db.customers)); } catch(e){}
+            }
+            if (db.settingsHistory) {
+                try { localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory)); } catch(e){}
+            }
+            if (db.vouchers) {
+                this._cachedVouchers = db.vouchers;
+                try { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers)); } catch(e){}
+            }
+            if (db.purchaseReturns) {
+                this._cachedReturns = db.purchaseReturns;
+                try { localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(db.purchaseReturns)); } catch(e){}
+            }
         } catch (e) {
             console.warn('LocalStorage quota limit reached, maintaining state in-memory:', e);
         }
@@ -340,10 +370,12 @@ class DataStore {
 
     // --- Suppliers (Nhà cung cấp) ---
     getSuppliers() {
+        if (this._cachedSuppliers) return this._cachedSuppliers;
         const raw = localStorage.getItem(STORAGE_KEYS.SUPPLIERS);
         if (!raw) return [];
         try {
-            return JSON.parse(raw);
+            this._cachedSuppliers = JSON.parse(raw);
+            return this._cachedSuppliers;
         } catch(e) {
             return [];
         }
@@ -358,7 +390,8 @@ class DataStore {
             if (!sup.id) sup.id = 'NCC' + String(Date.now()).slice(-4);
             suppliers.push(sup);
         }
-        localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(suppliers));
+        this._cachedSuppliers = suppliers;
+        try { localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(suppliers)); } catch(e){}
         this.schedulePersistToServer();
         this.emit('suppliers:changed', suppliers);
         return sup;
@@ -828,10 +861,12 @@ class DataStore {
 
     // --- Orders (Hóa đơn bán thuốc) ---
     getOrders() {
+        if (this._cachedOrders) return this._cachedOrders;
         const raw = localStorage.getItem(STORAGE_KEYS.ORDERS);
         if (!raw) return [];
         try {
-            return JSON.parse(raw);
+            this._cachedOrders = JSON.parse(raw);
+            return this._cachedOrders;
         } catch(e) {
             return [];
         }
@@ -885,7 +920,8 @@ class DataStore {
         }
 
         orders.unshift(order);
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        this._cachedOrders = orders;
+        try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)); } catch(e){}
 
         // Tự động thêm Phiếu Thu vào Sổ Quỹ Thu Chi
         if (order.totalAmount > 0) {
@@ -923,7 +959,8 @@ class DataStore {
         order.updatedAt = new Date().toISOString();
 
         // Lưu vào localStorage
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        this._cachedOrders = orders;
+        try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)); } catch(e){}
 
         // 1. Nếu phương thức thanh toán thay đổi (ví dụ: chuyển khoản -> tiền mặt)
         // Cập nhật phiếu thu tương ứng trong Sổ Quỹ Thu Chi
@@ -933,8 +970,7 @@ class DataStore {
             if (voucher) {
                 voucher.paymentMethod = updateFields.paymentMethod;
                 voucher.note = `Thu tiền bán thuốc hóa đơn ${order.id} (${updateFields.paymentMethod === 'cash' ? 'Đổi sang Tiền mặt' : 'Đổi sang Chuyển khoản'})`;
-                localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers));
-                this.emit('vouchers:changed', vouchers);
+                this.saveVouchers(vouchers);
             }
         }
 
@@ -944,8 +980,7 @@ class DataStore {
             const voucher = vouchers.find(v => v.refId === order.id && !v.isCancelled);
             if (voucher) {
                 voucher.targetName = updateFields.customerName || (updateFields.customerPhone ? `Khách ${updateFields.customerPhone}` : 'Khách lẻ trực tiếp');
-                localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers));
-                this.emit('vouchers:changed', vouchers);
+                this.saveVouchers(vouchers);
             }
         }
 
@@ -1003,7 +1038,8 @@ class DataStore {
             this.saveVouchers(vouchers);
         }
 
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        this._cachedOrders = orders;
+        try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)); } catch(e){}
         this.schedulePersistToServer();
         this.emit('orders:changed', orders);
         return order;
@@ -1106,7 +1142,8 @@ class DataStore {
             });
         }
 
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        this._cachedOrders = orders;
+        try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)); } catch(e){}
         this.schedulePersistToServer();
         this.emit('orders:changed', orders);
         return { order, returnRecord };
@@ -1249,24 +1286,28 @@ class DataStore {
     }
 
     getCustomers() {
+        if (this._cachedCustomers) return this._cachedCustomers;
         const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
         if (!raw) {
             const seeded = this.seedCustomersFromOrders();
             if (seeded.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(seeded));
+                this._cachedCustomers = seeded;
+                try { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(seeded)); } catch(e){}
                 return seeded;
             }
             return [];
         }
         try {
-            return JSON.parse(raw);
+            this._cachedCustomers = JSON.parse(raw);
+            return this._cachedCustomers;
         } catch(e) {
             return [];
         }
     }
 
     saveCustomers(customers) {
-        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+        this._cachedCustomers = customers;
+        try { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers)); } catch(e){}
         this.schedulePersistToServer();
         this.emit('customers:changed', customers);
     }
@@ -1413,23 +1454,27 @@ class DataStore {
 
     // --- VOUCHERS (SỔ QUỸ PHIẾU THU & PHIẾU CHI) ---
     getVouchers() {
+        if (this._cachedVouchers) return this._cachedVouchers;
         const raw = localStorage.getItem(STORAGE_KEYS.VOUCHERS);
         if (!raw) {
             if (typeof SampleData !== 'undefined' && SampleData.vouchers) {
-                localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(SampleData.vouchers));
+                this._cachedVouchers = SampleData.vouchers;
+                try { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(SampleData.vouchers)); } catch(e){}
                 return SampleData.vouchers;
             }
             return [];
         }
         try {
-            return JSON.parse(raw);
+            this._cachedVouchers = JSON.parse(raw);
+            return this._cachedVouchers;
         } catch(e) {
             return [];
         }
     }
 
     saveVouchers(vouchers) {
-        localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers));
+        this._cachedVouchers = vouchers;
+        try { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers)); } catch(e){}
         this.schedulePersistToServer();
         this.emit('vouchers:changed', vouchers);
     }
@@ -1446,7 +1491,8 @@ class DataStore {
             voucher.createdAt = new Date().toISOString();
         }
         vouchers.unshift(voucher);
-        localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers));
+        this._cachedVouchers = vouchers;
+        try { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(vouchers)); } catch(e){}
         if (shouldSchedule) {
             this.schedulePersistToServer();
         }

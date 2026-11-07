@@ -96,6 +96,12 @@ namespace MedicaPharmacy
         private bool _isLicensed = false;
         private string _machineCode = "";
 
+        // In-memory database cache (string + encoded bytes)
+        private string _dbCache = null;
+        private byte[] _dbCacheBytes = null;
+        private DateTime _dbCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan _dbCacheTtl = TimeSpan.FromSeconds(2);
+
         public MedicaTrayApplicationContext(string[] args = null)
         {
             if (args != null)
@@ -646,8 +652,21 @@ namespace MedicaPharmacy
 
                             if (method == "GET")
                             {
+                                // Return cached bytes if still valid
+                                lock (_dbLock)
+                                {
+                                    DateTime dirLw = GetDataDirLastWrite();
+                                    if (_dbCacheBytes != null &&
+                                        (DateTime.UtcNow - _dbCacheTime) < _dbCacheTtl &&
+                                        dirLw <= _dbCacheTime)
+                                    {
+                                        SendResponse(stream, 200, "application/json; charset=utf-8", _dbCacheBytes, clientSupportsGzip);
+                                        return;
+                                    }
+                                }
                                 string dbJson = GetFullDatabaseJson();
                                 byte[] dbBytes = Encoding.UTF8.GetBytes(dbJson);
+                                lock (_dbLock) { _dbCacheBytes = dbBytes; }
                                 SendResponse(stream, 200, "application/json; charset=utf-8", dbBytes, clientSupportsGzip);
                             }
                             else if (method == "POST")
@@ -655,6 +674,9 @@ namespace MedicaPharmacy
                                 bool saved = SaveFullDatabase(body);
                                 if (saved)
                                 {
+                                    // Invalidate cache on save
+                                    _dbCache = null;
+                                    _dbCacheBytes = null;
                                     string ok = "{\"success\":true,\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}";
                                     SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(ok));
                                 }
@@ -881,6 +903,13 @@ namespace MedicaPharmacy
             {
                 MigrateSingleDatabaseIfPresent();
 
+                // Check if cache is still valid using data directory modification time
+                DateTime dirLastWrite = GetDataDirLastWrite();
+                if (_dbCache != null && (DateTime.UtcNow - _dbCacheTime) < _dbCacheTtl && dirLastWrite <= _dbCacheTime)
+                {
+                    return _dbCache;
+                }
+
                 string settingsJson = ReadRawJsonFile(Path.Combine(_dataDir, "settings.json"), "{}");
                 string medicinesJson = ReadRawJsonFile(Path.Combine(_dataDir, "medicines.json"), "[]");
                 string suppliersJson = ReadRawJsonFile(Path.Combine(_dataDir, "suppliers.json"), "[]");
@@ -906,8 +935,31 @@ namespace MedicaPharmacy
                   .Append(",\"purchaseReturns\":").Append(returnsJson)
                   .Append(",\"lastUpdated\":\"").Append(lastUpdated).Append("\"}");
 
-                return sb.ToString();
+                _dbCache = sb.ToString();
+                _dbCacheTime = DateTime.UtcNow;
+                return _dbCache;
             }
+        }
+
+        private DateTime GetDataDirLastWrite()
+        {
+            try
+            {
+                string[] watched = new[] { "medicines.json", "orders_2026.json", "stockin_2026.json",
+                    "vouchers_2026.json", "returns_2026.json", "suppliers.json", "customers.json", "settings.json" };
+                DateTime latest = DateTime.MinValue;
+                foreach (string f in watched)
+                {
+                    string fp = Path.Combine(_dataDir, f);
+                    if (File.Exists(fp))
+                    {
+                        DateTime lw = File.GetLastWriteTimeUtc(fp);
+                        if (lw > latest) latest = lw;
+                    }
+                }
+                return latest;
+            }
+            catch { return DateTime.UtcNow; }
         }
 
         private bool SaveFullDatabase(string body)

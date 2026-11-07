@@ -640,9 +640,10 @@
 
                 // Dọn dẹp đơn test
                 const cleanOrders = Store.getOrders().filter(o => o.id !== "HD-TEST-EDIT-01");
-                localStorage.setItem("medica_orders_v1", JSON.stringify(cleanOrders));
+                Store._cachedOrders = cleanOrders;
+                try { localStorage.setItem("medica_orders_v1", JSON.stringify(cleanOrders)); } catch(e){}
                 const cleanVouchers = Store.getVouchers().filter(v => v.refId !== "HD-TEST-EDIT-01");
-                localStorage.setItem("medica_vouchers_v1", JSON.stringify(cleanVouchers));
+                Store.saveVouchers(cleanVouchers);
             });
 
             it("TC-32: OrdersModule có đầy đủ hàm xử lý chỉnh sửa hóa đơn", () => {
