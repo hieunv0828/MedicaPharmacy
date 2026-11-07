@@ -174,7 +174,8 @@ foreach ($grp in $grouped) {
     $supId = if ($first.supplierId) { $first.supplierId } else { 'NCC lẻ' }
     $supName = if ($first.supplierName) { $first.supplierName } else { 'Nhà cung cấp lẻ' }
 
-    $payMethod = if ($voucherPayMethod.ContainsKey($pnId)) { $voucherPayMethod[$pnId] } else { 'cash' }
+    # Default payment method for supplier purchases is bank transfer (chuyen khoan)
+    $payMethod = 'transfer'
 
     $totalAmt = 0
     if (-not [string]::IsNullOrEmpty($first.totalAmt)) { try { $totalAmt = [Math]::Round([double]$first.totalAmt) } catch {} }

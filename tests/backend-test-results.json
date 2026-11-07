@@ -7,7 +7,7 @@
                         "Id":  "TC-31",
                         "Name":  "Server Web Root: GET / returns 200 OK",
                         "Status":  "PASS",
-                        "Duration":  "2114ms",
+                        "Duration":  "2106ms",
                         "Error":  ""
                     },
                     {
@@ -21,14 +21,14 @@
                         "Id":  "TC-33",
                         "Name":  "Health Endpoint: GET /api/status returns JSON online status",
                         "Status":  "PASS",
-                        "Duration":  "94ms",
+                        "Duration":  "88ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-34",
                         "Name":  "License Status: GET /api/license/status returns hardware machineCode",
                         "Status":  "PASS",
-                        "Duration":  "14ms",
+                        "Duration":  "11ms",
                         "Error":  ""
                     },
                     {
@@ -42,28 +42,28 @@
                         "Id":  "TC-36",
                         "Name":  "Database Fetch: GET /api/database returns all collections",
                         "Status":  "PASS",
-                        "Duration":  "4395ms",
+                        "Duration":  "4621ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-37",
                         "Name":  "Storage Integrity: orders_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "926ms",
+                        "Duration":  "956ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-38",
                         "Name":  "Storage Integrity: stockin_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "556ms",
+                        "Duration":  "546ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-39",
                         "Name":  "Offline Assets: vendor/mermaid.min.js exists and is \u003e 1MB",
                         "Status":  "PASS",
-                        "Duration":  "8ms",
+                        "Duration":  "7ms",
                         "Error":  ""
                     },
                     {
@@ -77,14 +77,14 @@
                         "Id":  "TC-41",
                         "Name":  "Performance Benchmark: 3 consecutive GET /api/database latency (Full 8MB Dataset)",
                         "Status":  "PASS",
-                        "Duration":  "1304ms",
+                        "Duration":  "1466ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-42",
                         "Name":  "Concurrency Stress: 5 simultaneous requests without deadlock",
                         "Status":  "PASS",
-                        "Duration":  "41355ms",
+                        "Duration":  "43303ms",
                         "Error":  ""
                     }
                 ]
