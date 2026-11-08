@@ -6,7 +6,9 @@
 
 const OrdersModule = {
     currentTab: 'all', // 'all', 'cash', 'transfer'
-    timeFilter: 'this_month', // 'today', 'yesterday', 'last_7_days', 'this_month', 'all'
+    timeFilter: 'this_month', // 'today', 'yesterday', 'last_7_days', 'this_month', 'all', 'custom'
+    dateFrom: '',
+    dateTo: '',
     searchKeyword: '',
     currentPage: 1,
     pageSize: 25,
@@ -43,6 +45,53 @@ const OrdersModule = {
             timeSelect.addEventListener('change', (e) => {
                 this.timeFilter = e.target.value;
                 this.currentPage = 1;
+                const customDiv = document.getElementById('orders-custom-dates');
+                if (customDiv) {
+                    if (e.target.value === 'custom') {
+                        customDiv.classList.remove('hidden');
+                        const dateFromInput = document.getElementById('orders-date-from');
+                        const dateToInput = document.getElementById('orders-date-to');
+                        if (dateFromInput && !dateFromInput.value) {
+                            const now = new Date();
+                            const todayStr = AppUtils.getLocalDateStr(now);
+                            const firstDayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                            dateFromInput.value = firstDayStr;
+                            this.dateFrom = firstDayStr;
+                        } else if (dateFromInput) {
+                            this.dateFrom = dateFromInput.value;
+                        }
+                        if (dateToInput && !dateToInput.value) {
+                            const now = new Date();
+                            const todayStr = AppUtils.getLocalDateStr(now);
+                            dateToInput.value = todayStr;
+                            this.dateTo = todayStr;
+                        } else if (dateToInput) {
+                            this.dateTo = dateToInput.value;
+                        }
+                    } else {
+                        customDiv.classList.add('hidden');
+                    }
+                }
+                this.renderOrdersTable();
+                this.updateTabSummaryCards();
+            });
+        }
+
+        const dateFromInput = document.getElementById('orders-date-from');
+        if (dateFromInput) {
+            dateFromInput.addEventListener('change', (e) => {
+                this.dateFrom = e.target.value;
+                this.currentPage = 1;
+                this.renderOrdersTable();
+                this.updateTabSummaryCards();
+            });
+        }
+
+        const dateToInput = document.getElementById('orders-date-to');
+        if (dateToInput) {
+            dateToInput.addEventListener('change', (e) => {
+                this.dateTo = e.target.value;
+                this.currentPage = 1;
                 this.renderOrdersTable();
                 this.updateTabSummaryCards();
             });
@@ -76,7 +125,7 @@ const OrdersModule = {
         }
 
         // 2. Lọc theo Thời gian
-        orders = orders.filter(o => AppUtils.matchesTimeFilter(o.createdAt, this.timeFilter));
+        orders = orders.filter(o => AppUtils.matchesTimeFilter(o.createdAt, this.timeFilter, this.dateFrom, this.dateTo));
 
         // 3. Lọc theo từ khóa tìm kiếm
         if (this.searchKeyword) {
@@ -100,7 +149,7 @@ const OrdersModule = {
         let validOrders = allOrders.filter(o => !o.isCancelled);
 
         // 2. Lọc theo mốc thời gian đang chọn
-        validOrders = validOrders.filter(o => AppUtils.matchesTimeFilter(o.createdAt, this.timeFilter));
+        validOrders = validOrders.filter(o => AppUtils.matchesTimeFilter(o.createdAt, this.timeFilter, this.dateFrom, this.dateTo));
 
         // 3. Lọc theo từ khóa tìm kiếm (nếu có)
         if (this.searchKeyword) {

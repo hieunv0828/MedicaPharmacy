@@ -1071,7 +1071,15 @@
                         <option value="yesterday">Hôm Qua</option>
                         <option value="last_7_days">7 Ngày Qua</option>
                         <option value="all">Tất Cả Thời Gian</option>
+                        <option value="custom">Khoảng ngày tùy chọn...</option>
                     </select>
+
+                    <!-- Khoảng ngày tùy chọn -->
+                    <div id="orders-custom-dates" class="hidden flex items-center gap-1.5 text-xs">
+                        <input id="orders-date-from" type="date" class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                        <span class="text-slate-400 font-bold">-</span>
+                        <input id="orders-date-to" type="date" class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                    </div>
 
                     <div class="relative">
                         <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
