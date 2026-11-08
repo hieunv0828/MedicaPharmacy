@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Import dữ liệu từ file Excel KiotViet theo ngày tùy chọn (Append an toàn, chống trùng lặp)
 .DESCRIPTION
