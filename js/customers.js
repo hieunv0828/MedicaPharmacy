@@ -55,9 +55,16 @@ const CustomersModule = {
             modalOrderSearch._bound = true;
         }
 
-        // Lắng nghe sự kiện cập nhật khách hàng từ Store
+        // Lắng nghe sự kiện cập nhật khách hàng & đơn hàng từ Store
         if (window.Store && typeof Store.on === 'function' && !this._storeListening) {
             Store.on('customers:changed', () => {
+                this.renderSummaryCards();
+                this.renderCustomersTable();
+            });
+            Store.on('orders:changed', () => {
+                if (typeof Store.syncCustomerOrdersStats === 'function') {
+                    Store.syncCustomerOrdersStats();
+                }
                 this.renderSummaryCards();
                 this.renderCustomersTable();
             });
@@ -286,7 +293,7 @@ const CustomersModule = {
                     <td class="py-3 px-3">
                         <div class="flex items-center gap-2">
                             <button type="button" 
-                                    onclick="CustomersModule.openCustomerOrdersModal('${safePhone || c.id}')"
+                                    onclick="CustomersModule.openCustomerOrdersModal('${c.id || safePhone}')"
                                     class="font-bold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1.5"
                                     title="Bấm vào tên để xem danh sách toàn bộ hóa đơn khách đã mua">
                                 <span>${c.name || 'Khách hàng'}</span>
@@ -335,7 +342,7 @@ const CustomersModule = {
                     <!-- Lượt Mua (Click để xem danh sách hóa đơn) -->
                     <td class="py-3 px-3 text-center">
                         <button type="button" 
-                                onclick="CustomersModule.openCustomerOrdersModal('${safePhone || c.id}')"
+                                onclick="CustomersModule.openCustomerOrdersModal('${c.id || safePhone}')"
                                 class="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 rounded-lg text-xs font-bold transition font-mono border border-slate-200 hover:border-emerald-300 cursor-pointer"
                                 title="Bấm để xem các đơn hàng đã mua">
                             <i data-lucide="shopping-bag" class="w-3 h-3 text-emerald-600"></i>
@@ -351,7 +358,7 @@ const CustomersModule = {
                     <!-- Thao Tác -->
                     <td class="py-3 px-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="CustomersModule.openCustomerOrdersModal('${safePhone || c.id}')" 
+                            <button onclick="CustomersModule.openCustomerOrdersModal('${c.id || safePhone}')" 
                                     class="p-1.5 text-emerald-700 hover:bg-emerald-100 rounded-lg transition cursor-pointer" 
                                     title="Xem lịch sử hóa đơn">
                                 <i data-lucide="receipt" class="w-4 h-4"></i>
@@ -402,7 +409,7 @@ const CustomersModule = {
         this.orderSearchQuery = '';
 
         // Lấy tất cả hóa đơn mà khách từng mua
-        const orders = Store.getOrdersByCustomer(cust.phone || cust.id, cust.name);
+        const orders = Store.getOrdersByCustomer(cust.id || cust.phone, cust.name);
         this.selectedCustomerOrders = orders;
 
         // Cập nhật thông tin Header Modal

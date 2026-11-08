@@ -47,6 +47,7 @@ class DataStore {
             }
         }
         this.syncOrdersAndStockInsToVouchers();
+        this.syncCustomerOrdersStats();
     }
 
     // --- Đồng bộ với Máy Chủ Server API ---
@@ -76,6 +77,7 @@ class DataStore {
                     // Cập nhật dữ liệu từ server vào local
                     this.saveToLocalCache(data);
                 }
+                this.syncCustomerOrdersStats();
                 this.lastServerSyncTime = Date.now();
                 this.updateServerStatusBadge(true);
                 this.emit('all:changed');
@@ -1397,11 +1399,13 @@ class DataStore {
     getOrdersByCustomer(phoneOrId, customerName = '') {
         const orders = this.getOrders();
         const cust = this.getCustomerById(phoneOrId) || this.getCustomerByPhone(phoneOrId);
+        const targetId = cust ? cust.id : (phoneOrId && phoneOrId.startsWith('KH') ? phoneOrId : '');
         const targetPhone = cust ? cust.phone : phoneOrId;
         const targetNorm = targetPhone ? this.normalizePhone(targetPhone) : '';
         const targetName = (cust ? cust.name : customerName || '').trim().toLowerCase();
 
         return orders.filter(o => {
+            if (targetId && o.customerId && o.customerId === targetId) return true;
             if (targetNorm && o.customerPhone) {
                 if (this.normalizePhone(o.customerPhone) === targetNorm) return true;
             }
@@ -1547,6 +1551,89 @@ class DataStore {
             }
         });
         return Object.values(map);
+    }
+
+    // --- Đồng bộ lượt mua & chi tiêu của Khách Hàng từ Hóa Đơn ---
+    syncCustomerOrdersStats() {
+        const customers = this.getCustomers();
+        const orders = this.getOrders();
+        if (!customers || customers.length === 0 || !orders || orders.length === 0) return;
+
+        const custById = {};
+        const custByPhone = {};
+        const custByName = {};
+
+        customers.forEach(c => {
+            if (c.id) custById[c.id] = c;
+            if (c.phone) {
+                const norm = this.normalizePhone(c.phone);
+                if (norm) custByPhone[norm] = c;
+            }
+            if (c.name) {
+                const normName = c.name.trim().toLowerCase();
+                if (normName && normName !== 'khách lẻ' && normName !== 'khách vãng lai' && normName !== 'khách hàng') {
+                    custByName[normName] = c;
+                }
+            }
+        });
+
+        const custStats = new Map();
+        customers.forEach(c => {
+            custStats.set(c, { count: 0, spent: 0, lastVisit: '' });
+        });
+
+        orders.forEach(o => {
+            if (o.isCancelled) return;
+            let matched = null;
+            if (o.customerId && custById[o.customerId]) {
+                matched = custById[o.customerId];
+            } else if (o.customerPhone) {
+                const norm = this.normalizePhone(o.customerPhone);
+                if (norm && custByPhone[norm]) {
+                    matched = custByPhone[norm];
+                }
+            } else if (o.customerName) {
+                const normName = o.customerName.trim().toLowerCase();
+                if (normName && custByName[normName]) {
+                    matched = custByName[normName];
+                }
+            }
+
+            if (matched) {
+                const st = custStats.get(matched);
+                if (st) {
+                    st.count++;
+                    st.spent += (o.totalAmount || 0);
+                    if (!st.lastVisit || (o.createdAt && o.createdAt > st.lastVisit)) {
+                        st.lastVisit = o.createdAt;
+                    }
+                }
+            }
+        });
+
+        let changed = false;
+        customers.forEach(c => {
+            const st = custStats.get(c);
+            const realCount = st ? st.count : 0;
+            if (c.ordersCount !== realCount) {
+                c.ordersCount = realCount;
+                changed = true;
+            }
+            if (st && st.spent > 0) {
+                if (st.spent > (c.totalSpent || 0)) {
+                    c.totalSpent = Math.round(st.spent);
+                    changed = true;
+                }
+                if (st.lastVisit && (!c.lastVisit || st.lastVisit > c.lastVisit)) {
+                    c.lastVisit = st.lastVisit;
+                    changed = true;
+                }
+            }
+        });
+
+        if (changed) {
+            this.saveCustomers(customers);
+        }
     }
 
     // --- Backup & Restore ---
