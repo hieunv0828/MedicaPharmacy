@@ -1972,6 +1972,16 @@ window.Store = new DataStore();
 
 // --- Utility Helpers ---
 window.AppUtils = {
+    escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    },
+
     formatVND(amount) {
         if (isNaN(amount) || amount === null || amount === undefined) return '0 đ';
         return Number(amount).toLocaleString('vi-VN') + ' đ';

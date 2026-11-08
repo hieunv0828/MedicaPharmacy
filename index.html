@@ -377,16 +377,30 @@
                                 <span>Tra cứu điểm</span>
                             </button>
                         </div>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div>
-                                <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Số điện thoại:</label>
-                                <input id="pos-customer-phone" type="text" placeholder="Nhập SĐT tích điểm..."
-                                       class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono font-bold text-slate-800" />
+                        <!-- Ô nhập tìm kiếm khách hàng theo SĐT hoặc Tên -->
+                        <div class="relative mb-2">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="relative">
+                                    <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Số điện thoại:</label>
+                                    <div class="relative">
+                                        <input id="pos-customer-phone" type="text" placeholder="Nhập SĐT tích điểm..." autocomplete="off"
+                                               class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono font-bold text-slate-800 pr-7" />
+                                        <button id="pos-clear-customer-btn" type="button" onclick="POSModule.clearCustomer()" title="Xóa thông tin khách"
+                                                class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 p-0.5 rounded transition cursor-pointer">
+                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="relative">
+                                    <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Tên khách hàng:</label>
+                                    <input id="pos-customer-name" type="text" placeholder="Tên khách hàng..." autocomplete="off"
+                                           class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800" />
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Tên khách hàng:</label>
-                                <input id="pos-customer-name" type="text" placeholder="Tên khách hàng..."
-                                       class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+
+                            <!-- Dropdown gợi ý tìm kiếm khách hàng -->
+                            <div id="pos-customer-search-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-72 overflow-y-auto z-50 divide-y divide-slate-100">
+                                <!-- Rendered dynamically -->
                             </div>
                         </div>
                         <input id="pos-customer-note" type="text" placeholder="Triệu chứng hoặc ghi chú dặn dò bệnh nhân..."

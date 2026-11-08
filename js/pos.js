@@ -17,6 +17,9 @@ const POSModule = {
         note: ''
     },
     currentSearchingIndex: -1,
+    customerSearchHighlightedIndex: -1,
+    customerSearchResultsList: [],
+    selectedCustomerId: '',
 
     init() {
         this.bindEvents();
@@ -78,13 +81,61 @@ const POSModule = {
             });
         }
 
-        // Ô nhập SĐT khách hàng (tra cứu & tích điểm)
+        // Ô nhập SĐT & Tên khách hàng (tra cứu gợi ý & tích điểm)
         const phoneInput = document.getElementById('pos-customer-phone');
+        const nameInput = document.getElementById('pos-customer-name');
+        const custResults = document.getElementById('pos-customer-search-results');
+        const clearCustBtn = document.getElementById('pos-clear-customer-btn');
+
+        const triggerCustomerSearch = (val, searchType) => {
+            const query = (val || '').trim();
+            if (query.length > 0) {
+                if (clearCustBtn) clearCustBtn.classList.remove('hidden');
+                this.handleCustomerSearch(query, searchType);
+            } else {
+                if (!phoneInput?.value.trim() && !nameInput?.value.trim()) {
+                    if (clearCustBtn) clearCustBtn.classList.add('hidden');
+                }
+                if (custResults) custResults.classList.add('hidden');
+                this.updatePointsPreview();
+            }
+        };
+
         if (phoneInput) {
             phoneInput.addEventListener('input', (e) => {
-                this.handleCustomerPhoneChange(e.target.value.trim());
+                triggerCustomerSearch(e.target.value, 'phone');
             });
+            phoneInput.addEventListener('focus', () => {
+                if (phoneInput.value.trim().length > 0) {
+                    triggerCustomerSearch(phoneInput.value, 'phone');
+                }
+            });
+            phoneInput.addEventListener('keydown', (e) => this.handleCustomerKeydown(e));
         }
+
+        if (nameInput) {
+            nameInput.addEventListener('input', (e) => {
+                triggerCustomerSearch(e.target.value, 'name');
+            });
+            nameInput.addEventListener('focus', () => {
+                if (nameInput.value.trim().length > 0) {
+                    triggerCustomerSearch(nameInput.value, 'name');
+                }
+            });
+            nameInput.addEventListener('keydown', (e) => this.handleCustomerKeydown(e));
+        }
+
+        // Đóng gợi ý khách hàng khi click ra ngoài
+        document.addEventListener('click', (e) => {
+            if (custResults && !custResults.classList.contains('hidden')) {
+                if (!custResults.contains(e.target) && 
+                    !phoneInput?.contains(e.target) && 
+                    !nameInput?.contains(e.target) &&
+                    !clearCustBtn?.contains(e.target)) {
+                    custResults.classList.add('hidden');
+                }
+            }
+        });
     },
 
     setupKeyboardShortcuts() {
@@ -110,6 +161,7 @@ const POSModule = {
                     this.closeReceiptModal();
                 } else {
                     document.getElementById('pos-search-results')?.classList.add('hidden');
+                    document.getElementById('pos-customer-search-results')?.classList.add('hidden');
                 }
             }
         });
@@ -602,10 +654,32 @@ const POSModule = {
         this.updatePointsPreview();
     },
 
+    removeAccents(str) {
+        if (!str) return '';
+        return str
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[đĐ]/g, (m) => (m === 'đ' ? 'd' : 'D'))
+            .toLowerCase();
+    },
+
+    escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    },
+
     updatePointsPreview() {
         const totalAmount = this.calculateTotalAmount();
         const pointsEarned = Store.calculatePoints(totalAmount);
-        const phone = document.getElementById('pos-customer-phone')?.value.trim();
+        const phoneInput = document.getElementById('pos-customer-phone');
+        const nameInput = document.getElementById('pos-customer-name');
+        const phone = phoneInput?.value.trim() || '';
+        const name = nameInput?.value.trim() || '';
 
         const elPointsThisOrder = document.getElementById('pos-points-this-order');
         const elCustStatus = document.getElementById('pos-points-cust-status');
@@ -613,14 +687,40 @@ const POSModule = {
         const elRateHint = document.getElementById('pos-points-rate-hint');
         const pointsInput = document.getElementById('pos-points-used-input');
         const btnUseMax = document.getElementById('pos-btn-use-all-points');
+        const clearBtn = document.getElementById('pos-clear-customer-btn');
+
+        if (clearBtn) {
+            if (phone || name) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        }
 
         if (elPointsThisOrder) {
             elPointsThisOrder.innerText = `+${pointsEarned} điểm`;
         }
 
-        if (!phone) {
+        // Tìm thông tin khách hàng:
+        // 1. Theo ID đã chọn (nếu có)
+        // 2. Theo SĐT
+        // 3. Theo Tên (nếu không có SĐT)
+        let cust = null;
+        if (this.selectedCustomerId) {
+            cust = Store.getCustomerById(this.selectedCustomerId);
+        }
+        if (!cust && phone) {
+            cust = Store.getCustomerByPhone(phone);
+        }
+        if (!cust && name) {
+            const normName = this.removeAccents(name);
+            const customers = Store.getCustomers();
+            cust = customers.find(c => c.name && this.removeAccents(c.name) === normName);
+        }
+
+        if (!phone && !name && !cust) {
             if (elCustStatus) elCustStatus.innerHTML = 'Tích điểm: <b>100.000đ = +1 điểm</b>';
-            if (elCurrBalance) elCurrBalance.innerText = 'Nhập SĐT để dùng điểm & cộng dồn cho khách';
+            if (elCurrBalance) elCurrBalance.innerText = 'Nhập SĐT hoặc Tên để dùng điểm & cộng dồn cho khách';
             if (elRateHint) elRateHint.innerText = 'Quy đổi: 1 điểm = 1.000đ';
             if (pointsInput) {
                 pointsInput.disabled = true;
@@ -637,15 +737,15 @@ const POSModule = {
             return;
         }
 
-        const cust = Store.getCustomerByPhone(phone);
         if (cust) {
             const custPoints = cust.points || 0;
             const tier = Store.getCustomerTier(custPoints);
             const nextTotal = Math.max(0, custPoints - this.pointsUsed) + pointsEarned;
+            const targetPhoneOrId = cust.phone || cust.id || phone;
 
             if (elCustStatus) {
-                const safePhone = (cust.phone || phone).replace(/'/g, "\\'");
-                elCustStatus.innerHTML = `Khách: <a href="javascript:void(0)" onclick="CustomersModule.openCustomerOrdersModal('${safePhone}')" class="text-emerald-700 hover:text-emerald-900 underline font-bold cursor-pointer inline-flex items-center gap-1" title="Bấm để xem toàn bộ hóa đơn khách đã từng mua"><span>${cust.name}</span> <i data-lucide="receipt" class="w-3.5 h-3.5 text-emerald-600"></i></a> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span> <button type="button" onclick="CustomersModule.openCustomerOrdersModal('${safePhone}')" class="ml-1 text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.2 rounded font-bold cursor-pointer transition">Xem lịch sử đơn</button>`;
+                const safeTarget = targetPhoneOrId.replace(/'/g, "\\'");
+                elCustStatus.innerHTML = `Khách: <a href="javascript:void(0)" onclick="CustomersModule.openCustomerOrdersModal('${safeTarget}')" class="text-emerald-700 hover:text-emerald-900 underline font-bold cursor-pointer inline-flex items-center gap-1" title="Bấm để xem toàn bộ hóa đơn khách đã từng mua"><span>${this.escapeHtml(cust.name)}</span> <i data-lucide="receipt" class="w-3.5 h-3.5 text-emerald-600"></i></a> <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span> <button type="button" onclick="CustomersModule.openCustomerOrdersModal('${safeTarget}')" class="ml-1 text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.2 rounded font-bold cursor-pointer transition">Xem lịch sử đơn</button>`;
                 if (window.lucide) lucide.createIcons();
             }
 
@@ -686,9 +786,11 @@ const POSModule = {
                 }
             }
         } else {
+            // Khách mới chưa có trong danh bạ
+            const displayName = phone || name || 'Khách mới';
+            const safeTarget = (phone || name).replace(/'/g, "\\'");
             if (elCustStatus) {
-                const safePhone = phone.replace(/'/g, "\\'");
-                elCustStatus.innerHTML = `Khách mới: <b class="font-mono text-slate-800">${phone}</b> <button type="button" onclick="CustomersModule.openCustomerOrdersModal('${safePhone}')" class="ml-1 text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.2 rounded font-bold cursor-pointer transition">Lịch sử đơn</button>`;
+                elCustStatus.innerHTML = `Khách mới: <b class="font-mono text-slate-800">${this.escapeHtml(displayName)}</b> <button type="button" onclick="CustomersModule.openCustomerOrdersModal('${safeTarget}')" class="ml-1 text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.2 rounded font-bold cursor-pointer transition">Lịch sử đơn</button>`;
             }
             if (elCurrBalance) elCurrBalance.innerHTML = `Tích lũy đơn đầu tiên: <b class="text-emerald-700 font-bold">+${pointsEarned} điểm</b> khi thanh toán`;
             if (elRateHint) elRateHint.innerText = 'Khách mới: 0 điểm (1 điểm = 1.000đ)';
@@ -707,6 +809,226 @@ const POSModule = {
         }
     },
 
+    handleCustomerSearch(query, searchType = 'phone') {
+        const resultsEl = document.getElementById('pos-customer-search-results');
+        if (!resultsEl) return;
+
+        const rawQuery = (query || '').trim();
+        if (!rawQuery) {
+            resultsEl.classList.add('hidden');
+            resultsEl.innerHTML = '';
+            this.customerSearchResultsList = [];
+            this.customerSearchHighlightedIndex = -1;
+            return;
+        }
+
+        const normQuery = this.removeAccents(rawQuery);
+        const digitsQuery = rawQuery.replace(/\D/g, '');
+        const customers = Store.getCustomers() || [];
+
+        // Tìm kiếm khách hàng theo: SĐT, Tên, Mã khách hàng (KH...), Địa chỉ
+        const matches = customers.filter(c => {
+            const cPhone = c.phone || '';
+            const cName = c.name || '';
+            const cId = c.id || '';
+            const cAddr = c.address || '';
+
+            // Khớp SĐT
+            if (digitsQuery && cPhone.replace(/\D/g, '').includes(digitsQuery)) return true;
+            if (cPhone.toLowerCase().includes(normQuery)) return true;
+
+            // Khớp Mã KH
+            if (cId.toLowerCase().includes(normQuery)) return true;
+
+            // Khớp Tên (không dấu)
+            const normName = this.removeAccents(cName);
+            if (normName.includes(normQuery)) return true;
+
+            // Khớp Địa chỉ (không dấu)
+            if (cAddr && this.removeAccents(cAddr).includes(normQuery)) return true;
+
+            return false;
+        });
+
+        // Điểm ưu tiên sắp xếp kết quả:
+        // 1. Trùng khớp chính xác SĐT hoặc Tên
+        // 2. Bắt đầu bằng query
+        // 3. Ưu tiên số lượt mua / điểm / chi tiêu
+        matches.sort((a, b) => {
+            const aNormPhone = (a.phone || '').replace(/\D/g, '');
+            const bNormPhone = (b.phone || '').replace(/\D/g, '');
+            const aNormName = this.removeAccents(a.name || '');
+            const bNormName = this.removeAccents(b.name || '');
+
+            if (digitsQuery) {
+                const aExact = aNormPhone === digitsQuery;
+                const bExact = bNormPhone === digitsQuery;
+                if (aExact && !bExact) return -1;
+                if (!aExact && bExact) return 1;
+
+                const aStarts = aNormPhone.startsWith(digitsQuery);
+                const bStarts = bNormPhone.startsWith(digitsQuery);
+                if (aStarts && !bStarts) return -1;
+                if (!aStarts && bStarts) return 1;
+            }
+
+            const aNameStarts = aNormName.startsWith(normQuery);
+            const bNameStarts = bNormName.startsWith(normQuery);
+            if (aNameStarts && !bNameStarts) return -1;
+            if (!aNameStarts && bNameStarts) return 1;
+
+            const aScore = (a.ordersCount || 0) * 10 + (a.points || 0);
+            const bScore = (b.ordersCount || 0) * 10 + (b.points || 0);
+            return bScore - aScore;
+        });
+
+        const topMatches = matches.slice(0, 10);
+        this.customerSearchResultsList = topMatches;
+        this.customerSearchHighlightedIndex = topMatches.length > 0 ? 0 : -1;
+
+        if (topMatches.length === 0) {
+            resultsEl.innerHTML = `
+                <div class="p-3 text-center text-xs text-slate-500">
+                    <p class="font-medium text-slate-700">Không tìm thấy khách hàng nào khớp với "<b>${this.escapeHtml(rawQuery)}</b>"</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Tiếp tục nhập để bán và hệ thống sẽ tự động lưu khách mới khi thanh toán</p>
+                </div>
+            `;
+            resultsEl.classList.remove('hidden');
+            return;
+        }
+
+        let html = `
+            <div class="px-2.5 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center border-b border-slate-100">
+                <span>Tìm thấy ${matches.length} khách hàng (Dùng ↑↓ để chọn, Enter để điền)</span>
+                <span class="text-[9px] text-slate-400 font-normal">Esc để đóng</span>
+            </div>
+            <div class="py-1">
+        `;
+
+        topMatches.forEach((cust, idx) => {
+            const isHighlighted = idx === this.customerSearchHighlightedIndex;
+            const pts = cust.points || 0;
+            const tier = Store.getCustomerTier(pts);
+            const phoneDisplay = cust.phone ? cust.phone : 'Chưa có SĐT';
+            const orders = cust.ordersCount || 0;
+
+            html += `
+                <div class="customer-search-item px-3 py-2 cursor-pointer transition flex items-center justify-between text-xs ${isHighlighted ? 'bg-emerald-50 text-emerald-950 font-medium' : 'hover:bg-slate-50 text-slate-800'}"
+                     data-index="${idx}"
+                     onclick="POSModule.selectCustomerByIndex(${idx})">
+                    <div class="flex-1 min-w-0 mr-2">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold text-slate-900">${this.escapeHtml(cust.name || 'Khách chưa đặt tên')}</span>
+                            <span class="font-mono text-[11px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">${phoneDisplay}</span>
+                            <span class="px-1.5 py-0.2 rounded text-[10px] font-bold border ${tier.badge}">${tier.icon} ${tier.name}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                            <span class="text-amber-800 font-semibold"><i data-lucide="star" class="w-3 h-3 inline"></i> ${pts} điểm</span>
+                            ${orders > 0 ? `<span>• ${orders} lượt mua</span>` : ''}
+                            ${cust.address ? `<span class="truncate max-w-[200px]" title="${this.escapeHtml(cust.address)}">• ${this.escapeHtml(cust.address)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <span class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-100">Chọn</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        resultsEl.innerHTML = html;
+        resultsEl.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    selectCustomerByIndex(idx) {
+        if (!this.customerSearchResultsList || !this.customerSearchResultsList[idx]) return;
+        const cust = this.customerSearchResultsList[idx];
+        this.applySelectedCustomer(cust);
+    },
+
+    applySelectedCustomer(cust) {
+        if (!cust) return;
+        const phoneInput = document.getElementById('pos-customer-phone');
+        const nameInput = document.getElementById('pos-customer-name');
+        const clearBtn = document.getElementById('pos-clear-customer-btn');
+        const resultsEl = document.getElementById('pos-customer-search-results');
+
+        this.selectedCustomerId = cust.id || '';
+        if (phoneInput) phoneInput.value = cust.phone || '';
+        if (nameInput) nameInput.value = cust.name || '';
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        if (resultsEl) resultsEl.classList.add('hidden');
+
+        this.customerSearchResultsList = [];
+        this.customerSearchHighlightedIndex = -1;
+
+        this.updatePointsPreview();
+
+        // Focus sang ô ghi chú dặn dò bệnh nhân
+        document.getElementById('pos-customer-note')?.focus();
+    },
+
+    clearCustomer() {
+        const phoneInput = document.getElementById('pos-customer-phone');
+        const nameInput = document.getElementById('pos-customer-name');
+        const noteInput = document.getElementById('pos-customer-note');
+        const clearBtn = document.getElementById('pos-clear-customer-btn');
+        const resultsEl = document.getElementById('pos-customer-search-results');
+
+        this.selectedCustomerId = '';
+        if (phoneInput) phoneInput.value = '';
+        if (nameInput) nameInput.value = '';
+        if (noteInput) noteInput.value = '';
+        if (clearBtn) clearBtn.classList.add('hidden');
+        if (resultsEl) resultsEl.classList.add('hidden');
+
+        this.customerSearchResultsList = [];
+        this.customerSearchHighlightedIndex = -1;
+
+        this.updatePointsPreview();
+        phoneInput?.focus();
+    },
+
+    handleCustomerKeydown(e) {
+        const resultsEl = document.getElementById('pos-customer-search-results');
+        if (!resultsEl || resultsEl.classList.contains('hidden') || this.customerSearchResultsList.length === 0) {
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.customerSearchHighlightedIndex = (this.customerSearchHighlightedIndex + 1) % this.customerSearchResultsList.length;
+            this.updateCustomerHighlight();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.customerSearchHighlightedIndex = (this.customerSearchHighlightedIndex - 1 + this.customerSearchResultsList.length) % this.customerSearchResultsList.length;
+            this.updateCustomerHighlight();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (this.customerSearchHighlightedIndex >= 0 && this.customerSearchHighlightedIndex < this.customerSearchResultsList.length) {
+                this.selectCustomerByIndex(this.customerSearchHighlightedIndex);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            resultsEl.classList.add('hidden');
+        }
+    },
+
+    updateCustomerHighlight() {
+        const items = document.querySelectorAll('#pos-customer-search-results .customer-search-item');
+        items.forEach((item, idx) => {
+            if (idx === this.customerSearchHighlightedIndex) {
+                item.classList.add('bg-emerald-50', 'text-emerald-950', 'font-medium');
+                item.classList.remove('hover:bg-slate-50', 'text-slate-800');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('bg-emerald-50', 'text-emerald-950', 'font-medium');
+                item.classList.add('hover:bg-slate-50', 'text-slate-800');
+            }
+        });
+    },
+
     handleCustomerPhoneChange(phone) {
         if (!phone) {
             this.updatePointsPreview();
@@ -716,6 +1038,7 @@ const POSModule = {
         const cust = Store.getCustomerByPhone(phone);
         const nameInput = document.getElementById('pos-customer-name');
         if (cust) {
+            this.selectedCustomerId = cust.id || '';
             if (nameInput && (!nameInput.value.trim() || nameInput.value === 'Khách hàng' || nameInput.value === 'Khách vãng lai')) {
                 nameInput.value = cust.name;
             }
@@ -755,6 +1078,7 @@ const POSModule = {
 
         // Tạo đối tượng đơn hàng
         const newOrder = {
+            customerId: this.selectedCustomerId || '',
             customerName: custName || 'Khách vãng lai',
             customerPhone: custPhone || '',
             note: custNote || '',
@@ -801,6 +1125,9 @@ const POSModule = {
         this.discount = 0;
         this.pointsUsed = 0;
         this.customerCash = 0;
+        this.selectedCustomerId = '';
+        this.customerSearchResultsList = [];
+        this.customerSearchHighlightedIndex = -1;
         document.getElementById('pos-discount-input').value = 0;
         const ptsInput = document.getElementById('pos-points-used-input');
         if (ptsInput) ptsInput.value = 0;
@@ -813,6 +1140,8 @@ const POSModule = {
         document.getElementById('pos-customer-name').value = '';
         document.getElementById('pos-customer-phone').value = '';
         document.getElementById('pos-customer-note').value = '';
+        document.getElementById('pos-clear-customer-btn')?.classList.add('hidden');
+        document.getElementById('pos-customer-search-results')?.classList.add('hidden');
         this.renderCart();
         this.updatePointsPreview();
         document.getElementById('pos-search-input')?.focus();
