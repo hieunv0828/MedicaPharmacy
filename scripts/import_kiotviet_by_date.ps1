@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Import dữ liệu từ file Excel KiotViet theo ngày tùy chọn (Append an toàn, chống trùng lặp)
 .DESCRIPTION
@@ -94,9 +94,10 @@ try {
 
     function Get-CellValue($cell, $strArr) {
         if ($null -eq $cell) { return '' }
+        if ($cell.is -and $cell.is.t) { return $cell.is.t }
         $v = $cell.v
         if ($null -eq $v -or $v -eq '') { return '' }
-        if ($cell.t -eq 's') { return $strArr[[int]$v] }
+        if ($cell.t -eq 's' -and $strArr -and $strArr.Count -gt [int]$v) { return $strArr[[int]$v] }
         return $v
     }
 
@@ -117,17 +118,24 @@ try {
         } catch { return '' }
     }
 
-    # Tự động nhận diện loại file
+    # Tự động nhận diện loại file (qua tên file, header cột và nội dung)
     $detectedType = $Type
     if ($detectedType -eq "auto") {
+        $fileName = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
+        $headerText = ""
+        if ($rows.Count -gt 0) {
+            $headerText = ($rows[0].c | ForEach-Object { Get-CellValue $_ $strings }) -join " "
+        }
         $sampleText = ($strings | Select-Object -First 100) -join " "
-        if ($sampleText -match "Loại thu chi|Sổ quỹ|Người nộp/nhận") {
+        $allCheck = "$fileName $headerText $sampleText"
+
+        if ($allCheck -match "SoQuy|Sổ quỹ|Mã phiếu|Loại thu chi|Người nộp/nhận") {
             $detectedType = "vouchers"
-        } elseif ($sampleText -match "Hóa đơn|Mã hóa đơn|Bán hàng|Chi tiết hóa đơn") {
+        } elseif ($allCheck -match "HoaDon|Hóa đơn|Mã hóa đơn|Bán hàng|Chi tiết hóa đơn") {
             $detectedType = "orders"
-        } elseif ($sampleText -match "Trả hàng nhập|Mã trả hàng nhập") {
+        } elseif ($allCheck -match "TraHang|Trả hàng nhập|Mã trả hàng nhập|THN") {
             $detectedType = "returns"
-        } elseif ($sampleText -match "Nhập hàng|Mã nhập hàng") {
+        } elseif ($allCheck -match "NhapHang|Nhập hàng|Mã nhập hàng") {
             $detectedType = "stockin"
         } else {
             $detectedType = "orders"
@@ -161,6 +169,26 @@ try {
         $existOrderMap = @{}
         foreach ($o in $existingOrders) { if ($o.id) { $existOrderMap[$o.id] = $true } }
 
+        # Build header mapping from Row 0
+        $colMap = @{}
+        if ($rows.Count -gt 0) {
+            foreach ($c in $rows[0].c) {
+                $col = $c.r -replace '\d+', ''
+                $hName = (Get-CellValue $c $strings).Trim()
+                if ($hName) { $colMap[$hName] = $col }
+            }
+        }
+
+        function Get-ColVal($cells, $names, $fallbackCol, $strings) {
+            foreach ($n in $names) {
+                if ($colMap.ContainsKey($n)) {
+                    $c = $cells[$colMap[$n]]
+                    if ($null -ne $c) { return Get-CellValue $c $strings }
+                }
+            }
+            return Get-CellValue $cells[$fallbackCol] $strings
+        }
+
         # Gom các dòng thành các đơn hàng
         $ordersDict = [System.Collections.Generic.Dictionary[string, object]]::new()
         $skipFirst = $true
@@ -170,10 +198,10 @@ try {
             $cells = @{}
             foreach ($c in $row.c) { $col = $c.r -replace '\d+', ''; $cells[$col] = $c }
 
-            $invId = Get-CellValue $cells['B'] $strings
-            if ([string]::IsNullOrEmpty($invId)) { continue }
+            $invId = Get-ColVal $cells @('Mã hóa đơn') 'B' $strings
+            if ([string]::IsNullOrEmpty($invId) -or $invId -eq 'Mã hóa đơn') { continue }
 
-            $timeRaw     = Get-CellValue $cells['C'] $strings
+            $timeRaw     = Get-ColVal $cells @('Thời gian', 'Thời gian tạo') 'C' $strings
             $createdAt   = Convert-OADate $timeRaw
 
             # Lọc theo ngày nếu có chỉ định
@@ -186,21 +214,21 @@ try {
                 continue
             }
 
-            $custId      = Get-CellValue $cells['G'] $strings
-            $custName    = Get-CellValue $cells['H'] $strings
-            $custPhone   = Get-CellValue $cells['J'] $strings
-            $seller      = Get-CellValue $cells['P'] $strings
-            $note        = Get-CellValue $cells['S'] $strings
-            $finalAmt    = Get-CellValue $cells['V'] $strings
-            $cashAmt     = Get-CellValue $cells['X'] $strings
-            $transferAmt = Get-CellValue $cells['AA'] $strings
+            $custId      = Get-ColVal $cells @('Mã khách hàng') 'G' $strings
+            $custName    = Get-ColVal $cells @('Tên khách hàng') 'H' $strings
+            $custPhone   = Get-ColVal $cells @('Điện thoại', 'Số điện thoại') 'J' $strings
+            $seller      = Get-ColVal $cells @('Người bán') 'P' $strings
+            $note        = Get-ColVal $cells @('Ghi chú') 'S' $strings
+            $finalAmt    = Get-ColVal $cells @('Khách cần trả', 'Tổng tiền hàng') 'V' $strings
+            $cashAmt     = Get-ColVal $cells @('Tiền mặt') 'X' $strings
+            $transferAmt = Get-ColVal $cells @('Chuyển khoản') 'AA' $strings
 
-            $medCode     = Get-CellValue $cells['AE'] $strings
-            $medName     = Get-CellValue $cells['AF'] $strings
-            $unit        = Get-CellValue $cells['AG'] $strings
-            $qty         = Get-CellValue $cells['AH'] $strings
-            $price       = Get-CellValue $cells['AI'] $strings
-            $itemTotal   = Get-CellValue $cells['AJ'] $strings
+            $medCode     = Get-ColVal $cells @('Mã hàng') 'AE' $strings
+            $medName     = Get-ColVal $cells @('Tên hàng') 'AG' $strings
+            $unit        = Get-ColVal $cells @('ĐVT') 'AI' $strings
+            $qty         = Get-ColVal $cells @('Số lượng') 'AK' $strings
+            $price       = Get-ColVal $cells @('Đơn giá', 'Giá bán') 'AL' $strings
+            $itemTotal   = Get-ColVal $cells @('Thành tiền') 'AP' $strings
 
             # Xác định hình thức thanh toán
             $pMethod = 'cash'
@@ -272,6 +300,9 @@ try {
                             paymentMethod = $o.paymentMethod
                             refId         = $o.id
                             createdAt     = $o.createdAt
+                            targetType    = 'customer'
+                            targetName    = if ($o.customerName) { $o.customerName } else { 'Khách lẻ trực tiếp' }
+                            recipientName = if ($o.customerName) { $o.customerName } else { 'Khách lẻ trực tiếp' }
                             isAccounting  = $true
                         })
                     }
@@ -298,14 +329,57 @@ try {
     # ========================================================
     elseif ($detectedType -eq "vouchers") {
         $dataPath = "f:\MedicaPharmacy\data\vouchers_2026.json"
+        $ordersPath = "f:\MedicaPharmacy\data\orders_2026.json"
+
+        # Load orders for payment method and customer matching
+        $orderPayMap = @{}
+        if (Test-Path $ordersPath) {
+            $existingOrders = Get-Content $ordersPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($o in $existingOrders) {
+                if ($o.id) {
+                    $orderPayMap[$o.id] = @{
+                        paymentMethod = if ($o.paymentMethod) { $o.paymentMethod } else { 'cash' }
+                        customerName  = if ($o.customerName) { $o.customerName } else { 'Khách lẻ trực tiếp' }
+                    }
+                }
+            }
+        }
+
+        # Build header mapping from Row 0
+        $colMap = @{}
+        if ($rows.Count -gt 0) {
+            foreach ($c in $rows[0].c) {
+                $col = $c.r -replace '\d+', ''
+                $hName = (Get-CellValue $c $strings).Trim()
+                if ($hName) { $colMap[$hName] = $col }
+            }
+        }
+
+        function Get-ColValV($cells, $names, $fallbackCol, $strings) {
+            foreach ($n in $names) {
+                if ($colMap.ContainsKey($n)) {
+                    $c = $cells[$colMap[$n]]
+                    if ($null -ne $c) { return Get-CellValue $c $strings }
+                }
+            }
+            return Get-CellValue $cells[$fallbackCol] $strings
+        }
+
         $existing = @()
         if (Test-Path $dataPath) {
             $existing = Get-Content $dataPath -Raw -Encoding UTF8 | ConvertFrom-Json
         }
         $existMap = @{}
-        foreach ($v in $existing) { if ($v.id) { $existMap[$v.id] = $true } }
+        $vouchersList = [System.Collections.Generic.List[object]]::new()
+        foreach ($v in $existing) {
+            if ($v.id) {
+                $existMap[$v.id] = $v
+                $vouchersList.Add($v)
+            }
+        }
 
-        $newVouchers = [System.Collections.Generic.List[object]]::new()
+        $newAddedCount = 0
+        $updatedCount = 0
         $skipFirst = $true
 
         foreach ($row in $rows) {
@@ -313,49 +387,103 @@ try {
             $cells = @{}
             foreach ($c in $row.c) { $col = $c.r -replace '\d+', ''; $cells[$col] = $c }
 
-            $vId     = Get-CellValue $cells['A'] $strings
-            $timeRaw = Get-CellValue $cells['B'] $strings
-            $loaiTC  = Get-CellValue $cells['C'] $strings
-            $person  = Get-CellValue $cells['D'] $strings
-            $amtRaw  = Get-CellValue $cells['E'] $strings
+            $vId     = Get-ColValV $cells @('Mã phiếu') 'A' $strings
+            $timeRaw = Get-ColValV $cells @('Thời gian') 'B' $strings
+            $loaiTC  = Get-ColValV $cells @('Loại thu chi') 'C' $strings
+            $person  = Get-ColValV $cells @('Người nộp/nhận') 'D' $strings
+            $amtRaw  = Get-ColValV $cells @('Giá trị') 'E' $strings
 
-            if ([string]::IsNullOrEmpty($vId)) { continue }
+            if ([string]::IsNullOrEmpty($vId) -or $vId -eq 'Mã phiếu') { continue }
 
             $createdAt = Convert-OADate $timeRaw
             if ($targetDateStr -and (-not $createdAt.StartsWith($targetDateStr))) {
                 continue
             }
 
-            if ($existMap.ContainsKey($vId)) {
-                continue
+            $amt = [Math]::Abs([Math]::Round([double]$amtRaw))
+            $vType = if ($vId -match '^(CTM|CNH|CTD|PC|PCPN|TTTH)' -or $loaiTC -match 'Phiếu chi') { 'payment' } else { 'receipt' }
+            
+            # Khớp mã chứng từ gốc (refId)
+            $refId = ''
+            if ($vId -match '^TT(HD\w+)') { $refId = $matches[1] }
+            elseif ($vId -match '^PC(PN\w+)') { $refId = $matches[1] }
+            elseif ($vId -match '^PT(THN\w+)') { $refId = $matches[1] }
+            elseif ($vId -match '^TT(TH\w+)') { $refId = $matches[1] }
+
+            # Xác định hình thức thanh toán
+            $pMethod = 'cash'
+            if ($refId -and $orderPayMap.ContainsKey($refId)) {
+                $pMethod = $orderPayMap[$refId].paymentMethod
+            } elseif ($vId -match '^(CNH|TNH|CK)' -or $vId -match 'CK$') {
+                $pMethod = 'transfer'
             }
 
-            $amt = [Math]::Abs([Math]::Round([double]$amtRaw))
-            $vType = if ($vId -match '^(CTM|CNH|CTD|PC|PCPN)' -or $loaiTC -match 'Phiếu chi') { 'payment' } else { 'receipt' }
-            $pMethod = if ($vId -match '^(CNH|TNH|CK)' -or $vId -match 'CK$') { 'transfer' } else { 'cash' }
+            # Xác định đối tượng nộp/nhận
+            $targetType = 'other'
+            $targetName = if ($person) { $person } else { '---' }
+            $recipientName = $targetName
+
+            if ($refId -and $refId.StartsWith('HD')) {
+                $targetType = 'customer'
+                if ($orderPayMap.ContainsKey($refId)) {
+                    $targetName = $orderPayMap[$refId].customerName
+                    $recipientName = $targetName
+                } else {
+                    $targetName = 'Khách lẻ trực tiếp'
+                    $recipientName = 'Khách lẻ trực tiếp'
+                }
+            } elseif ($refId -and $refId.StartsWith('PN')) {
+                $targetType = 'supplier'
+            }
+
             $cat = $loaiTC -replace '^Phiếu thu ', '' -replace '^Phiếu chi ', ''
             if ([string]::IsNullOrEmpty($cat)) { $cat = 'Khác' }
 
-            $newVouchers.Add([PSCustomObject]@{
-                id            = $vId
-                type          = $vType
-                amount        = $amt
-                category      = $cat
-                reason        = $loaiTC
-                person        = $person
-                paymentMethod = $pMethod
-                refId         = ''
-                createdAt     = $createdAt
-                isAccounting  = $true
-            })
-            $existMap[$vId] = $true
+            if ($existMap.ContainsKey($vId)) {
+                # Cập nhật phiếu hiện có
+                $existingVoucher = $existMap[$vId]
+                $existingVoucher.type = $vType
+                $existingVoucher.amount = $amt
+                $existingVoucher.category = $cat
+                $existingVoucher.reason = $loaiTC
+                $existingVoucher.person = $person
+                $existingVoucher.paymentMethod = $pMethod
+                $existingVoucher.refId = $refId
+                $existingVoucher.createdAt = $createdAt
+                $existingVoucher.targetType = $targetType
+                $existingVoucher.targetName = $targetName
+                $existingVoucher.recipientName = $recipientName
+                $updatedCount++
+            } else {
+                # Thêm phiếu mới
+                $newObj = [PSCustomObject]@{
+                    id            = $vId
+                    type          = $vType
+                    amount        = $amt
+                    category      = $cat
+                    reason        = $loaiTC
+                    person        = $person
+                    paymentMethod = $pMethod
+                    refId         = $refId
+                    createdAt     = $createdAt
+                    targetType    = $targetType
+                    targetName    = $targetName
+                    recipientName = $recipientName
+                    isAccounting  = $true
+                }
+                $vouchersList.Add($newObj)
+                $existMap[$vId] = $newObj
+                $newAddedCount++
+            }
         }
 
-        if ($newVouchers.Count -gt 0) {
-            $combined = @($newVouchers) + @($existing) | Sort-Object { [DateTime]$_.createdAt } -Descending
-            [System.IO.File]::WriteAllText($dataPath, ($combined | ConvertTo-Json -Depth 10), [System.Text.Encoding]::UTF8)
+        if ($newAddedCount -gt 0 -or $updatedCount -gt 0) {
+            $sorted = @($vouchersList) | Sort-Object { [DateTime]$_.createdAt } -Descending
+            [System.IO.File]::WriteAllText($dataPath, ($sorted | ConvertTo-Json -Depth 10), [System.Text.Encoding]::UTF8)
             Write-Host "==========================================================" -ForegroundColor Green
-            Write-Host ">>> THÀNH CÔNG: ĐÃ IMPORT $($newVouchers.Count) PHIẾU THU/CHI MỚI VÀO SỔ QUỸ!" -ForegroundColor Green
+            Write-Host ">>> THÀNH CÔNG: ĐÃ IMPORT VÀO SỔ QUỸ!" -ForegroundColor Green
+            Write-Host ">>> Số phiếu thêm mới: $newAddedCount" -ForegroundColor Green
+            Write-Host ">>> Số phiếu cập nhật: $updatedCount" -ForegroundColor Green
             Write-Host "==========================================================" -ForegroundColor Green
         } else {
             Write-Host "Không có phiếu thu chi mới nào cần import (đã tồn tại hoặc không khớp ngày)." -ForegroundColor Yellow
