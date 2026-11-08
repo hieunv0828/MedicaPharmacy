@@ -121,7 +121,6 @@ const ReportsModule = {
                 cashOrdersCount++;
             } else {
                 transferRevenue += rawAmount;
-                // Nếu đơn chuyển khoản nhưng có trả hàng, tiền trả được hoàn từ quỹ tiền mặt
                 if (refundAmount > 0) {
                     cashRevenue -= refundAmount;
                 }
@@ -132,7 +131,6 @@ const ReportsModule = {
             let orderCost = 0;
             if (o.items && Array.isArray(o.items)) {
                 o.items.forEach(item => {
-                    // Số lượng đã hoàn trả của món này
                     const returnedQty = (o.returns || []).reduce((sum, r) => {
                         const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
                         return sum + (ri ? ri.quantity : 0);
@@ -147,7 +145,6 @@ const ReportsModule = {
                     const lineCost = unitCost * netQty;
                     orderCost += lineCost;
 
-                    // Cộng dồn vào top thuốc (chỉ cộng số lượng thực bán)
                     if (netQty > 0) {
                         const medId = item.medicineId || item.medicineName;
                         if (!medicineSalesMap[medId]) {
@@ -184,14 +181,68 @@ const ReportsModule = {
             }
         });
 
+        // 2. Thu thập các khoản khách hàng trả hàng hoàn tiền trong tháng từ Sổ Quỹ
+        const allVouchers = (typeof Store.getVouchers === 'function') ? Store.getVouchers() : [];
+        const monthReturnVouchers = allVouchers.filter(v => 
+            !v.isCancelled && 
+            v.type === 'payment' && 
+            (
+                (v.category && (v.category.includes('trả khách') || v.category.includes('trả lại hàng'))) || 
+                (v.reason && (v.reason.includes('trả khách') || v.reason.includes('trả lại hàng'))) || 
+                (v.id && v.id.startsWith('TTTH'))
+            ) &&
+            v.createdAt && v.createdAt.startsWith(monthPrefix)
+        );
+
+        let totalCustomerRefund = 0;
+        let cashCustomerRefund = 0;
+        let transferCustomerRefund = 0;
+
+        monthReturnVouchers.forEach(v => {
+            const amt = Math.abs(Number(v.amount) || 0);
+            totalCustomerRefund += amt;
+            const isCash = v.paymentMethod === 'cash';
+            if (isCash) {
+                cashCustomerRefund += amt;
+            } else {
+                transferCustomerRefund += amt;
+            }
+
+            const dateStr = v.createdAt.slice(0, 10);
+            if (dailyMap[dateStr]) {
+                dailyMap[dateStr].customerRefund = (dailyMap[dateStr].customerRefund || 0) + amt;
+                if (isCash) {
+                    dailyMap[dateStr].cashRefund = (dailyMap[dateStr].cashRefund || 0) + amt;
+                } else {
+                    dailyMap[dateStr].transferRefund = (dailyMap[dateStr].transferRefund || 0) + amt;
+                }
+                if (!dailyMap[dateStr].returnVouchers) dailyMap[dateStr].returnVouchers = [];
+                dailyMap[dateStr].returnVouchers.push(v);
+            }
+        });
+
+        // Áp dụng khoản giảm trừ doanh thu do khách trả hàng vào từng ngày
+        Object.values(dailyMap).forEach(d => {
+            const refund = d.customerRefund || 0;
+            d.grossRevenue = d.totalRevenue;
+            d.totalRevenue = Math.max(0, d.totalRevenue - refund);
+            d.cashRevenue = Math.max(0, d.cashRevenue - (d.cashRefund || 0));
+            d.transferRevenue = Math.max(0, d.transferRevenue - (d.transferRefund || 0));
+            d.profit = d.totalRevenue - d.totalCost;
+        });
+
+        const grossRevenue = totalRevenue;
+        totalRevenue = Math.max(0, grossRevenue - totalCustomerRefund);
+        cashRevenue = Math.max(0, cashRevenue - cashCustomerRefund);
+        transferRevenue = Math.max(0, transferRevenue - transferCustomerRefund);
         const grossProfit = totalRevenue - totalCost;
         const profitMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : 0;
         const avgOrderValue = monthOrders.length > 0 ? Math.round(totalRevenue / monthOrders.length) : 0;
 
         // Chi phí hoạt động & thu nhập khác từ sổ quỹ thu chi (có hạch toán kinh doanh)
-        const allVouchers = (typeof Store.getVouchers === 'function') ? Store.getVouchers() : [];
         const monthVouchers = allVouchers.filter(v => 
             v.isAccounting !== false && 
+            !v.isCancelled &&
             v.createdAt && 
             v.createdAt.startsWith(monthPrefix)
         );
@@ -200,10 +251,38 @@ const ReportsModule = {
         let otherIncome = 0;
 
         monthVouchers.forEach(v => {
+            const amt = Math.abs(Number(v.amount) || 0);
+            const cat = (v.category || '').toLowerCase();
+            const reason = (v.reason || '').toLowerCase();
+            const vId = (v.id || '');
+
+            // Bỏ qua chuyển/rút nội bộ quỹ
+            if (cat.includes('chuyển/rút') || cat.includes('chuyển rút') || reason.includes('chuyển/rút')) {
+                return;
+            }
+
             if (v.type === 'payment') {
-                operatingExpenses += (v.amount || 0);
+                // Bỏ qua tiền trả nhà cung cấp (vì tiền vốn nhập hàng đã tính vào COGS qua totalCost của đơn bán)
+                if (cat.includes('tiền trả ncc') || cat.includes('chi tiền hàng') || vId.startsWith('PCPN') || (v.refId && v.refId.startsWith('PN'))) {
+                    return;
+                }
+                // Bỏ qua tiền trả khách (vì đã giảm trừ trực tiếp vào Doanh Thu Bán Hàng)
+                if (cat.includes('trả khách') || cat.includes('trả lại hàng') || vId.startsWith('TTTH') || reason.includes('trả khách')) {
+                    return;
+                }
+                // Chi phí vận hành thực tế: Mặt bằng, điện nước, lương/CLNV, ship, VPP...
+                operatingExpenses += amt;
             } else if (v.type === 'receipt') {
-                otherIncome += (v.amount || 0);
+                // Bỏ qua tiền bán lẻ thuốc / tiền khách trả (vì đã tính vào doanh thu từ hóa đơn bán)
+                if (cat.includes('tiền khách trả') || cat.includes('tiền bán thuốc') || vId.startsWith('TTHD')) {
+                    return;
+                }
+                // Bỏ qua tiền NCC hoàn trả từ phiếu trả hàng nhập
+                if (cat.includes('ncc hoàn trả') || vId.startsWith('PTTHN')) {
+                    return;
+                }
+                // Thu nhập khác: Chiết khấu, trả thưởng...
+                otherIncome += amt;
             }
         });
 
@@ -219,6 +298,9 @@ const ReportsModule = {
         return {
             month,
             year,
+            grossRevenue,
+            totalCustomerRefund,
+            customerRefundCount: monthReturnVouchers.length,
             totalRevenue,
             cashRevenue,
             transferRevenue,
@@ -348,7 +430,24 @@ const ReportsModule = {
             dayRevenue += i.revenue;
             dayCost += i.cost;
         });
-        const dayProfit = dayRevenue - dayCost;
+
+        // Tìm các phiếu hoàn tiền khách trả hàng trong ngày
+        const allVouchers = (typeof Store.getVouchers === 'function') ? Store.getVouchers() : [];
+        const dayReturnVouchers = allVouchers.filter(v => 
+            !v.isCancelled && 
+            v.type === 'payment' && 
+            (
+                (v.category && (v.category.includes('trả khách') || v.category.includes('trả lại hàng'))) || 
+                (v.reason && (v.reason.includes('trả khách') || v.reason.includes('trả lại hàng'))) || 
+                (v.id && v.id.startsWith('TTTH'))
+            ) &&
+            v.createdAt && v.createdAt.startsWith(dateStr)
+        );
+
+        const dayCustomerRefund = dayReturnVouchers.reduce((sum, v) => sum + Math.abs(Number(v.amount) || 0), 0);
+        const dayGrossRevenue = dayRevenue;
+        const dayNetRevenue = Math.max(0, dayGrossRevenue - dayCustomerRefund);
+        const dayProfit = dayNetRevenue - dayCost;
 
         const elOrderCount = document.getElementById('rep-detail-order-count');
         const elItemCount = document.getElementById('rep-detail-item-count');
@@ -356,11 +455,62 @@ const ReportsModule = {
         const elCost = document.getElementById('rep-detail-day-cost');
         const elProfit = document.getElementById('rep-detail-day-profit');
 
-        if (elOrderCount) elOrderCount.innerText = `${dayOrders.length} hóa đơn`;
+        if (elOrderCount) {
+            if (dayReturnVouchers.length > 0) {
+                elOrderCount.innerHTML = `${dayOrders.length} hóa đơn<span class="text-[10px] text-rose-600 font-semibold block font-sans">(+ ${dayReturnVouchers.length} phiếu trả hàng)</span>`;
+            } else {
+                elOrderCount.innerText = `${dayOrders.length} hóa đơn`;
+            }
+        }
         if (elItemCount) elItemCount.innerText = `${itemsList.length} mặt hàng`;
-        if (elRevenue) elRevenue.innerText = AppUtils.formatVND(dayRevenue);
+        if (elRevenue) {
+            if (dayCustomerRefund > 0) {
+                elRevenue.innerHTML = `${AppUtils.formatVND(dayNetRevenue)}<span class="text-[10px] text-rose-600 font-semibold block font-sans">Bán: ${AppUtils.formatVND(dayGrossRevenue)} | Trả: -${AppUtils.formatVND(dayCustomerRefund)}</span>`;
+            } else {
+                elRevenue.innerText = AppUtils.formatVND(dayNetRevenue);
+            }
+        }
         if (elCost) elCost.innerText = AppUtils.formatVND(dayCost);
         if (elProfit) elProfit.innerText = AppUtils.formatVND(dayProfit);
+
+        // Hiển thị danh sách phiếu khách trả hàng trong ngày nếu có
+        const returnsBox = document.getElementById('rep-detail-day-returns-box');
+        if (returnsBox) {
+            if (dayReturnVouchers.length > 0) {
+                let rHtml = `
+                    <div class="p-3 sm:p-3.5 bg-rose-50/90 text-xs">
+                        <div class="flex items-center justify-between text-rose-900 font-bold mb-2">
+                            <div class="flex items-center gap-1.5">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i>
+                                <span class="uppercase tracking-wide">Phiếu Khách Trả Hàng Hoàn Tiền Trong Ngày (${dayReturnVouchers.length} phiếu)</span>
+                            </div>
+                            <span class="text-rose-700 font-mono font-black text-sm">Tổng hoàn tiền: -${AppUtils.formatVND(dayCustomerRefund)}</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                `;
+                dayReturnVouchers.forEach(v => {
+                    const method = v.paymentMethod === 'transfer' ? 'Chuyển khoản' : 'Tiền mặt';
+                    const time = v.createdAt ? v.createdAt.slice(11, 16) : '';
+                    rHtml += `
+                        <div class="bg-white p-2.5 rounded-lg border border-rose-200 shadow-sm flex items-center justify-between gap-2">
+                            <div>
+                                <div class="font-mono font-bold text-slate-800">${v.id} <span class="text-[10px] text-slate-400 font-normal">(${time})</span></div>
+                                <div class="text-[11px] text-slate-600 truncate max-w-[180px]">${v.person || v.targetName || 'Khách lẻ'} • <span class="text-amber-800 font-medium">${method}</span></div>
+                            </div>
+                            <div class="font-mono font-black text-rose-700 text-right whitespace-nowrap">
+                                -${AppUtils.formatVND(Math.abs(Number(v.amount) || 0))}
+                            </div>
+                        </div>
+                    `;
+                });
+                rHtml += `</div></div>`;
+                returnsBox.innerHTML = rHtml;
+                returnsBox.classList.remove('hidden');
+            } else {
+                returnsBox.innerHTML = '';
+                returnsBox.classList.add('hidden');
+            }
+        }
 
         const tbody = document.getElementById('rep-selected-date-items-tbody');
         if (!tbody) return;
@@ -430,7 +580,13 @@ const ReportsModule = {
         const cashRatio = r.totalRevenue > 0 ? ((r.cashRevenue / r.totalRevenue) * 100).toFixed(1) : 0;
         const transRatio = r.totalRevenue > 0 ? ((r.transferRevenue / r.totalRevenue) * 100).toFixed(1) : 0;
 
-        if (elTotalRev) elTotalRev.innerText = AppUtils.formatVND(r.totalRevenue);
+        if (elTotalRev) {
+            if (r.totalCustomerRefund > 0) {
+                elTotalRev.innerHTML = `${AppUtils.formatVND(r.totalRevenue)}<span class="text-[11px] text-emerald-200 block font-normal mt-0.5 font-sans">Bán: ${AppUtils.formatVND(r.grossRevenue)} • Trả: -${AppUtils.formatVND(r.totalCustomerRefund)}</span>`;
+            } else {
+                elTotalRev.innerText = AppUtils.formatVND(r.totalRevenue);
+            }
+        }
         if (elCashRev) elCashRev.innerText = AppUtils.formatVND(r.cashRevenue);
         if (elCashRatio) elCashRatio.innerText = `${cashRatio}% (${r.cashOrdersCount} đơn)`;
         if (elTransRev) elTransRev.innerText = AppUtils.formatVND(r.transferRevenue);
@@ -443,7 +599,9 @@ const ReportsModule = {
             }
             elProfitMargin.innerText = note;
         }
-        if (elTotalOrders) elTotalOrders.innerText = `${r.totalOrders} đơn`;
+        if (elTotalOrders) {
+            elTotalOrders.innerText = `${r.totalOrders} đơn bán${r.customerRefundCount > 0 ? ` • ${r.customerRefundCount} phiếu trả` : ' hoàn tất'}`;
+        }
         if (elAvgOrder) elAvgOrder.innerText = `TB: ${AppUtils.formatVND(r.avgOrderValue)} / đơn`;
     },
 
@@ -454,17 +612,33 @@ const ReportsModule = {
 
         let html = '';
         r.dailyBreakdown.forEach((row, idx) => {
-            const hasSales = row.totalRevenue > 0;
+            const hasSales = row.totalRevenue > 0 || (row.grossRevenue && row.grossRevenue > 0) || (row.customerRefund && row.customerRefund > 0);
             const isSelected = this.selectedDetailDate === row.fullDate;
+            const refundInfo = (row.customerRefund > 0)
+                ? `<div class="text-[10px] text-rose-600 font-semibold leading-tight">-${AppUtils.formatVND(row.customerRefund)} trả</div>`
+                : '';
+            const orderInfo = (row.returnVouchers && row.returnVouchers.length > 0)
+                ? `${row.orderCount} <span class="text-[10px] text-rose-600 font-normal block">(+${row.returnVouchers.length} trả)</span>`
+                : `${row.orderCount}`;
+
             html += `
                 <tr class="border-b border-slate-100 hover:bg-emerald-50/70 cursor-pointer transition text-sm ${isSelected ? 'bg-emerald-50 border-l-4 border-l-emerald-600' : (!hasSales ? 'text-slate-400 bg-slate-50/30' : '')}" onclick="ReportsModule.selectDateForDetails('${row.fullDate}')">
                     <td class="py-2.5 px-3 font-medium text-center font-mono">
                         <span class="font-bold ${isSelected ? 'text-emerald-700 underline' : 'text-slate-800'}">${row.dateStr}</span>
                     </td>
-                    <td class="py-2.5 px-3 text-center font-bold ${row.orderCount > 0 ? 'text-slate-800' : 'text-slate-300'}">${row.orderCount}</td>
-                    <td class="py-2.5 px-3 text-right font-medium text-amber-700">${AppUtils.formatVND(row.cashRevenue)}</td>
-                    <td class="py-2.5 px-3 text-right font-medium text-blue-700">${AppUtils.formatVND(row.transferRevenue)}</td>
-                    <td class="py-2.5 px-3 text-right font-bold text-emerald-700">${AppUtils.formatVND(row.totalRevenue)}</td>
+                    <td class="py-2.5 px-3 text-center font-bold ${row.orderCount > 0 ? 'text-slate-800' : 'text-slate-300'}">${orderInfo}</td>
+                    <td class="py-2.5 px-3 text-right font-medium text-amber-700">
+                        ${AppUtils.formatVND(row.cashRevenue)}
+                        ${row.cashRefund > 0 ? `<div class="text-[10px] text-rose-600 font-normal">-${AppUtils.formatVND(row.cashRefund)}</div>` : ''}
+                    </td>
+                    <td class="py-2.5 px-3 text-right font-medium text-blue-700">
+                        ${AppUtils.formatVND(row.transferRevenue)}
+                        ${row.transferRefund > 0 ? `<div class="text-[10px] text-rose-600 font-normal">-${AppUtils.formatVND(row.transferRefund)}</div>` : ''}
+                    </td>
+                    <td class="py-2.5 px-3 text-right font-bold text-emerald-700">
+                        ${AppUtils.formatVND(row.totalRevenue)}
+                        ${refundInfo}
+                    </td>
                     <td class="py-2.5 px-3 text-right text-slate-500 text-xs">${AppUtils.formatVND(row.totalCost)}</td>
                     <td class="py-2.5 px-3 text-right font-bold text-slate-800">${AppUtils.formatVND(row.profit)}</td>
                     <td class="py-2.5 px-3 text-center">
@@ -479,16 +653,22 @@ const ReportsModule = {
         tbody.innerHTML = html;
 
         if (tfoot) {
+            const refundSummary = (r.totalCustomerRefund > 0)
+                ? `<div class="text-[10px] text-rose-700 font-normal mt-0.5">Bán: ${AppUtils.formatVND(r.grossRevenue)} • Trả: -${AppUtils.formatVND(r.totalCustomerRefund)}</div>`
+                : '';
             tfoot.innerHTML = `
                 <tr class="bg-emerald-50 text-emerald-950 font-extrabold text-sm border-t-2 border-emerald-300">
                     <td class="py-3 px-3 text-center">TỔNG CỘNG THÁNG</td>
-                    <td class="py-3 px-3 text-center">${r.totalOrders} đơn</td>
+                    <td class="py-3 px-3 text-center">${r.totalOrders} đơn${r.customerRefundCount > 0 ? `<div class="text-[10px] text-rose-700 font-normal">(+${r.customerRefundCount} phiếu trả)</div>` : ''}</td>
                     <td class="py-3 px-3 text-right text-amber-800">${AppUtils.formatVND(r.cashRevenue)}</td>
                     <td class="py-3 px-3 text-right text-blue-800">${AppUtils.formatVND(r.transferRevenue)}</td>
-                    <td class="py-3 px-3 text-right text-emerald-800 text-base">${AppUtils.formatVND(r.totalRevenue)}</td>
+                    <td class="py-3 px-3 text-right text-emerald-800 text-base">
+                        ${AppUtils.formatVND(r.totalRevenue)}
+                        ${refundSummary}
+                    </td>
                     <td class="py-3 px-3 text-right text-slate-700">${AppUtils.formatVND(r.totalCost)}</td>
                     <td class="py-3 px-3 text-right text-emerald-900 text-base">${AppUtils.formatVND(r.grossProfit)}</td>
-                    <td class="py-3 px-3 text-center text-xs text-emerald-800 font-bold">${r.dailyBreakdown.filter(d => d.totalRevenue > 0).length} ngày bán</td>
+                    <td class="py-3 px-3 text-center text-xs text-emerald-800 font-bold">${r.dailyBreakdown.filter(d => (d.totalRevenue > 0 || (d.grossRevenue && d.grossRevenue > 0))).length} ngày bán</td>
                 </tr>
             `;
         }

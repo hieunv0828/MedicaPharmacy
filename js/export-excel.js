@@ -52,13 +52,20 @@ const ExportService = {
 
         // Tóm tắt chỉ số
         lines.push(`${this.csvCell('CHỈ SỐ TỔNG QUAN')},${this.csvCell('GIÁ TRỊ')}`);
-        lines.push(`${this.csvCell('Tổng Doanh Thu')},${this.csvCell(reportData.totalRevenue)}`);
+        lines.push(`${this.csvCell('Tổng Doanh Thu Bán Ra (Gross)')},${this.csvCell(reportData.grossRevenue || reportData.totalRevenue)}`);
+        if (reportData.totalCustomerRefund > 0) {
+            lines.push(`${this.csvCell('Tiền Khách Trả Hàng Hoàn Lại (Returns)')},${this.csvCell('-' + reportData.totalCustomerRefund)}`);
+        }
+        lines.push(`${this.csvCell('Doanh Thu Thuần (Net Revenue)')},${this.csvCell(reportData.totalRevenue)}`);
         lines.push(`${this.csvCell('Doanh Thu Tiền Mặt (Cash)')},${this.csvCell(reportData.cashRevenue)}`);
         lines.push(`${this.csvCell('Doanh Thu Chuyển Khoản (Bank Transfer)')},${this.csvCell(reportData.transferRevenue)}`);
         lines.push(`${this.csvCell('Tổng Tiền Vốn')},${this.csvCell(reportData.totalCost)}`);
-        lines.push(`${this.csvCell('Lợi Nhuận Gộp Ước Tính')},${this.csvCell(reportData.grossProfit)}`);
+        lines.push(`${this.csvCell('Lợi Nhuận Gộp')},${this.csvCell(reportData.grossProfit)}`);
         lines.push(`${this.csvCell('Tỷ Suất Lợi Nhuận Gộp')},${this.csvCell(reportData.profitMargin + '%')}`);
-        lines.push(`${this.csvCell('Tổng Số Đơn Hàng')},${this.csvCell(reportData.totalOrders)}`);
+        lines.push(`${this.csvCell('Tổng Số Đơn Bán Hàng')},${this.csvCell(reportData.totalOrders)}`);
+        if (reportData.customerRefundCount > 0) {
+            lines.push(`${this.csvCell('Số Phiếu Khách Trả Hàng')},${this.csvCell(reportData.customerRefundCount)}`);
+        }
         lines.push(`${this.csvCell('Số Đơn Tiền Mặt')},${this.csvCell(reportData.cashOrdersCount)}`);
         lines.push(`${this.csvCell('Số Đơn Chuyển Khoản')},${this.csvCell(reportData.transferOrdersCount)}`);
         lines.push('');

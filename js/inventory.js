@@ -44,7 +44,7 @@ const InventoryModule = {
     generalReturnDraft: {
         supplierId: '',
         supplierName: '',
-        paymentMethod: 'cash',
+        paymentMethod: 'transfer',
         reason: 'Hàng cận date / Hết hạn sử dụng',
         note: '',
         items: []
@@ -1416,6 +1416,10 @@ const InventoryModule = {
                     </td>
                     <td class="py-3 px-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="InventoryModule.openEditPurchaseReturnModal('${r.id}')" title="Chỉnh sửa phiếu trả hàng" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                <span>Sửa</span>
+                            </button>
                             <button onclick="InventoryModule.printPurchaseReturn('${r.id}')" title="In phiếu xuất trả hàng" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="printer" class="w-3.5 h-3.5"></i>
                                 <span>In</span>
@@ -2408,13 +2412,13 @@ const InventoryModule = {
         this.generalReturnDraft = {
             supplierId: '',
             supplierName: '',
-            paymentMethod: 'cash',
+            paymentMethod: 'transfer',
             reason: 'Hàng cận date / Hết hạn sử dụng',
             note: '',
             items: []
         };
 
-        this.setGeneralReturnPaymentMethod('cash');
+        this.setGeneralReturnPaymentMethod('transfer');
         this.populateGeneralReturnSelectors();
 
         const reasonSelect = document.getElementById('general-return-reason-select');
@@ -2783,6 +2787,8 @@ const InventoryModule = {
             return;
         }
 
+        this.currentViewingReturnId = returnId;
+
         const idEl = document.getElementById('return-detail-id');
         const badgeEl = document.getElementById('return-detail-type-badge');
         const subEl = document.getElementById('return-detail-sub');
@@ -2887,6 +2893,366 @@ const InventoryModule = {
 
     closePurchaseReturnDetailModal() {
         document.getElementById('modal-purchase-return-detail')?.classList.add('hidden');
+    },
+
+    // --- MODAL CHỈNH SỬA PHIẾU XUẤT TRẢ HÀNG CHO NCC ---
+    openEditPurchaseReturnModal(returnId) {
+        if (!returnId) return;
+        const r = Store.getPurchaseReturnById ? Store.getPurchaseReturnById(returnId) : null;
+        if (!r) {
+            alert('Không tìm thấy thông tin phiếu trả hàng này!');
+            return;
+        }
+
+        // Tạo bản sao deep copy để chỉnh sửa
+        this.currentEditingReturn = JSON.parse(JSON.stringify(r));
+
+        // Header
+        const badgeEl = document.getElementById('edit-return-id-badge');
+        const typeEl = document.getElementById('edit-return-type-badge');
+        if (badgeEl) badgeEl.innerText = r.id;
+
+        const isStockIn = (r.returnType === 'stockin_return' || r.stockInId);
+        if (typeEl) {
+            typeEl.className = isStockIn
+                ? 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800'
+                : 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800';
+            typeEl.innerText = isStockIn ? `Theo đơn nhập ${r.stockInId}` : 'Trả tổng hợp';
+        }
+
+        // Điền các trường thông tin cơ bản
+        const supNameInput = document.getElementById('edit-return-supplier-name');
+        const supPhoneInput = document.getElementById('edit-return-supplier-phone');
+        const dateInput = document.getElementById('edit-return-created-at');
+        const pharmInput = document.getElementById('edit-return-pharmacist');
+        const reasonInput = document.getElementById('edit-return-reason');
+        const noteInput = document.getElementById('edit-return-note');
+
+        if (supNameInput) supNameInput.value = r.supplierName || '';
+        if (supPhoneInput) supPhoneInput.value = r.supplierPhone || '';
+
+        // Format datetime-local
+        if (dateInput) {
+            let dtStr = '';
+            if (r.createdAt) {
+                const d = new Date(r.createdAt);
+                if (!isNaN(d.getTime())) {
+                    const tzOffset = d.getTimezoneOffset() * 60000;
+                    dtStr = (new Date(d.getTime() - tzOffset)).toISOString().slice(0, 16);
+                }
+            }
+            dateInput.value = dtStr;
+        }
+
+        if (pharmInput) pharmInput.value = r.pharmacist || '';
+        if (reasonInput) reasonInput.value = r.reason || '';
+        if (noteInput) noteInput.value = r.note || '';
+
+        // Payment method (transfer / cash)
+        this.setEditReturnPaymentMethod(r.paymentMethod || 'transfer');
+
+        // Populate medicine selector for adding medicines
+        this.populateEditReturnMedicineSelectors();
+
+        // Render table items
+        this.renderEditReturnItems();
+
+        document.getElementById('modal-edit-purchase-return')?.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeEditPurchaseReturnModal() {
+        document.getElementById('modal-edit-purchase-return')?.classList.add('hidden');
+        this.currentEditingReturn = null;
+    },
+
+    setEditReturnPaymentMethod(method) {
+        if (!this.currentEditingReturn) return;
+        this.currentEditingReturn.paymentMethod = method;
+
+        const btnCash = document.getElementById('btn-edit-return-cash');
+        const btnTransfer = document.getElementById('btn-edit-return-transfer');
+
+        if (method === 'cash') {
+            btnCash?.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
+            btnCash?.classList.remove('bg-slate-100', 'text-slate-600');
+            btnTransfer?.classList.remove('bg-blue-600', 'text-white', 'shadow-sm');
+            btnTransfer?.classList.add('bg-slate-100', 'text-slate-600');
+        } else {
+            btnTransfer?.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+            btnTransfer?.classList.remove('bg-slate-100', 'text-slate-600');
+            btnCash?.classList.remove('bg-amber-600', 'text-white', 'shadow-sm');
+            btnCash?.classList.add('bg-slate-100', 'text-slate-600');
+        }
+    },
+
+    populateEditReturnMedicineSelectors() {
+        const medSel = document.getElementById('edit-return-add-med-select');
+        if (medSel) {
+            const medicines = Store.getMedicines();
+            medSel.innerHTML = '<option value="">-- Chọn thuốc trong kho để thêm --</option>' +
+                medicines.map(m => `<option value="${m.id}">[${m.id}] ${m.name} [${m.packUnit || 'Hộp'}] (Kho: ${m.stockUnits || 0} ${m.baseUnit})</option>`).join('');
+        }
+        const unitSel = document.getElementById('edit-return-add-unit-select');
+        if (unitSel) unitSel.innerHTML = '<option value="Hộp">Hộp</option>';
+        const qtyInput = document.getElementById('edit-return-add-qty');
+        if (qtyInput) qtyInput.value = 1;
+    },
+
+    onEditReturnMedicineSelectChange() {
+        const medSel = document.getElementById('edit-return-add-med-select');
+        const medId = medSel ? medSel.value : '';
+        if (!medId) return;
+
+        const med = Store.getMedicineById(medId);
+        if (!med) return;
+
+        const unitSel = document.getElementById('edit-return-add-unit-select');
+        if (unitSel) {
+            let unitOptions = '';
+            if (med.packUnit) unitOptions += `<option value="${med.packUnit}">${med.packUnit}</option>`;
+            if (med.subUnit && med.subRatio > 1 && med.subUnit !== med.packUnit) {
+                unitOptions += `<option value="${med.subUnit}">${med.subUnit}</option>`;
+            }
+            if (med.baseUnit && med.baseUnit !== med.packUnit && med.baseUnit !== med.subUnit) {
+                unitOptions += `<option value="${med.baseUnit}">${med.baseUnit}</option>`;
+            }
+            unitSel.innerHTML = unitOptions;
+        }
+    },
+
+    addItemToEditingReturn() {
+        if (!this.currentEditingReturn) return;
+        const medSel = document.getElementById('edit-return-add-med-select');
+        const medId = medSel ? medSel.value : '';
+        if (!medId) {
+            alert('Vui lòng chọn một loại thuốc để thêm vào phiếu!');
+            return;
+        }
+
+        const med = Store.getMedicineById(medId);
+        if (!med) return;
+
+        const unitSel = document.getElementById('edit-return-add-unit-select');
+        const unit = unitSel ? unitSel.value : (med.packUnit || 'Hộp');
+        const qtyInput = document.getElementById('edit-return-add-qty');
+        const qty = parseFloat(qtyInput ? qtyInput.value : 1) || 1;
+        const defaultCost = med.costPrice || 0;
+
+        if (!this.currentEditingReturn.items) this.currentEditingReturn.items = [];
+
+        this.currentEditingReturn.items.push({
+            medicineId: med.id,
+            medicineCode: med.id,
+            barcode: med.barcode || '',
+            medicineName: med.name,
+            unit: unit,
+            quantity: qty,
+            costPrice: defaultCost,
+            unitPrice: defaultCost,
+            discount: 0,
+            discountPercent: 0,
+            totalRefund: Math.round(qty * defaultCost),
+            batchNo: med.batchNo || '',
+            expiryDate: med.expiryDate || ''
+        });
+
+        // Reset inputs
+        if (medSel) medSel.value = '';
+        if (qtyInput) qtyInput.value = 1;
+
+        this.renderEditReturnItems();
+    },
+
+    removeEditReturnItem(idx) {
+        if (!this.currentEditingReturn || !this.currentEditingReturn.items) return;
+        this.currentEditingReturn.items.splice(idx, 1);
+        this.renderEditReturnItems();
+    },
+
+    onEditReturnItemChange(idx) {
+        if (!this.currentEditingReturn || !this.currentEditingReturn.items) return;
+        const it = this.currentEditingReturn.items[idx];
+        if (!it) return;
+
+        const qtyEl = document.getElementById(`edit-item-qty-${idx}`);
+        const costEl = document.getElementById(`edit-item-cost-${idx}`);
+        const lineTotalEl = document.getElementById(`edit-item-total-${idx}`);
+
+        const qty = parseFloat(qtyEl ? qtyEl.value : 0) || 0;
+        const cost = parseFloat(costEl ? costEl.value : 0) || 0;
+        const total = Math.round(qty * cost);
+
+        it.quantity = qty;
+        it.costPrice = cost;
+        it.unitPrice = cost;
+        it.totalRefund = total;
+
+        if (lineTotalEl) lineTotalEl.innerText = AppUtils.formatVND(total);
+
+        this.recalcEditReturnTotals();
+    },
+
+    recalcEditReturnTotals() {
+        if (!this.currentEditingReturn) return;
+        const items = this.currentEditingReturn.items || [];
+        const totalRefund = items.reduce((sum, i) => sum + (parseFloat(i.totalRefund) || 0), 0);
+        const totalQty = items.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
+
+        this.currentEditingReturn.refundTotal = totalRefund;
+        this.currentEditingReturn.totalAmount = totalRefund;
+        this.currentEditingReturn.paidAmount = totalRefund;
+        this.currentEditingReturn.totalItems = items.length;
+        this.currentEditingReturn.totalQuantity = totalQty;
+
+        const itemsCountEl = document.getElementById('edit-return-summary-items-count');
+        const totalQtyEl = document.getElementById('edit-return-summary-total-qty');
+        const totalAmountEl = document.getElementById('edit-return-summary-total-amount');
+
+        if (itemsCountEl) itemsCountEl.innerText = items.length;
+        if (totalQtyEl) totalQtyEl.innerText = totalQty;
+        if (totalAmountEl) totalAmountEl.innerText = AppUtils.formatVND(totalRefund);
+    },
+
+    renderEditReturnItems() {
+        if (!this.currentEditingReturn) return;
+        const tbody = document.getElementById('edit-return-items-tbody');
+        if (!tbody) return;
+
+        const items = this.currentEditingReturn.items || [];
+        if (items.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-slate-400 text-xs">
+                        Chưa có mặt hàng nào. Vui lòng thêm thuốc vào danh sách trả.
+                    </td>
+                </tr>
+            `;
+            this.recalcEditReturnTotals();
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        let html = '';
+        items.forEach((it, idx) => {
+            const lineTotal = it.totalRefund || Math.round((it.quantity || 0) * (it.costPrice || 0));
+            html += `
+                <tr class="hover:bg-slate-50 text-xs border-b border-slate-100">
+                    <td class="p-2 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="p-2 font-mono font-bold text-slate-700">${it.medicineId || it.medicineCode || '---'}</td>
+                    <td class="p-2 font-bold text-slate-900">${it.medicineName || '---'}</td>
+                    <td class="p-2 text-center font-bold text-slate-600">${it.unit || '---'}</td>
+                    <td class="p-2 text-center">
+                        <input type="number" min="0.01" step="any" id="edit-item-qty-${idx}" value="${it.quantity || 1}" 
+                               oninput="InventoryModule.onEditReturnItemChange(${idx})" 
+                               class="w-20 px-2 py-1 bg-white border border-slate-200 rounded font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </td>
+                    <td class="p-2 text-right">
+                        <input type="number" min="0" step="500" id="edit-item-cost-${idx}" value="${it.costPrice || 0}" 
+                               oninput="InventoryModule.onEditReturnItemChange(${idx})" 
+                               class="w-24 px-2 py-1 bg-white border border-slate-200 rounded font-mono font-medium text-right focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </td>
+                    <td class="p-2 text-right font-black font-mono text-rose-700" id="edit-item-total-${idx}">
+                        ${AppUtils.formatVND(lineTotal)}
+                    </td>
+                    <td class="p-2 text-center">
+                        <button type="button" onclick="InventoryModule.removeEditReturnItem(${idx})" class="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer" title="Xóa mặt hàng này">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+        this.recalcEditReturnTotals();
+        if (window.lucide) lucide.createIcons();
+    },
+
+    saveEditedPurchaseReturn() {
+        if (!this.currentEditingReturn) return;
+        const r = this.currentEditingReturn;
+
+        const supName = document.getElementById('edit-return-supplier-name')?.value.trim() || r.supplierName;
+        const supPhone = document.getElementById('edit-return-supplier-phone')?.value.trim() || '';
+        const dateVal = document.getElementById('edit-return-created-at')?.value;
+        const pharm = document.getElementById('edit-return-pharmacist')?.value.trim() || r.pharmacist;
+        const reason = document.getElementById('edit-return-reason')?.value.trim() || r.reason;
+        const note = document.getElementById('edit-return-note')?.value.trim() || '';
+
+        let createdAt = r.createdAt;
+        if (dateVal) {
+            const parsed = new Date(dateVal);
+            if (!isNaN(parsed.getTime())) {
+                createdAt = parsed.toISOString();
+            }
+        }
+
+        const items = r.items || [];
+        if (items.length === 0) {
+            alert('Phiếu trả hàng phải có ít nhất một mặt hàng!');
+            return;
+        }
+
+        const totalRefund = items.reduce((sum, i) => sum + (parseFloat(i.totalRefund) || 0), 0);
+        const totalQty = items.reduce((sum, i) => sum + (parseFloat(i.quantity) || 0), 0);
+
+        const updateFields = {
+            supplierName: supName,
+            supplierPhone: supPhone,
+            paymentMethod: r.paymentMethod || 'transfer',
+            createdAt: createdAt,
+            date: createdAt,
+            pharmacist: pharm,
+            reason: reason,
+            note: note,
+            items: items,
+            totalItems: items.length,
+            totalQuantity: totalQty,
+            totalAmount: totalRefund,
+            refundTotal: totalRefund,
+            paidAmount: totalRefund
+        };
+
+        const res = Store.updatePurchaseReturn(r.id, updateFields);
+        if (!res) {
+            alert('Lỗi: Không thể lưu thay đổi phiếu trả hàng!');
+            return;
+        }
+
+        this.closeEditPurchaseReturnModal();
+
+        if (window.App && App.showToast) {
+            App.showToast(`Đã lưu thay đổi cho phiếu trả hàng ${r.id}!`, 'success');
+        }
+
+        // Cập nhật lại giao diện danh sách trả hàng
+        this.renderReturnsHistory();
+
+        // Nếu modal chi tiết đang mở, cập nhật lại modal chi tiết
+        if (this.currentViewingReturnId === r.id) {
+            this.openPurchaseReturnDetailModal(r.id);
+        }
+    },
+
+    deleteCurrentEditingPurchaseReturn() {
+        if (!this.currentEditingReturn) return;
+        const returnId = this.currentEditingReturn.id;
+        if (!confirm(`Bạn có chắc chắn muốn XÓA phiếu trả hàng [${returnId}] không?\nHành động này không thể hoàn tác!`)) {
+            return;
+        }
+
+        const res = Store.deletePurchaseReturn(returnId);
+        if (res) {
+            this.closeEditPurchaseReturnModal();
+            this.closePurchaseReturnDetailModal();
+            if (window.App && App.showToast) {
+                App.showToast(`Đã xóa phiếu trả hàng ${returnId} thành công!`, 'success');
+            }
+            this.renderReturnsHistory();
+        } else {
+            alert('Lỗi: Không thể xóa phiếu trả hàng này!');
+        }
     },
 
     // --- MODAL XEM LỊCH SỬ NHẬP / BÁN CỦA TỪNG LOẠI THUỐC ---

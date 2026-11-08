@@ -384,9 +384,10 @@ const VouchersModule = {
                 ? '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i data-lucide="banknote" class="w-3 h-3"></i> Tiền mặt</span>'
                 : '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"><i data-lucide="qr-code" class="w-3 h-3"></i> Chuyển khoản</span>';
 
+            const absAmt = Math.abs(Number(v.amount) || 0);
             const amountHtml = isReceipt
-                ? `<span class="font-extrabold text-emerald-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">+${AppUtils.formatVND(v.amount)}</span>`
-                : `<span class="font-extrabold text-rose-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">-${AppUtils.formatVND(v.amount)}</span>`;
+                ? `<span class="font-extrabold text-emerald-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">+${AppUtils.formatVND(absAmt)}</span>`
+                : `<span class="font-extrabold text-rose-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">-${AppUtils.formatVND(absAmt)}</span>`;
 
             const refBadge = v.refId ? `<div class="text-[10px] font-mono text-emerald-700 font-semibold mt-0.5">Ref: ${v.refId}</div>` : '';
 
@@ -714,7 +715,7 @@ const VouchersModule = {
                     </div>` : ''}
                     <div class="flex justify-between items-baseline pt-2 border-t border-slate-200">
                         <span class="font-extrabold text-slate-800">SỐ TIỀN:</span>
-                        <span class="font-black text-base ${isReceipt ? 'text-emerald-700' : 'text-rose-700'}">${AppUtils.formatVND(v.amount)}</span>
+                        <span class="font-black text-base ${isReceipt ? 'text-emerald-700' : 'text-rose-700'}">${AppUtils.formatVND(Math.abs(Number(v.amount) || 0))}</span>
                     </div>
                 </div>
 
@@ -776,7 +777,8 @@ const VouchersModule = {
             const typeStr = v.type === 'receipt' ? 'Phiếu Thu' : 'Phiếu Chi';
             const methodStr = v.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản';
             const accStr = v.isAccounting !== false ? 'Có' : 'Không';
-            csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${v.targetName || ''}","${this.formatTargetType(v.targetType)}",${v.amount},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
+            const absAmt = Math.abs(Number(v.amount) || 0);
+            csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${v.targetName || ''}","${this.formatTargetType(v.targetType)}",${absAmt},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

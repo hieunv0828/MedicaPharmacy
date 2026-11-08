@@ -1659,6 +1659,9 @@
                     </div>
                 </div>
 
+                <!-- Danh sách phiếu hoàn tiền khách trả hàng trong ngày (nếu có) -->
+                <div id="rep-detail-day-returns-box" class="hidden border-b border-rose-200"></div>
+
                 <!-- Bảng danh sách mặt hàng đã bán -->
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -3757,10 +3760,192 @@
                 <button type="button" onclick="InventoryModule.closePurchaseReturnDetailModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
                     Đóng
                 </button>
+                <button type="button" onclick="InventoryModule.openEditPurchaseReturnModal(InventoryModule.currentViewingReturnId)" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    <span>Chỉnh Sửa</span>
+                </button>
                 <button type="button" id="btn-print-from-return-detail" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
                     <i data-lucide="printer" class="w-4 h-4"></i>
                     <span>In Phiếu Trả Hàng</span>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 18D: CHỈNH SỬA PHIẾU XUẤT TRẢ HÀNG CHO NCC        -->
+    <!-- ======================================================= -->
+    <div id="modal-edit-purchase-return" class="hidden fixed inset-0 z-[85] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[94vh] flex flex-col">
+            <!-- Header Modal -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                        <i data-lucide="edit-3" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-black text-base sm:text-lg text-slate-800">Chỉnh Sửa Phiếu Trả Hàng: <span id="edit-return-id-badge" class="font-mono text-rose-700">THN---</span></h3>
+                            <span id="edit-return-type-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">---</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">Cập nhật thông tin phiếu trả hàng, danh mục thuốc xuất trả và hình thức thanh toán</p>
+                    </div>
+                </div>
+                <button type="button" onclick="InventoryModule.closeEditPurchaseReturnModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Body Modal -->
+            <div class="flex-1 overflow-y-auto my-3 space-y-3.5 text-xs pr-1">
+                <!-- Thông tin cơ bản: NCC, Thời gian, Hình thức TT -->
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Tên Nhà Cung Cấp</label>
+                            <input id="edit-return-supplier-name" type="text" placeholder="Tên nhà cung cấp..."
+                                   class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold text-slate-800" />
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Số Điện Thoại NCC</label>
+                            <input id="edit-return-supplier-phone" type="text" placeholder="0912 345 678..."
+                                   class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono text-slate-800" />
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Thời Gian Xuất Trả</label>
+                            <input id="edit-return-created-at" type="datetime-local"
+                                   class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono text-slate-800" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200/60">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Hình Thức Nhận Tiền</label>
+                            <div class="grid grid-cols-2 gap-1.5 p-1 bg-white border border-slate-200 rounded-xl">
+                                <button type="button" id="btn-edit-return-transfer" onclick="InventoryModule.setEditReturnPaymentMethod('transfer')"
+                                        class="py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer">
+                                    <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+                                    <span>Chuyển Khoản</span>
+                                </button>
+                                <button type="button" id="btn-edit-return-cash" onclick="InventoryModule.setEditReturnPaymentMethod('cash')"
+                                        class="py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer">
+                                    <i data-lucide="banknote" class="w-3.5 h-3.5"></i>
+                                    <span>Tiền Mặt</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Dược Sĩ / Người Lập</label>
+                            <input id="edit-return-pharmacist" type="text" placeholder="DS. Nguyễn Thanh Dung..."
+                                   class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800" />
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Lý Do Trả Hàng</label>
+                            <input id="edit-return-reason" type="text" placeholder="Lý do xuất trả hàng..."
+                                   class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Ghi Chú</label>
+                        <input id="edit-return-note" type="text" placeholder="Ghi chú thêm về lô hàng hoặc thỏa thuận với NCC..."
+                               class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800" />
+                    </div>
+                </div>
+
+                <!-- Thêm thuốc mới vào phiếu trả -->
+                <div class="p-3 bg-amber-50/50 rounded-xl border border-amber-200/80">
+                    <div class="font-bold text-amber-900 text-xs flex items-center gap-1.5 mb-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4 text-amber-700"></i>
+                        <span>Thêm Thuốc Vào Phiếu Trả Này:</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                        <div class="sm:col-span-6">
+                            <select id="edit-return-add-med-select" onchange="InventoryModule.onEditReturnMedicineSelectChange()"
+                                    class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-amber-500">
+                                <option value="">-- Chọn thuốc trong kho để thêm --</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <select id="edit-return-add-unit-select" class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs">
+                                <option value="Hộp">Hộp</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <input id="edit-return-add-qty" type="number" min="0.01" step="any" value="1" placeholder="Số lượng"
+                                   class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center" />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <button type="button" onclick="InventoryModule.addItemToEditingReturn()"
+                                    class="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition flex items-center justify-center gap-1 shadow-sm cursor-pointer">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>Thêm</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách mặt hàng xuất trả -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="bg-slate-100 px-3.5 py-2.5 flex items-center justify-between">
+                        <div class="font-bold text-slate-800 text-xs flex items-center gap-1.5 uppercase">
+                            <i data-lucide="list" class="w-4 h-4 text-slate-500"></i>
+                            <span>Danh Sách Thuốc Xuất Trả Trong Phiếu</span>
+                        </div>
+                        <div class="text-[11px] text-slate-500">
+                            Số mặt hàng: <b id="edit-return-summary-items-count" class="text-rose-700">0</b>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto max-h-64">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 sticky top-0">
+                                <tr>
+                                    <th class="p-2 text-center w-10">STT</th>
+                                    <th class="p-2 w-24">Mã Thuốc</th>
+                                    <th class="p-2">Tên Thuốc</th>
+                                    <th class="p-2 w-20 text-center">ĐVT</th>
+                                    <th class="p-2 text-center w-24">Số Lượng</th>
+                                    <th class="p-2 text-right w-28">Đơn Giá Hoàn</th>
+                                    <th class="p-2 text-right w-28">Thành Tiền</th>
+                                    <th class="p-2 text-center w-12">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-return-items-tbody" class="divide-y divide-slate-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer: Tổng tiền & Nút xác nhận -->
+            <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="text-xs text-slate-500">
+                        Tổng số lượng: <b id="edit-return-summary-total-qty" class="text-slate-800">0</b>
+                    </div>
+                    <div class="text-base sm:text-lg font-black text-rose-700 font-mono">
+                        Tổng tiền hoàn: <span id="edit-return-summary-total-amount">0 đ</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button type="button" onclick="InventoryModule.deleteCurrentEditingPurchaseReturn()" 
+                            class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer"
+                            title="Xóa phiếu trả hàng này">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Xóa Phiếu</span>
+                    </button>
+                    <button type="button" onclick="InventoryModule.closeEditPurchaseReturnModal()" 
+                            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
+                        Hủy
+                    </button>
+                    <button type="button" onclick="InventoryModule.saveEditedPurchaseReturn()" 
+                            class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Lưu Thay Đổi</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -3922,18 +4107,18 @@
     <script src="vendor/JsBarcode.all.min.js"></script>
     <script src="js/vietqr.js?v=20261107_v3"></script>
     <script src="js/sample-data.js?v=20261107_v3"></script>
-    <script src="js/store.js?v=20261107_v4"></script>
-    <script src="js/auth.js?v=20261107_v4"></script>
-    <script src="js/export-excel.js?v=20261107_v4"></script>
-    <script src="js/barcode-printer.js?v=20261107_v4"></script>
-    <script src="js/searchable-select.js?v=20261107_v4"></script>
-    <script src="js/vouchers.js?v=20261107_v4"></script>
-    <script src="js/inventory.js?v=20261107_v4"></script>
-    <script src="js/pos.js?v=20261107_v4"></script>
-    <script src="js/orders.js?v=20261107_v4"></script>
-    <script src="js/customers.js?v=20261107_v4"></script>
-    <script src="js/reports.js?v=20261107_v4"></script>
-    <script src="js/app.js?v=20261107_v4"></script>
+    <script src="js/store.js?v=20261108_v3"></script>
+    <script src="js/auth.js?v=20261108_v3"></script>
+    <script src="js/export-excel.js?v=20261108_v3"></script>
+    <script src="js/barcode-printer.js?v=20261108_v3"></script>
+    <script src="js/searchable-select.js?v=20261108_v3"></script>
+    <script src="js/vouchers.js?v=20261108_v3"></script>
+    <script src="js/inventory.js?v=20261108_v3"></script>
+    <script src="js/pos.js?v=20261108_v3"></script>
+    <script src="js/orders.js?v=20261108_v3"></script>
+    <script src="js/customers.js?v=20261108_v3"></script>
+    <script src="js/reports.js?v=20261108_v3"></script>
+    <script src="js/app.js?v=20261108_v3"></script>
 
     <!-- Đồng hồ thời gian thực ở Header -->
     <script>

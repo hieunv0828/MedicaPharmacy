@@ -1,4 +1,4 @@
-﻿# Import Phieu Nhap Hang (Stock-In Orders) from KiotViet XLSX
+# Import Phieu Nhap Hang (Stock-In Orders) from KiotViet XLSX
 # Columns (1-indexed):
 # A=Chi nhanh, B=Ma nhap hang, C=Thoi gian, D=Thoi gian tao, E=Ngay cap nhat,
 # F=Ma nha cung cap, G=Ten nha cung cap, H=Dien thoai, I=Dia chi,

@@ -3,8 +3,22 @@
 
 $xlsxPath = "C:\Users\qoffe\.gemini\antigravity\brain\d37817d0-d77b-4e5e-85fe-68b9f7c78692\.user_uploaded\media_1794073867230_ef986da1.xlsx"
 $outputPath = "f:\MedicaPharmacy\data\vouchers_2026.json"
+$ordersPath = "f:\MedicaPharmacy\data\orders_2026.json"
 
 Write-Host "=== Import So Quy from KiotViet ==="
+
+# Load orders for payment method matching
+$orderPayMap = @{}
+if (Test-Path $ordersPath) {
+    Write-Host "Loading orders to match payment methods..."
+    $orders = [System.IO.File]::ReadAllText($ordersPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    foreach ($o in $orders) {
+        if ($o.id -and $o.paymentMethod) {
+            $orderPayMap[$o.id] = $o.paymentMethod
+        }
+    }
+    Write-Host "Loaded $($orderPayMap.Count) orders for payment mapping"
+}
 
 # Extract XLSX
 $tmpDir = "$env:TEMP\sq_import_$(Get-Random)"
@@ -53,7 +67,9 @@ function Escape-Json($s) {
 }
 
 # Categorize voucher type from KiotViet "Loại thu chi" text
-function Get-VoucherType($loaiThuChi) {
+function Get-VoucherType($loaiThuChi, $vId) {
+    if ($vId -match '^(CTM|CNH|CTD|PC|PCPN)') { return 'payment' }
+    if ($vId -match '^(TTM|TNH|TTD|PT|PTTHN|TTHD|TTHDO)') { return 'receipt' }
     if ($loaiThuChi -match 'Phiếu thu') { return 'receipt' }
     if ($loaiThuChi -match 'Phiếu chi') { return 'payment' }
     return 'receipt'
@@ -88,22 +104,30 @@ foreach ($row in $rows) {
     if ([string]::IsNullOrEmpty($vId)) { continue }
 
     $createdAt = Convert-OADate $timeRaw
-    $vtype     = Get-VoucherType $loaiTC
+    $vtype     = Get-VoucherType $loaiTC $vId
     $category  = Get-Category $loaiTC
     $amountNum = 0
     if (-not [string]::IsNullOrEmpty($amount)) {
-        try { $amountNum = [Math]::Round([double]$amount) } catch {}
+        try { $amountNum = [Math]::Abs([Math]::Round([double]$amount)) } catch {}
     }
 
     # Determine paymentMethod based on voucher ID prefix
-    # TTHD = Thu hoa don (cash by default), PTTHN = Phieu thu NCC, PCHI = Phieu chi
+    # TTHD = Thu hoa don (matches order), PTTHN = Phieu thu NCC, PCHI = Phieu chi, CNH/TNH = Ngan hang (transfer)
     $paymentMethod = 'cash'
-    if ($vId -match '^CK' -or $vId -match 'CK$') { $paymentMethod = 'transfer' }
+    if ($vId -match '^CK' -or $vId -match 'CK$' -or $vId -match '^CNH' -or $vId -match '^TNH') { $paymentMethod = 'transfer' }
 
     $refId = ''
-    if ($vId -match '^TT(HD\w+)') { $refId = $matches[1] }
+    if ($vId -match '^TT(HD\w+)') {
+        $refId = $matches[1]
+        if ($orderPayMap.ContainsKey($refId)) {
+            $paymentMethod = $orderPayMap[$refId]
+        }
+    }
     elseif ($vId -match '^PC(PN\w+)') { $refId = $matches[1] }
-    elseif ($vId -match '^PT(THN\w+)') { $refId = $matches[1] }
+    elseif ($vId -match '^PT(THN\w+)') {
+        $refId = $matches[1]
+        $paymentMethod = 'transfer'
+    }
 
     $vId_e     = Escape-Json $vId
     $cat_e     = Escape-Json $category
