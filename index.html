@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -1710,238 +1710,490 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- 6. TAB: CÀI ĐẶT & THÔNG TIN NHÀ THUỐC & VIETQR -->
         <!-- ========================================== -->
-        <section id="section-settings" class="app-tab-section hidden max-w-4xl mx-auto space-y-6">
+        <!-- 6. TAB: CÀI ĐẶT & LỊCH SỬ THAO TÁC (KIOTVIET STYLE) -->
+        <!-- ========================================== -->
+        <section id="section-settings" class="app-tab-section hidden w-full space-y-4">
             
-            <form id="form-settings" class="space-y-6">
-                <!-- Thông tin nhà thuốc GPP -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h3 class="text-base font-extrabold text-slate-800 mb-1 flex items-center gap-2">
-                        <i data-lucide="store" class="w-5 h-5 text-emerald-600"></i>
-                        Thông Tin Nhà Thuốc (In Trên Hóa Đơn)
-                    </h3>
-                    <p class="text-xs text-slate-500 mb-4">Các thông tin này sẽ tự động xuất hiện trên đầu hóa đơn thanh toán K80 / K58</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Tên Nhà Thuốc *</label>
-                            <input id="settings-pharmacy-name" type="text" required class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Số Chứng Chỉ GPP / Tiêu Chuẩn</label>
-                            <input id="settings-gpp-cert" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Hotline / Số Điện Thoại</label>
-                            <input id="settings-phone" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono" />
-                        </div>
-
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Địa Chỉ Nhà Thuốc</label>
-                            <input id="settings-address" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Dược Sĩ Phụ Trách Chuyên Môn</label>
-                            <input id="settings-pharmacist" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Khổ Giấy In Hóa Đơn Mặc Định</label>
-                            <select id="settings-print-format" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold">
-                                <option value="k80">Khổ Nhiệt K80 (80mm) - Tiêu chuẩn phổ biến nhất</option>
-                                <option value="k58">Khổ Nhiệt K58 (58mm) - Máy in mini cầm tay</option>
-                            </select>
-                        </div>
-
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Ghi Chú Chân Trang Hóa Đơn</label>
-                            <textarea id="settings-receipt-note" rows="2" class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"></textarea>
-                        </div>
-
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">Lời Cảm Ơn Chân Trang</label>
-                            <input id="settings-receipt-thankyou" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Cấu hình Ngân Hàng & Mã VietQR -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h3 class="text-base font-extrabold text-blue-900 mb-1 flex items-center gap-2">
-                        <i data-lucide="qr-code" class="w-5 h-5 text-blue-600"></i>
-                        Cấu Hình Tài Khoản Nhận Chuyển Khoản (VietQR)
-                    </h3>
-                    <p class="text-xs text-slate-500 mb-4">Khi khách chọn chuyển khoản, hệ thống sẽ tự động tạo mã QR chính xác để khách quét thanh toán</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
-                        <div class="md:col-span-8 space-y-4">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">Chọn Ngân Hàng *</label>
-                                <select id="settings-bank-select" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold">
-                                    <!-- Rendered dynamically -->
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">Số Tài Khoản Ngân Hàng *</label>
-                                <input id="settings-account-no" type="text" required placeholder="Nhập số tài khoản"
-                                       class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono font-bold text-emerald-800" />
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">Tên Chủ Tài Khoản (Không Dấu) *</label>
-                                <input id="settings-account-name" type="text" required placeholder="Ví dụ: NGUYEN HOANG ANH"
-                                       class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 uppercase font-bold" />
-                            </div>
-
-                            <div class="flex items-center gap-2 pt-2">
-                                <input id="settings-sound-enabled" type="checkbox" checked class="w-4 h-4 text-emerald-600 rounded" />
-                                <label for="settings-sound-enabled" class="text-xs font-medium text-slate-700">Phát âm thanh bip nhẹ khi thao tác bán thuốc</label>
-                            </div>
-                        </div>
-
-                        <!-- Khung xem trước VietQR -->
-                        <div class="md:col-span-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col items-center justify-center">
-                            <span class="text-[11px] font-bold text-slate-500 mb-2 uppercase">Mã VietQR Mẫu Thử Nghiệm</span>
-                            <div id="settings-vietqr-preview" class="p-1 bg-white rounded-lg shadow-sm">
-                                <!-- Preview -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex justify-end">
-                    <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm rounded-xl shadow-md transition flex items-center gap-2">
-                        <i data-lucide="check" class="w-4 h-4"></i>
-                        <span>Lưu Cấu Hình Cài Đặt</span>
-                    </button>
-                </div>
-            </form>
-
-            <!-- Quản lý Sao Lưu & Phục Hồi Dữ Liệu -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 class="text-base font-extrabold text-slate-800 mb-1 flex items-center gap-2">
-                    <i data-lucide="database" class="w-5 h-5 text-slate-600"></i>
-                    Sao Lưu & Phục Hồi Dữ Liệu Toàn Diện
-                </h3>
-                <p class="text-xs text-slate-500 mb-4">Dữ liệu được lưu trữ trực tiếp trên trình duyệt máy tính của bạn. Hãy xuất file sao lưu định kỳ để không lo mất dữ liệu.</p>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button onclick="App.exportBackup()" class="p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 transition">
-                        <i data-lucide="download" class="w-5 h-5"></i>
-                        <span>Tải File Sao Lưu (.JSON)</span>
-                    </button>
-
-                    <label class="p-3 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 cursor-pointer transition text-center">
-                        <i data-lucide="upload" class="w-5 h-5"></i>
-                        <span>Phục Hồi Từ File Sao Lưu</span>
-                        <input type="file" accept=".json" onchange="App.importBackup(event)" class="hidden" />
-                    </label>
-
-                    <button onclick="App.resetToDemoData()" class="p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 transition">
-                        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-                        <span>Nạp Lại Dữ Liệu Mẫu (Demo)</span>
-                    </button>
-                </div>
-
-                <div class="mt-4 pt-3 border-t border-slate-100 flex justify-end">
-                    <button onclick="App.clearAllDataConfirm()" class="text-xs text-rose-500 hover:text-rose-700 font-semibold flex items-center gap-1">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>Xóa toàn bộ dữ liệu & làm mới hoàn toàn</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Lịch Sử Chỉnh Sửa Cài Đặt (Audit Log) -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="history" class="w-5 h-5 text-emerald-600"></i>
-                        <div>
-                            <h3 class="text-base font-extrabold text-slate-800">Lịch Sử Chỉnh Sửa Cài Đặt</h3>
-                            <p class="text-xs text-slate-500">Ghi lại toàn bộ các lần thay đổi thông tin nhà thuốc, dược sĩ, tài khoản ngân hàng để kiểm tra đối soát</p>
-                        </div>
-                    </div>
-                    <button onclick="App.clearSettingsHistory()" class="text-xs text-slate-400 hover:text-rose-600 flex items-center gap-1 transition px-2.5 py-1 bg-slate-50 hover:bg-rose-50 rounded-lg border border-slate-200">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>Xóa lịch sử</span>
-                    </button>
-                </div>
-
-                <div class="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
-                            <tr>
-                                <th class="py-2.5 px-3 w-40">Thời Gian</th>
-                                <th class="py-2.5 px-3 w-36">Người Sửa</th>
-                                <th class="py-2.5 px-3">Chi Tiết Thay Đổi (Cũ ➔ Mới)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="settings-history-tbody" class="divide-y divide-slate-100">
-                            <!-- Rendered dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        
-
-            <!-- Quản Lý Tài Khoản & Mật Khẩu (Chỉ Admin) -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
-                    <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
+            <div class="flex flex-col lg:flex-row gap-6 items-start">
+                <!-- Sidebar Menu Cài Đặt (KiotViet Style) -->
+                <aside class="w-full lg:w-64 shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 space-y-4">
+                    <!-- Nhóm 1: Cửa hàng -->
                     <div>
-                        <h3 class="text-base font-extrabold text-slate-800">Quản Lý Mật Khẩu Đăng Nhập</h3>
-                        <p class="text-xs text-slate-500">Chỉ Quản trị viên mới có quyền đổi mật khẩu Admin và Staff. Nhân viên không thể vào được trang này.</p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Đổi mật khẩu Admin -->
-                    <div class="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                                <span class="w-6 h-6 rounded-md bg-amber-500 text-slate-950 flex items-center justify-center font-black text-[10px]">AD</span>
-                                Mật khẩu Quản Trị Viên (Admin)
-                            </span>
+                        <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider px-3 mb-1.5 flex items-center justify-between">
+                            <span>Cửa Hàng</span>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-300"></i>
                         </div>
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Admin</label>
-                            <input id="settings-admin-new-pass" type="password" placeholder="Nhập mật khẩu Admin mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono" />
-                        </div>
-                        <button type="button" onclick="App.handleUpdateAdminPassword()" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
-                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                            <span>Lưu Mật Khẩu Admin</span>
-                        </button>
+                        <nav class="space-y-0.5">
+                            <button type="button" data-settings-nav="store" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl transition text-emerald-800 bg-emerald-50 border-l-4 border-emerald-600 shadow-xs">
+                                <i data-lucide="store" class="w-4 h-4 text-emerald-600"></i>
+                                <span>Thông tin cửa hàng</span>
+                            </button>
+                            <button type="button" data-settings-nav="users" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                                <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
+                                <span>Quản lý người dùng</span>
+                            </button>
+                            <button type="button" data-settings-nav="security" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                                <i data-lucide="shield-check" class="w-4 h-4 text-slate-400"></i>
+                                <span>Bảo mật & Mật khẩu</span>
+                            </button>
+                        </nav>
                     </div>
 
-                    <!-- Đổi mật khẩu Staff -->
-                    <div class="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-blue-950 flex items-center gap-1.5">
-                                <span class="w-6 h-6 rounded-md bg-blue-500 text-white flex items-center justify-center font-black text-[10px]">NV</span>
-                                Mật khẩu Nhân Viên (Staff)
-                            </span>
+                    <!-- Nhóm 2: Dữ liệu (Chứa Lịch Sử Thao Tác) -->
+                    <div>
+                        <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider px-3 mb-1.5 flex items-center justify-between">
+                            <span>Dữ Liệu</span>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-300"></i>
                         </div>
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Staff</label>
-                            <input id="settings-staff-new-pass" type="password" placeholder="Nhập mật khẩu Staff mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
-                        </div>
-                        <button type="button" onclick="App.handleUpdateStaffPassword()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
-                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
-                            <span>Lưu Mật Khẩu Staff</span>
-                        </button>
+                        <nav class="space-y-0.5">
+                            <button type="button" data-settings-nav="audit_log" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                                <i data-lucide="history" class="w-4 h-4 text-blue-500"></i>
+                                <span class="flex-1 text-left">Lịch sử thao tác</span>
+                                <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-md">Mới</span>
+                            </button>
+                            <button type="button" data-settings-nav="backup" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                                <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
+                                <span>Sao lưu & Phục hồi</span>
+                            </button>
+                        </nav>
                     </div>
-                </div>
+
+                    <!-- Nhóm 3: Thiết bị -->
+                    <div>
+                        <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider px-3 mb-1.5 flex items-center justify-between">
+                            <span>Thiết Bị</span>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-300"></i>
+                        </div>
+                        <nav class="space-y-0.5">
+                            <button type="button" data-settings-nav="devices" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                                <i data-lucide="printer" class="w-4 h-4 text-slate-400"></i>
+                                <span>Khổ in & Âm thanh</span>
+                            </button>
+                        </nav>
+                    </div>
+                </aside>
+
+                <!-- Vùng Nội Dung Chính của Cài Đặt (Panels) -->
+                <main class="flex-1 min-w-0 w-full space-y-6">
+
+                    <!-- PANEL 1: THÔNG TIN CỬA HÀNG & VIETQR -->
+                    <div id="settings-panel-store" class="settings-subpanel space-y-6">
+                        <form id="form-settings" class="space-y-6">
+                            <!-- Thông tin nhà thuốc GPP -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <h3 class="text-base font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                                    <i data-lucide="store" class="w-5 h-5 text-emerald-600"></i>
+                                    Thông Tin Nhà Thuốc (In Trên Hóa Đơn)
+                                </h3>
+                                <p class="text-xs text-slate-500 mb-4">Các thông tin này sẽ tự động xuất hiện trên đầu hóa đơn thanh toán K80 / K58</p>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Tên Nhà Thuốc *</label>
+                                        <input id="settings-pharmacy-name" type="text" required class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold" />
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Số Chứng Chỉ GPP / Tiêu Chuẩn</label>
+                                        <input id="settings-gpp-cert" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Hotline / Số Điện Thoại</label>
+                                        <input id="settings-phone" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono" />
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Địa Chỉ Nhà Thuốc</label>
+                                        <input id="settings-address" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Dược Sĩ Phụ Trách Chuyên Môn</label>
+                                        <input id="settings-pharmacist" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Khổ Giấy In Hóa Đơn Mặc Định</label>
+                                        <select id="settings-print-format" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold">
+                                            <option value="k80">Khổ Nhiệt K80 (80mm) - Tiêu chuẩn phổ biến nhất</option>
+                                            <option value="k58">Khổ Nhiệt K58 (58mm) - Máy in mini cầm tay</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Ghi Chú Chân Trang Hóa Đơn</label>
+                                        <textarea id="settings-receipt-note" rows="2" class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"></textarea>
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">Lời Cảm Ơn Chân Trang</label>
+                                        <input id="settings-receipt-thankyou" type="text" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cấu hình Ngân Hàng & Mã VietQR -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                <h3 class="text-base font-extrabold text-blue-900 mb-1 flex items-center gap-2">
+                                    <i data-lucide="qr-code" class="w-5 h-5 text-blue-600"></i>
+                                    Cấu Hình Tài Khoản Nhận Chuyển Khoản (VietQR)
+                                </h3>
+                                <p class="text-xs text-slate-500 mb-4">Khi khách chọn chuyển khoản, hệ thống sẽ tự động tạo mã QR chính xác để khách quét thanh toán</p>
+
+                                <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                                    <div class="md:col-span-8 space-y-4">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-700 mb-1">Chọn Ngân Hàng *</label>
+                                            <select id="settings-bank-select" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold">
+                                                <!-- Rendered dynamically -->
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-700 mb-1">Số Tài Khoản Ngân Hàng *</label>
+                                            <input id="settings-account-no" type="text" required placeholder="Nhập số tài khoản"
+                                                   class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono font-bold text-emerald-800" />
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-700 mb-1">Tên Chủ Tài Khoản (Không Dấu) *</label>
+                                            <input id="settings-account-name" type="text" required placeholder="Ví dụ: NGUYEN HOANG ANH"
+                                                   class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 uppercase font-bold" />
+                                        </div>
+
+                                        <div class="flex items-center gap-2 pt-2">
+                                            <input id="settings-sound-enabled" type="checkbox" checked class="w-4 h-4 text-emerald-600 rounded" />
+                                            <label for="settings-sound-enabled" class="text-xs font-medium text-slate-700">Phát âm thanh bip nhẹ khi thao tác bán thuốc</label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Khung xem trước VietQR -->
+                                    <div class="md:col-span-4 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col items-center justify-center">
+                                        <span class="text-[11px] font-bold text-slate-500 mb-2 uppercase">Mã VietQR Mẫu Thử Nghiệm</span>
+                                        <div id="settings-vietqr-preview" class="p-1 bg-white rounded-lg shadow-sm">
+                                            <!-- Preview -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                    <span>Lưu Cấu Hình Cài Đặt</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- PANEL 2: LỊCH SỬ THAO TÁC (KIOTVIET STYLE - ĐÚNG NHƯ ẢNH ĐÍNH KÈM) -->
+                    <div id="settings-panel-audit_log" class="settings-subpanel hidden space-y-4">
+                        <!-- Header Toolbar -->
+                        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                                    <i data-lucide="history" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="text-base font-extrabold text-slate-800">Lịch Sử Thao Tác</h3>
+                                        <span id="audit-total-badge" class="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-[11px] rounded-full font-bold">0 thao tác</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-0.5">Nhật ký chi tiết các giao dịch hóa đơn, phiếu thu chi, xuất file và cấu hình hệ thống</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Nút thao tác -->
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <button id="audit-toggle-filter-btn" type="button" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer">
+                                    <i data-lucide="filter" class="w-4 h-4 text-slate-500"></i>
+                                    <span>Lọc</span>
+                                </button>
+                                <button id="audit-export-excel-btn" type="button" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                                    <span>Xuất file</span>
+                                </button>
+                                <button id="audit-refresh-btn" type="button" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer" title="Làm mới">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Thanh Bộ Lọc Thông Minh (Filter Bar) -->
+                        <div id="audit-filter-bar" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Tìm kiếm nội dung</label>
+                                    <div class="relative">
+                                        <input id="audit-search-keyword" type="text" placeholder="Tìm theo mã đơn, nhân viên, chi tiết..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium" />
+                                        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Tính năng</label>
+                                    <select id="audit-filter-feature" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                        <option value="all">Tất cả tính năng</option>
+                                        <option value="Hóa đơn">Hóa đơn</option>
+                                        <option value="Phiếu thu">Phiếu thu</option>
+                                        <option value="Phiếu chi">Phiếu chi</option>
+                                        <option value="Danh mục hàng hóa">Danh mục hàng hóa</option>
+                                        <option value="Sổ quỹ">Sổ quỹ</option>
+                                        <option value="Khách hàng">Khách hàng</option>
+                                        <option value="Kho thuốc">Kho thuốc</option>
+                                        <option value="Cài đặt">Cài đặt</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Nhân viên</label>
+                                    <select id="audit-filter-staff" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                        <option value="all">Tất cả nhân viên</option>
+                                        <option value="ADMIN">ADMIN</option>
+                                        <option value="DS. Nguyễn Thanh Dung">DS. Nguyễn Thanh Dung</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block font-bold text-slate-600 mb-1">Thời gian</label>
+                                    <select id="audit-filter-time" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                        <option value="all" selected>Tất cả thời gian</option>
+                                        <option value="today">Hôm nay (08/11/2026)</option>
+                                        <option value="yesterday">Hôm qua</option>
+                                        <option value="last_7_days">7 ngày qua</option>
+                                        <option value="this_month">Tháng này (11/2026)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bảng Danh Sách Lịch Sử Thao Tác (Giao diện giống hệt KiotViet) -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
+                                        <tr>
+                                            <th class="py-3 px-4 w-36">Nhân viên</th>
+                                            <th class="py-3 px-4 w-44">Tính năng</th>
+                                            <th class="py-3 px-4 w-44 font-mono">Thời gian</th>
+                                            <th class="py-3 px-4">Chi tiết</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="audit-log-tbody" class="divide-y divide-slate-100">
+                                        <!-- Rendered dynamically by AuditLogModule -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Thanh Phân Trang (Pagination) -->
+                            <div class="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
+                                <div id="audit-pagination-info" class="font-medium">Hiển thị 1 - 25 trong tổng số 0 thao tác</div>
+                                <div id="audit-pagination-controls" class="flex items-center gap-1">
+                                    <!-- Pagination buttons -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PANEL 3: QUẢN LÝ NGƯỜI DÙNG -->
+                    <div id="settings-panel-users" class="settings-subpanel hidden space-y-6">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="users" class="w-5 h-5 text-emerald-600"></i>
+                                    <div>
+                                        <h3 class="text-base font-extrabold text-slate-800">Danh Sách Người Dùng & Phân Quyền</h3>
+                                        <p class="text-xs text-slate-500">Quản lý tài khoản đăng nhập cho Quản trị viên và Dược sĩ quầy</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">AD</div>
+                                        <div>
+                                            <div class="text-xs font-bold text-slate-800">Quản Trị Viên (ADMIN)</div>
+                                            <div class="text-[11px] text-slate-500">Toàn quyền hệ thống & Báo cáo</div>
+                                        </div>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full">Toàn quyền</span>
+                                </div>
+
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full bg-blue-600 text-white font-black text-sm flex items-center justify-center">DS</div>
+                                        <div>
+                                            <div class="text-xs font-bold text-slate-800">Dược Sĩ: DS. Nguyễn Thanh Dung</div>
+                                            <div class="text-[11px] text-slate-500">Bán thuốc, kho thuốc, khách hàng</div>
+                                        </div>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-blue-100 text-blue-800 text-[10px] font-black rounded-full">Dược sĩ</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PANEL 4: BẢO MẬT & MẬT KHẨU -->
+                    <div id="settings-panel-security" class="settings-subpanel hidden space-y-6">
+                        <!-- Quản Lý Tài Khoản & Mật Khẩu (Chỉ Admin) -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <div class="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
+                                <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
+                                <div>
+                                    <h3 class="text-base font-extrabold text-slate-800">Quản Lý Mật Khẩu Đăng Nhập</h3>
+                                    <p class="text-xs text-slate-500">Chỉ Quản trị viên mới có quyền đổi mật khẩu Admin và Staff. Nhân viên không thể vào được trang này.</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Đổi mật khẩu Admin -->
+                                <div class="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                            <span class="w-6 h-6 rounded-md bg-amber-500 text-slate-950 flex items-center justify-center font-black text-[10px]">AD</span>
+                                            Mật khẩu Quản Trị Viên (Admin)
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Admin</label>
+                                        <input id="settings-admin-new-pass" type="password" placeholder="Nhập mật khẩu Admin mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono" />
+                                    </div>
+                                    <button type="button" onclick="App.handleUpdateAdminPassword()" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
+                                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                        <span>Lưu Mật Khẩu Admin</span>
+                                    </button>
+                                </div>
+
+                                <!-- Đổi mật khẩu Staff -->
+                                <div class="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                                            <span class="w-6 h-6 rounded-md bg-blue-500 text-white flex items-center justify-center font-black text-[10px]">NV</span>
+                                            Mật khẩu Nhân Viên (Staff)
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Staff</label>
+                                        <input id="settings-staff-new-pass" type="password" placeholder="Nhập mật khẩu Staff mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
+                                    </div>
+                                    <button type="button" onclick="App.handleUpdateStaffPassword()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
+                                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                        <span>Lưu Mật Khẩu Staff</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PANEL 5: SAO LƯU & DỮ LIỆU -->
+                    <div id="settings-panel-backup" class="settings-subpanel hidden space-y-6">
+                        <!-- Quản lý Sao Lưu & Phục Hồi Dữ Liệu -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h3 class="text-base font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                                <i data-lucide="database" class="w-5 h-5 text-slate-600"></i>
+                                Sao Lưu & Phục Hồi Dữ Liệu Toàn Diện
+                            </h3>
+                            <p class="text-xs text-slate-500 mb-4">Dữ liệu được lưu trữ trực tiếp trên máy tính của bạn. Hãy xuất file sao lưu định kỳ để không lo mất dữ liệu.</p>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <button type="button" onclick="App.exportBackup()" class="p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 transition cursor-pointer">
+                                    <i data-lucide="download" class="w-5 h-5"></i>
+                                    <span>Tải File Sao Lưu (.JSON)</span>
+                                </button>
+
+                                <label class="p-3 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 cursor-pointer transition text-center">
+                                    <i data-lucide="upload" class="w-5 h-5"></i>
+                                    <span>Phục Hồi Từ File Sao Lưu</span>
+                                    <input type="file" accept=".json" onchange="App.importBackup(event)" class="hidden" />
+                                </label>
+
+                                <button type="button" onclick="App.resetToDemoData()" class="p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 transition cursor-pointer">
+                                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                                    <span>Nạp Lại Dữ Liệu Mẫu (Demo)</span>
+                                </button>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+                                <button type="button" onclick="App.clearAllDataConfirm()" class="text-xs text-rose-500 hover:text-rose-700 font-semibold flex items-center gap-1 cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    <span>Xóa toàn bộ dữ liệu & làm mới hoàn toàn</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Lịch Sử Chỉnh Sửa Cài Đặt Cũ -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="file-clock" class="w-5 h-5 text-emerald-600"></i>
+                                    <div>
+                                        <h3 class="text-base font-extrabold text-slate-800">Lịch Sử Chỉnh Sửa Cấu Hình Cài Đặt</h3>
+                                        <p class="text-xs text-slate-500">Nhật ký thay đổi thông tin số tài khoản VietQR, địa chỉ, hotline</p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="App.clearSettingsHistory()" class="text-xs text-slate-400 hover:text-rose-600 flex items-center gap-1 transition px-2.5 py-1 bg-slate-50 hover:bg-rose-50 rounded-lg border border-slate-200 cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    <span>Xóa lịch sử</span>
+                                </button>
+                            </div>
+
+                            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
+                                        <tr>
+                                            <th class="py-2.5 px-3 w-40">Thời Gian</th>
+                                            <th class="py-2.5 px-3 w-36">Người Sửa</th>
+                                            <th class="py-2.5 px-3">Chi Tiết Thay Đổi (Cũ ➔ Mới)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="settings-history-tbody" class="divide-y divide-slate-100">
+                                        <!-- Rendered dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PANEL 6: KHỔ IN & THIẾT BỊ -->
+                    <div id="settings-panel-devices" class="settings-subpanel hidden space-y-6">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                            <div class="flex items-center gap-2 pb-3 border-b border-slate-100">
+                                <i data-lucide="printer" class="w-5 h-5 text-emerald-600"></i>
+                                <div>
+                                    <h3 class="text-base font-extrabold text-slate-800">Cấu Hình Máy In & Thiết Bị Ngoại Vi</h3>
+                                    <p class="text-xs text-slate-500">Tùy biến máy in hóa đơn nhiệt, máy in mã vạch và đầu đọc barcode</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                                    <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                        <i data-lucide="receipt" class="w-4 h-4 text-emerald-600"></i>
+                                        Máy In Hóa Đơn Bán Lẻ
+                                    </span>
+                                    <p class="text-[11px] text-slate-500">Hỗ trợ tự động cắt giấy cho tất cả các máy in nhiệt USB / LAN / Wifi cổng 80mm và 58mm.</p>
+                                </div>
+
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                                    <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                        <i data-lucide="barcode" class="w-4 h-4 text-blue-600"></i>
+                                        Máy Quét Mã Vạch (Barcode Scanner)
+                                    </span>
+                                    <p class="text-[11px] text-slate-500">Cắm và chạy (Plug & Play) qua cổng USB, hỗ trợ quét mã tự động thêm vào giỏ hàng tại tab Bán thuốc.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </main>
             </div>
 
         </section>
 
-    </main>
+</main>
 
     <!-- ========================================== -->
     <!-- MODAL 1: THÊM / SỬA THÔNG TIN THUỐC -->
@@ -4140,6 +4392,7 @@
     <script src="js/orders.js?v=20261108_v3"></script>
     <script src="js/customers.js?v=20261108_v3"></script>
     <script src="js/reports.js?v=20261108_v3"></script>
+    <script src="js/audit-log.js?v=20261108_v1"></script>
     <script src="js/app.js?v=20261108_v3"></script>
 
     <!-- Đồng hồ thời gian thực ở Header -->

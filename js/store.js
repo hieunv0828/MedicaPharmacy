@@ -14,7 +14,8 @@ const STORAGE_KEYS = {
     CUSTOMERS: 'medica_customers_v1',
     SETTINGS_HISTORY: 'medica_settings_history_v1',
     VOUCHERS: 'medica_vouchers_v1',
-    PURCHASE_RETURNS: 'medica_purchase_returns_v1'
+    PURCHASE_RETURNS: 'medica_purchase_returns_v1',
+    AUDIT_LOG: 'medica_audit_log_v1'
 };
 
 class DataStore {
@@ -165,6 +166,9 @@ class DataStore {
                 this._cachedReturns = db.purchaseReturns;
                 try { localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(db.purchaseReturns)); } catch(e){}
             }
+            if (db.auditLog) {
+                try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(db.auditLog)); } catch(e){}
+            }
         } catch (e) {
             console.warn('LocalStorage quota limit reached, maintaining state in-memory:', e);
         }
@@ -179,6 +183,7 @@ class DataStore {
             stockInOrders: this.getStockInOrders(),
             customers: this.getCustomers(),
             settingsHistory: this.getSettingsHistory(),
+            auditLog: this.getAuditLog(),
             vouchers: this.getVouchers(),
             purchaseReturns: this.getPurchaseReturns(),
             lastUpdated: new Date().toISOString()
@@ -1314,6 +1319,125 @@ class DataStore {
         if (history.length > 50) history.pop();
         this.saveSettingsHistory(history);
         return entry;
+    }
+
+    // --- LỊCH SỬ THAO TÁC TOÀN DIỆN (Audit Log - KiotViet Style) ---
+    getAuditLog() {
+        const raw = localStorage.getItem(STORAGE_KEYS.AUDIT_LOG);
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch(e) {}
+        }
+        return this.generateSeedAuditLog();
+    }
+
+    saveAuditLog(logs) {
+        try {
+            localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(logs));
+        } catch(e){}
+        this.schedulePersistToServer();
+        this.emit('audit_log:changed', logs);
+    }
+
+    logAction(feature, details, staff, actionType = 'action') {
+        const logs = this.getAuditLog();
+        const currentStaff = staff || (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN';
+        const newEntry = {
+            id: 'AUDIT-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            staff: currentStaff,
+            feature: feature,
+            timestamp: new Date().toISOString(),
+            details: details,
+            actionType: actionType
+        };
+        logs.unshift(newEntry);
+        if (logs.length > 500) logs.pop();
+        this.saveAuditLog(logs);
+        return newEntry;
+    }
+
+    generateSeedAuditLog() {
+        const logs = [];
+        // Lịch sử xuất file & import gần đây của nhà thuốc (trùng khớp ảnh KiotViet)
+        logs.push({
+            id: 'AUDIT-seed-1',
+            staff: 'ADMIN',
+            feature: 'Danh mục hàng hóa',
+            timestamp: '2026-11-08T15:40:02.000Z',
+            details: 'Cập nhật danh mục thuốc KiotViet (5.833 mặt hàng) vào hệ thống',
+            actionType: 'import'
+        });
+        logs.push({
+            id: 'AUDIT-seed-2',
+            staff: 'ADMIN',
+            feature: 'Danh mục hàng hóa',
+            timestamp: '2026-11-08T15:33:48.000Z',
+            details: 'Xuất file Danh sách hàng hóa (kể cả hàng ngừng kinh doanh)',
+            actionType: 'export'
+        });
+        logs.push({
+            id: 'AUDIT-seed-3',
+            staff: 'ADMIN',
+            feature: 'Danh mục hàng hóa',
+            timestamp: '2026-11-08T15:21:21.000Z',
+            details: 'Xuất file Danh sách hàng hóa',
+            actionType: 'export'
+        });
+        logs.push({
+            id: 'AUDIT-seed-4',
+            staff: 'ADMIN',
+            feature: 'Danh mục hàng hóa',
+            timestamp: '2026-11-08T14:48:52.000Z',
+            details: 'Xuất file Danh sách hàng hóa',
+            actionType: 'export'
+        });
+        logs.push({
+            id: 'AUDIT-seed-5',
+            staff: 'ADMIN',
+            feature: 'Sổ quỹ',
+            timestamp: '2026-11-08T14:42:54.000Z',
+            details: 'Xuất file Danh sách sổ quỹ',
+            actionType: 'export'
+        });
+        logs.push({
+            id: 'AUDIT-seed-6',
+            staff: 'ADMIN',
+            feature: 'Hóa đơn',
+            timestamp: '2026-11-08T14:41:48.000Z',
+            details: 'Xuất file Chi tiết danh sách hóa đơn',
+            actionType: 'export'
+        });
+
+        // Tự động sinh lịch sử thao tác từ các hóa đơn thực tế ngày 08/11/2026
+        const orders = this.getOrders();
+        const todayOrders = orders.filter(o => o.createdAt && o.createdAt.startsWith('2026-11-08')).slice(0, 33);
+        todayOrders.forEach(o => {
+            const timeStr = o.createdAt;
+            const amtStr = Number(o.totalAmount || 0).toLocaleString('vi-VN') + ' đ';
+            logs.push({
+                id: 'AUDIT-seed-pt-' + o.id,
+                staff: o.pharmacist || 'ADMIN',
+                feature: 'Phiếu thu',
+                timestamp: timeStr,
+                details: `Tạo phiếu thu: TTHD${o.id.replace('HD','')}, cho hóa đơn: ${o.id}, với giá trị: ${amtStr}`,
+                actionType: 'create'
+            });
+            logs.push({
+                id: 'AUDIT-seed-hd-' + o.id,
+                staff: o.pharmacist || 'ADMIN',
+                feature: 'Hóa đơn',
+                timestamp: timeStr,
+                details: `Tạo hóa đơn: ${o.id}, bảng giá: Bảng giá chung, Thuế: Tắt thuế, giá trị: ${amtStr}`,
+                actionType: 'create'
+            });
+        });
+
+        // Sắp xếp giảm dần theo thời gian mới nhất lên trước
+        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(logs)); } catch(e){}
+        return logs;
     }
 
     // --- KHÁCH HÀNG & HỆ THỐNG TÍCH ĐIỂM (100.000đ = 1 điểm) ---

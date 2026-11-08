@@ -20,6 +20,18 @@ const ExportService = {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+
+        // Tự động ghi nhật ký thao tác (Audit Log)
+        if (window.Store && typeof Store.logAction === 'function') {
+            let feat = 'Xuất file';
+            if (filename.includes('ChiTietHoaDon') || filename.includes('HoaDon')) feat = 'Hóa đơn';
+            else if (filename.includes('SoQuy') || filename.includes('ThuChi')) feat = 'Sổ quỹ';
+            else if (filename.includes('SanPham') || filename.includes('KhoThuoc') || filename.includes('TonKho')) feat = 'Danh mục hàng hóa';
+            else if (filename.includes('KhachHang')) feat = 'Khách hàng';
+            else if (filename.includes('DoanhSo') || filename.includes('BaoCao')) feat = 'Báo cáo';
+            else if (filename.includes('LichSuThaoTac')) feat = 'Lịch sử thao tác';
+            Store.logAction(feat, `Xuất file ${filename}`, (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN', 'export');
+        }
     },
 
     // Hàm escape ký tự đặc biệt trong CSV

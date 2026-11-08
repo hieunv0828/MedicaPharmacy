@@ -31,6 +31,9 @@ const App = {
         }
         ReportsModule.init();
         this.initSettingsModule();
+        if (window.AuditLogModule) {
+            AuditLogModule.init();
+        }
         this.setupNavigation();
 
         // Khởi tạo các Combobox tìm kiếm thông minh
@@ -293,6 +296,7 @@ const App = {
                 pharmacist: updated.pharmacist || current.pharmacist || 'Dược sĩ',
                 changes: changes
             });
+            Store.logAction('Cài đặt', `Cập nhật cấu hình: ${changes.map(c => c.field).join(', ')}`, updated.pharmacist || 'ADMIN', 'update');
         }
 
         this.renderSettingsHistory();

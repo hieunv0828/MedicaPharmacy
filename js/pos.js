@@ -1104,6 +1104,11 @@ const POSModule = {
         };
 
         const savedOrder = Store.addOrder(newOrder);
+
+        // Ghi nhận vào Lịch Sử Thao Tác (Audit Log)
+        Store.logAction('Hóa đơn', `Tạo hóa đơn: ${savedOrder.id}, bảng giá: Bảng giá chung, Thuế: Tắt thuế, giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}, khách hàng: ${savedOrder.customerName || 'Khách vãng lai'}`, savedOrder.pharmacist || 'ADMIN', 'create');
+        Store.logAction('Phiếu thu', `Tạo phiếu thu: TTHD${savedOrder.id.replace('HD','')}, cho hóa đơn: ${savedOrder.id}, với giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}`, savedOrder.pharmacist || 'ADMIN', 'create');
+
         AppUtils.playBeepSound('success');
 
         if (shouldPrint) {

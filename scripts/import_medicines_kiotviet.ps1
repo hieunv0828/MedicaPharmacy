@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Script Import / Cập nhật Danh mục Thuốc KiotViet vào MedicaPharmacy
 .DESCRIPTION

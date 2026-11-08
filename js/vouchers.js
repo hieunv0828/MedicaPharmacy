@@ -654,6 +654,14 @@ const VouchersModule = {
         };
 
         const saved = Store.addVoucher(voucher);
+
+        // Ghi nhật ký thao tác (Audit Log)
+        if (window.Store && typeof Store.logAction === 'function') {
+            const feat = type === 'receipt' ? 'Phiếu thu' : 'Phiếu chi';
+            const actionName = type === 'receipt' ? 'Tạo phiếu thu' : 'Tạo phiếu chi';
+            Store.logAction(feat, `${actionName}: ${saved.id}, giá trị: ${AppUtils.formatVND(saved.amount)}, nội dung: ${saved.description || ''}`, saved.createdBy || 'ADMIN', 'create');
+        }
+
         this.closeCreateModal();
 
         App.showToast(`Đã tạo thành công phiếu ${type === 'receipt' ? 'thu' : 'chi'}: ${saved.id}`, 'success');
