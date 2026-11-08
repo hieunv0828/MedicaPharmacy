@@ -142,8 +142,9 @@ const ExportService = {
     exportOrders(orders, filterType = 'all') {
         const lines = [];
         const typeName = filterType === 'cash' ? 'DON_TIEN_MAT' : filterType === 'transfer' ? 'DON_CHUYEN_KHOAN' : 'TAT_CA_DON';
+        const isAdmin = !window.AuthModule || AuthModule.canViewCostPrice();
         
-        lines.push([
+        const header = [
             this.csvCell('Mã Hóa Đơn'),
             this.csvCell('Ngày Giờ'),
             this.csvCell('Hình Thức'),
@@ -155,20 +156,56 @@ const ExportService = {
             this.csvCell('Dược Sĩ'),
             this.csvCell('Tổng Tiền Hàng (đ)'),
             this.csvCell('Giảm Giá (đ)'),
-            this.csvCell('Khách Thanh Toán (đ)'),
+            this.csvCell('Khách Thanh Toán (đ)')
+        ];
+
+        if (isAdmin) {
+            header.push(this.csvCell('Tổng Vốn (đ)'));
+            header.push(this.csvCell('Lợi Nhuận (đ)'));
+            header.push(this.csvCell('Tỷ Suất LN (%)'));
+        }
+
+        header.push(
             this.csvCell('Tiền Khách Đưa (đ)'),
             this.csvCell('Tiền Thừa Trả (đ)'),
             this.csvCell('Mã GD Chuyển Khoản'),
             this.csvCell('Trạng Thái'),
             this.csvCell('Chi Tiết Thuốc Bán')
-        ].join(','));
+        );
+
+        lines.push(header.join(','));
 
         orders.forEach(o => {
+            const isReturnOrder = !!(o.isReturn || o.orderType === 'return');
             const itemsSummary = (o.items || []).map(i => `${i.medicineName} (${i.quantity} ${i.unit})`).join('; ');
-            const methodLabel = o.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản (VietQR)';
-            const statusLabel = o.isCancelled ? 'ĐÃ HỦY' : 'Thành công';
+            let methodLabel = o.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản (VietQR)';
+            let statusLabel = o.isCancelled ? 'ĐÃ HỦY' : (o.returnStatus === 'fully_returned' ? 'ĐÃ TRẢ HẾT' : (o.returnStatus === 'partially_returned' ? 'TRẢ 1 PHẦN' : 'Thành công'));
 
-            lines.push([
+            if (isReturnOrder) {
+                methodLabel = o.paymentMethod === 'cash' ? 'Hoàn tiền mặt' : 'Hoàn chuyển khoản';
+                statusLabel = 'ĐÃ HOÀN TRẢ';
+            }
+
+            const isCancelled = o.isCancelled;
+            let netRevenue = 0;
+            let orderCost = 0;
+            let profit = 0;
+            let profitMargin = 0;
+
+            if (isReturnOrder) {
+                const totalRefund = o.totalRefund || o.totalAmount || 0;
+                const retCost = o.totalCost || 0;
+                netRevenue = -totalRefund;
+                orderCost = -retCost;
+                profit = netRevenue - orderCost;
+            } else {
+                netRevenue = isCancelled ? 0 : Math.max(0, (o.totalAmount || 0) - (o.totalRefunded || 0));
+                orderCost = (isAdmin && window.OrdersModule && OrdersModule.calculateOrderCost) ? OrdersModule.calculateOrderCost(o) : 0;
+                profit = isCancelled ? 0 : (netRevenue - orderCost);
+                profitMargin = (netRevenue > 0 && !isCancelled) ? ((profit / netRevenue) * 100).toFixed(1) : 0;
+            }
+
+            const row = [
                 this.csvCell(o.id),
                 this.csvCell(AppUtils.formatDateTime(o.createdAt)),
                 this.csvCell(methodLabel),
@@ -178,15 +215,26 @@ const ExportService = {
                 this.csvCell(o.pointsUsed || 0),
                 this.csvCell(o.pointsDiscount || (o.pointsUsed ? o.pointsUsed * 1000 : 0)),
                 this.csvCell(o.pharmacist || ''),
-                this.csvCell(o.subTotal || 0),
+                this.csvCell(isReturnOrder ? -netRevenue : (o.subTotal || 0)),
                 this.csvCell(o.discount || 0),
-                this.csvCell(o.totalAmount || 0),
+                this.csvCell(isReturnOrder ? netRevenue : (o.totalAmount || 0))
+            ];
+
+            if (isAdmin) {
+                row.push(this.csvCell(isCancelled ? 0 : orderCost));
+                row.push(this.csvCell(profit));
+                row.push(this.csvCell(profitMargin + '%'));
+            }
+
+            row.push(
                 this.csvCell(o.customerCash || 0),
                 this.csvCell(o.changeAmount || 0),
                 this.csvCell(o.transferCode || ''),
                 this.csvCell(statusLabel),
                 this.csvCell(itemsSummary)
-            ].join(','));
+            );
+
+            lines.push(row.join(','));
         });
 
         const csvContent = lines.join('\r\n');

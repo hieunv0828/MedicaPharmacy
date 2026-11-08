@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -1075,9 +1075,16 @@
                         <span>Đơn Chuyển Khoản</span>
                         <span id="badge-count-transfer" class="tab-filter-badge">0</span>
                     </button>
+
+                    <button id="tab-btn-orders-returns" onclick="OrdersModule.setTab('returns')"
+                            class="tab-filter-btn" title="Lọc danh sách các hóa đơn và phiếu trả hàng">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4 text-amber-600"></i>
+                        <span>Đơn Trả Hàng</span>
+                        <span id="badge-count-returns" class="tab-filter-badge bg-amber-100 text-amber-800 font-bold">0</span>
+                    </button>
                 </div>
 
-                <!-- Lọc thời gian & Tìm kiếm & Xuất Excel -->
+                <!-- Lọc thời gian & Tìm kiếm & Xuất Excel & Trả hàng tổng hợp -->
                 <div class="flex flex-wrap items-center gap-2">
                     <select id="orders-time-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
                         <option value="this_month">Tháng Này</option>
@@ -1101,7 +1108,13 @@
                                class="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                     </div>
 
-                    <button onclick="OrdersModule.exportCurrentTabOrders()" class="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
+                    <!-- Nút Trả Hàng Tổng Hợp -->
+                    <button type="button" onclick="OrdersModule.openAggregateReturnModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow-amber-200 transition cursor-pointer">
+                        <i data-lucide="corner-down-left" class="w-3.5 h-3.5"></i>
+                        <span>+ Trả Hàng Tổng Hợp</span>
+                    </button>
+
+                    <button onclick="OrdersModule.exportCurrentTabOrders()" class="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>Xuất Excel</span>
                     </button>
@@ -1120,6 +1133,8 @@
                                 <th class="py-3 px-3">Khách Hàng</th>
                                 <th class="py-3 px-3">Thuốc Đã Bán</th>
                                 <th class="py-3 px-3 text-right w-32">Tổng Tiền</th>
+                                <th id="th-orders-cost" class="py-3 px-3 text-right w-28 hidden">Tổng Vốn</th>
+                                <th id="th-orders-profit" class="py-3 px-3 text-right w-28 hidden">Lợi Nhuận</th>
                                 <th class="py-3 px-3 text-center w-24">Trạng Thái</th>
                                 <th class="py-3 px-3 text-center w-28">Thao Tác</th>
                             </tr>
@@ -1725,15 +1740,15 @@
                             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-300"></i>
                         </div>
                         <nav class="space-y-0.5">
-                            <button type="button" data-settings-nav="store" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl transition text-emerald-800 bg-emerald-50 border-l-4 border-emerald-600 shadow-xs">
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('store')" data-settings-nav="store" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl transition text-emerald-800 bg-emerald-50 border-l-4 border-emerald-600 shadow-xs cursor-pointer">
                                 <i data-lucide="store" class="w-4 h-4 text-emerald-600"></i>
                                 <span>Thông tin cửa hàng</span>
                             </button>
-                            <button type="button" data-settings-nav="users" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('users')" data-settings-nav="users" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
                                 <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
                                 <span>Quản lý người dùng</span>
                             </button>
-                            <button type="button" data-settings-nav="security" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('security')" data-settings-nav="security" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
                                 <i data-lucide="shield-check" class="w-4 h-4 text-slate-400"></i>
                                 <span>Bảo mật & Mật khẩu</span>
                             </button>
@@ -1747,12 +1762,12 @@
                             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-300"></i>
                         </div>
                         <nav class="space-y-0.5">
-                            <button type="button" data-settings-nav="audit_log" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('audit_log')" data-settings-nav="audit_log" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
                                 <i data-lucide="history" class="w-4 h-4 text-blue-500"></i>
                                 <span class="flex-1 text-left">Lịch sử thao tác</span>
                                 <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-md">Mới</span>
                             </button>
-                            <button type="button" data-settings-nav="backup" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('backup')" data-settings-nav="backup" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
                                 <i data-lucide="database" class="w-4 h-4 text-slate-400"></i>
                                 <span>Sao lưu & Phục hồi</span>
                             </button>
@@ -1766,7 +1781,7 @@
                             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-300"></i>
                         </div>
                         <nav class="space-y-0.5">
-                            <button type="button" data-settings-nav="devices" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition">
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('devices')" data-settings-nav="devices" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
                                 <i data-lucide="printer" class="w-4 h-4 text-slate-400"></i>
                                 <span>Khổ in & Âm thanh</span>
                             </button>
@@ -2967,6 +2982,276 @@
     </div>
 
     <!-- ========================================== -->
+    <!-- MODAL 8B: TRẢ HÀNG TỔNG HỢP (AGGREGATE RETURN) -->
+    <!-- ========================================== -->
+    <div id="modal-aggregate-return" class="hidden fixed inset-0 z-[86] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[94vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2.5 text-amber-600">
+                    <div class="p-2 bg-amber-100 text-amber-700 rounded-xl">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-base text-slate-800">Tạo Phiếu Trả Hàng Tổng Hợp</h3>
+                        <p class="text-xs text-slate-500">Khách trả tự do hoặc gom từ nhiều hóa đơn • Tự động hoàn kho & lập phiếu chi sổ quỹ</p>
+                    </div>
+                </div>
+                <button type="button" onclick="OrdersModule.closeAggregateReturnModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Body scrollable -->
+            <div class="flex-1 overflow-y-auto my-3 space-y-4 pr-1 text-xs">
+                <!-- Thông tin khách hàng & hoàn tiền -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                    <!-- Khách hàng -->
+                    <div class="relative">
+                        <label class="block font-bold text-slate-700 mb-1">Khách Hàng Trả</label>
+                        <div class="flex gap-1.5">
+                            <input id="agg-return-customer-name" type="text" placeholder="Tên khách hàng hoặc Khách lẻ"
+                                   oninput="OrdersModule.handleCustomerInput(this.value)"
+                                   autocomplete="off"
+                                   class="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-medium" />
+                            <button type="button" onclick="OrdersModule.setCustomerRetail()" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[11px] font-semibold shrink-0 cursor-pointer" title="Chọn khách lẻ">Khách lẻ</button>
+                        </div>
+                        <div id="agg-return-customer-dropdown" class="hidden absolute top-full left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-48 overflow-y-auto divide-y divide-slate-100"></div>
+                    </div>
+
+                    <!-- SĐT Khách -->
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Số Điện Thoại</label>
+                        <input id="agg-return-customer-phone" type="text" placeholder="09xxxxxxxx"
+                               class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-mono" />
+                    </div>
+
+                    <!-- Hình thức hoàn tiền & Thời gian -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Hình Thức Hoàn</label>
+                            <select id="agg-return-payment-method" class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-semibold">
+                                <option value="cash">💵 Tiền mặt</option>
+                                <option value="transfer">🏦 Chuyển khoản</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Thời Gian Trả</label>
+                            <input id="agg-return-datetime" type="datetime-local" class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-[11px]" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thanh tìm & Thêm Thuốc Trả -->
+                <div class="bg-amber-50/50 p-3 rounded-xl border border-amber-200/80 space-y-2.5">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
+                            <i data-lucide="plus-circle" class="w-4 h-4 text-amber-600"></i>
+                            <span>Thêm Mặt Hàng Khách Trả Lại</span>
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <!-- Nút mở nhập từ đơn cũ -->
+                            <button type="button" onclick="OrdersModule.toggleOrderLookup()" class="text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+                                <span>Gom từ Hóa Đơn cũ</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Ô tra cứu đơn cũ (collapsible) -->
+                    <div id="agg-return-order-lookup-box" class="hidden bg-white p-2.5 rounded-lg border border-blue-200 space-y-2">
+                        <div class="flex gap-2 items-center">
+                            <input id="agg-return-order-id-input" type="text" placeholder="Nhập mã hóa đơn (ví dụ HD578008)..." class="flex-1 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                            <button type="button" onclick="OrdersModule.lookupOrderItems()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer">Tìm Hóa Đơn</button>
+                        </div>
+                        <div id="agg-return-order-items-preview" class="hidden divide-y divide-slate-100 max-h-36 overflow-y-auto"></div>
+                    </div>
+
+                    <!-- Ô tìm kiếm thuốc trong kho -->
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input id="agg-return-med-search" type="text" placeholder="🔍 Gõ tên thuốc, hoạt chất, mã hàng SP..., mã vạch để thêm vào danh sách trả..."
+                               oninput="OrdersModule.handleMedicineSearch(this.value)"
+                               autocomplete="off"
+                               class="w-full pl-9 pr-3 py-2 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs shadow-sm" />
+                        <div id="agg-return-search-results" class="hidden absolute top-full left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl mt-1 max-h-56 overflow-y-auto divide-y divide-slate-100"></div>
+                    </div>
+                </div>
+
+                <!-- Bảng danh sách hàng trả lại (Cart) -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <div class="bg-slate-100/80 px-3 py-2 text-xs font-bold text-slate-700 uppercase flex justify-between items-center border-b border-slate-200">
+                        <span>Danh Sách Thuốc Trả Lại (<span id="agg-return-item-count">0</span> món)</span>
+                        <span class="text-[11px] text-slate-500 font-normal">Có thể điều chỉnh ĐVT, Số Lượng và Đơn Giá hoàn</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-60">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 sticky top-0 bg-slate-50 z-10">
+                                <tr>
+                                    <th class="p-2.5 text-center w-10">#</th>
+                                    <th class="p-2.5">Tên Hàng Hóa / Thuốc</th>
+                                    <th class="p-2.5 text-center w-24">Đơn Vị</th>
+                                    <th class="p-2.5 text-center w-28">Số Lượng</th>
+                                    <th class="p-2.5 text-right w-32">Đơn Giá Hoàn</th>
+                                    <th class="p-2.5 text-right w-28 th-cost-col">Giá Vốn</th>
+                                    <th class="p-2.5 text-right w-32">Thành Tiền</th>
+                                    <th class="p-2.5 text-center w-12">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agg-return-cart-tbody" class="divide-y divide-slate-100">
+                                <!-- Rendered dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Lý do trả & Tùy chọn hạch toán & Tổng kết -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Bên trái: Lý do & tùy chọn -->
+                    <div class="space-y-2.5 bg-slate-50/60 p-3.5 rounded-xl border border-slate-200">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Lý Do Khách Trả Hàng</label>
+                            <select id="agg-return-reason-select" onchange="OrdersModule.handleAggReasonChange()" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs">
+                                <option value="Khách dùng không hết / dư thuốc">Khách dùng không hết / dư thuốc</option>
+                                <option value="Bác sĩ đổi đơn thuốc khác">Bác sĩ đổi đơn thuốc khác</option>
+                                <option value="Uống bị dị ứng / tác dụng phụ">Uống bị dị ứng / tác dụng phụ</option>
+                                <option value="Thuốc còn nguyên tem vỉ chưa dùng">Thuốc còn nguyên tem vỉ chưa dùng</option>
+                                <option value="Hàng cận date / lỗi bao bì">Hàng cận date / lỗi bao bì</option>
+                                <option value="other">Lý do khác (tự nhập)...</option>
+                            </select>
+                            <input id="agg-return-reason-custom" type="text" placeholder="Nhập lý do chi tiết..." class="hidden mt-1.5 w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                        </div>
+
+                        <!-- 2 Checkboxes tùy chọn -->
+                        <div class="space-y-1.5 pt-1 border-t border-slate-200">
+                            <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                                <input id="agg-return-opt-restock" type="checkbox" checked class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
+                                <span>Cộng lại số lượng vào tồn kho thuốc</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                                <input id="agg-return-opt-voucher" type="checkbox" checked class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500" />
+                                <span>Tạo Phiếu Chi hoàn tiền trong Sổ Quỹ Thu Chi & Báo Cáo</span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label class="block font-medium text-slate-600 mb-0.5">Ghi Chú Thêm</label>
+                            <input id="agg-return-note" type="text" placeholder="Ghi chú nội bộ nếu có..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                    </div>
+
+                    <!-- Bên phải: Tóm tắt & KPI tổng cộng -->
+                    <div class="bg-amber-50/80 border border-amber-200 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-slate-600">Tổng số mặt hàng trả:</span>
+                                <span id="agg-return-summary-items" class="font-bold text-slate-800">0 loại (0 SL)</span>
+                            </div>
+                            <div id="agg-return-summary-cost-row" class="flex justify-between items-center text-xs">
+                                <span class="text-slate-600">Tổng giá vốn nhận lại (Admin):</span>
+                                <span id="agg-return-summary-cost" class="font-bold text-slate-700 font-mono">0 đ</span>
+                            </div>
+                            <div class="text-[11px] text-amber-800 bg-amber-100/60 p-2 rounded-lg leading-relaxed">
+                                💡 <b>Lưu ý kế toán:</b> Phiếu trả hàng này sẽ tự động giảm trừ doanh thu và khấu trừ giá vốn tương ứng trong Báo Cáo Doanh Thu của ngày.
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-amber-200 flex justify-between items-baseline">
+                            <span class="font-extrabold text-amber-950 text-sm uppercase">TỔNG TIỀN HOÀN TRẢ:</span>
+                            <span id="agg-return-summary-total" class="font-black text-2xl text-rose-600 font-mono">0 đ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer actions -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                <button type="button" onclick="OrdersModule.closeAggregateReturnModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer">
+                    Hủy Bỏ
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="OrdersModule.confirmAggregateReturn(true)" id="btn-confirm-agg-return-print" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>Lưu & In Phiếu Trả</span>
+                    </button>
+                    <button type="button" onclick="OrdersModule.confirmAggregateReturn(false)" id="btn-confirm-agg-return" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span>Xác Nhận Trả Hàng</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 8C: CHI TIẾT PHIẾU TRẢ HÀNG -->
+    <!-- ========================================== -->
+    <div id="modal-return-details" class="hidden fixed inset-0 z-[87] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[92vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2 text-amber-700">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    <div>
+                        <h3 class="font-extrabold text-base text-slate-800">Chi Tiết Phiếu Trả Hàng</h3>
+                        <p class="text-xs text-slate-500" id="return-detail-id-text">Mã phiếu: ---</p>
+                    </div>
+                </div>
+                <button type="button" onclick="OrdersModule.closeReturnDetailsModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div id="return-detail-body" class="flex-1 overflow-y-auto my-4 space-y-4 pr-1 text-xs">
+                <!-- Rendered dynamically -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+                <span id="return-detail-voucher-link" class="text-[11px] text-amber-700 font-medium"></span>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="OrdersModule.closeReturnDetailsModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition cursor-pointer">
+                        Đóng
+                    </button>
+                    <button type="button" id="btn-print-from-return-detail" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg transition flex items-center gap-1 cursor-pointer">
+                        <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                        <span>In Phiếu Trả</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 8D: IN / XEM TRƯỚC PHIẾU TRẢ HÀNG -->
+    <!-- ========================================== -->
+    <div id="modal-return-print" class="hidden fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 my-6 animate-fadeIn flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>Xem Trước & In Phiếu Trả Hàng</span>
+                </div>
+                <button type="button" onclick="OrdersModule.closeReturnPrintModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div id="return-print-content" class="my-4 max-h-[70vh] overflow-y-auto border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+                <!-- Rendered dynamically -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button type="button" onclick="OrdersModule.closeReturnPrintModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer">
+                    Đóng
+                </button>
+                <button type="button" onclick="OrdersModule.executePrintReturn()" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>In Phiếu Ngay</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
     <!-- MODAL 9: CHI TIẾT PHIẾU NHẬP KHO -->
     <!-- ========================================== -->
     <div id="modal-stockin-detail" class="hidden fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
@@ -3060,7 +3345,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block font-bold text-slate-700 mb-1.5">Mã phiếu</label>
-                        <input type="text" value="Tự động" disabled class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-mono text-xs cursor-not-allowed" />
+                        <input id="voucher-input-id" type="text" value="Tự động" disabled class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-mono text-xs cursor-not-allowed" />
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 mb-1.5">Thời gian</label>
@@ -3181,6 +3466,10 @@
             <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
                 <button onclick="VouchersModule.closePrintModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
                     Đóng
+                </button>
+                <button onclick="VouchersModule.editCurrentPrintingVoucher()" class="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                    <i data-lucide="edit-3" class="w-4 h-4 text-emerald-600"></i>
+                    <span>Chỉnh Sửa</span>
                 </button>
                 <button onclick="VouchersModule.executePrint()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5">
                     <i data-lucide="printer" class="w-4 h-4"></i>
@@ -4381,19 +4670,19 @@
     <script src="vendor/JsBarcode.all.min.js"></script>
     <script src="js/vietqr.js?v=20261107_v3"></script>
     <script src="js/sample-data.js?v=20261107_v3"></script>
-    <script src="js/store.js?v=20261108_v3"></script>
-    <script src="js/auth.js?v=20261108_v3"></script>
-    <script src="js/export-excel.js?v=20261108_v3"></script>
+    <script src="js/store.js?v=20261108_v5"></script>
+    <script src="js/auth.js?v=20261108_v6"></script>
+    <script src="js/export-excel.js?v=20261109_v1"></script>
     <script src="js/barcode-printer.js?v=20261108_v3"></script>
     <script src="js/searchable-select.js?v=20261108_v3"></script>
-    <script src="js/vouchers.js?v=20261108_v3"></script>
+    <script src="js/vouchers.js?v=20261109_v1"></script>
     <script src="js/inventory.js?v=20261108_v3"></script>
     <script src="js/pos.js?v=20261108_v3"></script>
-    <script src="js/orders.js?v=20261108_v3"></script>
+    <script src="js/orders.js?v=20261109_v1"></script>
     <script src="js/customers.js?v=20261108_v3"></script>
-    <script src="js/reports.js?v=20261108_v3"></script>
-    <script src="js/audit-log.js?v=20261108_v1"></script>
-    <script src="js/app.js?v=20261108_v3"></script>
+    <script src="js/reports.js?v=20261109_v2"></script>
+    <script src="js/audit-log.js?v=20261108_v5"></script>
+    <script src="js/app.js?v=20261108_v5"></script>
 
     <!-- Đồng hồ thời gian thực ở Header -->
     <script>

@@ -73,9 +73,12 @@ const ReportsModule = {
         const allOrders = Store.getOrders();
         const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
 
-        // Lọc các đơn trong tháng và KHÔNG bị hủy
+        // Lọc các đơn trong tháng và KHÔNG bị hủy (bỏ qua đơn trả hàng vì đã khấu trừ từ Sổ Quỹ)
         const monthOrders = allOrders.filter(o => 
             !o.isCancelled && 
+            !o.isReturn &&
+            o.type !== 'return' &&
+            o.orderType !== 'return' &&
             o.createdAt && 
             o.createdAt.startsWith(monthPrefix)
         );
@@ -102,6 +105,10 @@ const ReportsModule = {
                 transferRevenue: 0,
                 totalRevenue: 0,
                 totalCost: 0,
+                customerRefund: 0,
+                customerReturnCost: 0,
+                cashRefund: 0,
+                transferRefund: 0,
                 profit: 0
             };
         }
@@ -135,7 +142,12 @@ const ReportsModule = {
                         const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
                         return sum + (ri ? ri.quantity : 0);
                     }, 0);
-                    const netQty = Math.max(0, (item.quantity || 1) - returnedQty);
+                    
+                    let rawQty = (typeof item.quantity === 'number') ? item.quantity : Number(item.quantity);
+                    if (isNaN(rawQty) || (rawQty <= 0 && item.lineTotal > 0 && item.price > 0)) {
+                        rawQty = item.price > 0 ? (item.lineTotal / item.price) : 0;
+                    }
+                    const netQty = Math.max(0, rawQty - returnedQty);
 
                     let unitCost = item.costPrice || 0;
                     if (unitCost <= 0) {
@@ -157,7 +169,8 @@ const ReportsModule = {
                             };
                         }
                         medicineSalesMap[medId].totalQty += netQty;
-                        medicineSalesMap[medId].totalAmount += (item.price * netQty);
+                        let lineTotal = (typeof item.lineTotal === 'number' && item.lineTotal > 0) ? item.lineTotal : (netQty * (item.price || 0));
+                        medicineSalesMap[medId].totalAmount += lineTotal;
                     }
                 });
             }
@@ -195,6 +208,7 @@ const ReportsModule = {
         );
 
         let totalCustomerRefund = 0;
+        let totalCustomerReturnCost = 0;
         let cashCustomerRefund = 0;
         let transferCustomerRefund = 0;
 
@@ -208,9 +222,28 @@ const ReportsModule = {
                 transferCustomerRefund += amt;
             }
 
+            // Tính tiền vốn của hàng khách trả lại
+            let vCost = 0;
+            if (typeof v.returnCost === 'number' && v.returnCost > 0) {
+                vCost = v.returnCost;
+            } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
+                vCost = v.returnedItems.reduce((sum, item) => sum + (item.totalCost || (item.costPrice * (item.quantity || 1)) || 0), 0);
+            } else if (v.refId) {
+                const order = (typeof Store.getOrderById === 'function') ? Store.getOrderById(v.refId) : null;
+                if (order && order.items) {
+                    const matchedItem = order.items.find(it => (it.total === amt || it.price === amt || it.lineTotal === amt));
+                    if (matchedItem) {
+                        const qty = matchedItem.price > 0 ? (amt / matchedItem.price) : 1;
+                        vCost = Math.round(qty * (matchedItem.costPrice || 0));
+                    }
+                }
+            }
+            totalCustomerReturnCost += vCost;
+
             const dateStr = v.createdAt.slice(0, 10);
             if (dailyMap[dateStr]) {
                 dailyMap[dateStr].customerRefund = (dailyMap[dateStr].customerRefund || 0) + amt;
+                dailyMap[dateStr].customerReturnCost = (dailyMap[dateStr].customerReturnCost || 0) + vCost;
                 if (isCash) {
                     dailyMap[dateStr].cashRefund = (dailyMap[dateStr].cashRefund || 0) + amt;
                 } else {
@@ -221,18 +254,23 @@ const ReportsModule = {
             }
         });
 
-        // Áp dụng khoản giảm trừ doanh thu do khách trả hàng vào từng ngày
+        // Áp dụng khoản giảm trừ doanh thu và tiền vốn do khách trả hàng vào từng ngày
         Object.values(dailyMap).forEach(d => {
             const refund = d.customerRefund || 0;
+            const returnCost = d.customerReturnCost || 0;
             d.grossRevenue = d.totalRevenue;
+            d.grossCost = d.totalCost;
             d.totalRevenue = Math.max(0, d.totalRevenue - refund);
+            d.totalCost = Math.max(0, d.totalCost - returnCost);
             d.cashRevenue = Math.max(0, d.cashRevenue - (d.cashRefund || 0));
             d.transferRevenue = Math.max(0, d.transferRevenue - (d.transferRefund || 0));
             d.profit = d.totalRevenue - d.totalCost;
         });
 
         const grossRevenue = totalRevenue;
+        const grossCost = totalCost;
         totalRevenue = Math.max(0, grossRevenue - totalCustomerRefund);
+        totalCost = Math.max(0, grossCost - totalCustomerReturnCost);
         cashRevenue = Math.max(0, cashRevenue - cashCustomerRefund);
         transferRevenue = Math.max(0, transferRevenue - transferCustomerRefund);
         const grossProfit = totalRevenue - totalCost;
@@ -299,7 +337,9 @@ const ReportsModule = {
             month,
             year,
             grossRevenue,
+            grossCost,
             totalCustomerRefund,
+            totalCustomerReturnCost,
             customerRefundCount: monthReturnVouchers.length,
             totalRevenue,
             cashRevenue,
@@ -373,19 +413,28 @@ const ReportsModule = {
         }
 
         const orders = Store.getOrders();
-        const dayOrders = orders.filter(o => !o.isCancelled && o.createdAt && o.createdAt.startsWith(dateStr));
+        const dayOrders = orders.filter(o => !o.isCancelled && !o.isReturn && o.type !== 'return' && o.orderType !== 'return' && o.createdAt && o.createdAt.startsWith(dateStr));
 
         const itemsMap = {};
         let dayRevenue = 0;
         let dayCost = 0;
 
         dayOrders.forEach(o => {
+            const orderSubTotal = o.subTotal || (o.items || []).reduce((s, it) => s + (it.lineTotal || (it.quantity * it.price) || 0), 0);
+            const discountFactor = (orderSubTotal > 0 && o.discount > 0 && o.totalAmount) ? (o.totalAmount / orderSubTotal) : 1;
+
             (o.items || []).forEach(item => {
                 const returnedQty = (o.returns || []).reduce((sum, r) => {
                     const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
                     return sum + (ri ? ri.quantity : 0);
                 }, 0);
-                const netQty = Math.max(0, (item.quantity || 1) - returnedQty);
+                
+                let rawQty = (typeof item.quantity === 'number') ? item.quantity : Number(item.quantity);
+                if (isNaN(rawQty) || (rawQty <= 0 && item.lineTotal > 0 && item.price > 0)) {
+                    rawQty = item.price > 0 ? (item.lineTotal / item.price) : 0;
+                }
+                const netQty = Math.max(0, rawQty - returnedQty);
+
                 if (netQty > 0 || returnedQty > 0) {
                     const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
                     const effectiveMedId = (med ? med.id : '') || item.medicineId || item.medicineCode || '---';
@@ -414,10 +463,15 @@ const ReportsModule = {
                     if (itemsMap[key].medicineId === '---' && effectiveMedId !== '---') {
                         itemsMap[key].medicineId = effectiveMedId;
                     }
+
+                    let baseLineTotal = (typeof item.lineTotal === 'number' && item.lineTotal > 0) ? item.lineTotal : (rawQty * (item.price || 0));
+                    const effectiveLineRevenue = (rawQty > 0 ? (netQty / rawQty) * baseLineTotal : baseLineTotal) * discountFactor;
+                    const effectiveLineCost = netQty * unitCost;
+
                     itemsMap[key].quantity += netQty;
                     itemsMap[key].returnedQuantity += returnedQty;
-                    itemsMap[key].revenue += (netQty * (item.price || 0));
-                    itemsMap[key].cost += (netQty * unitCost);
+                    itemsMap[key].revenue += effectiveLineRevenue;
+                    itemsMap[key].cost += effectiveLineCost;
                     if (!itemsMap[key].orderIds.includes(o.id)) {
                         itemsMap[key].orderIds.push(o.id);
                     }
@@ -445,9 +499,41 @@ const ReportsModule = {
         );
 
         const dayCustomerRefund = dayReturnVouchers.reduce((sum, v) => sum + Math.abs(Number(v.amount) || 0), 0);
+        const dayCustomerReturnCost = dayReturnVouchers.reduce((sum, v) => {
+            let vCost = 0;
+            if (typeof v.returnCost === 'number' && v.returnCost > 0) {
+                vCost = v.returnCost;
+            } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
+                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost || (it.costPrice * (it.quantity || 1)) || 0), 0);
+            } else if (v.refId) {
+                const order = (typeof Store.getOrderById === 'function') ? Store.getOrderById(v.refId) : null;
+                if (order && order.items) {
+                    const amt = Math.abs(Number(v.amount) || 0);
+                    const matchedItem = order.items.find(it => (it.total === amt || it.price === amt || it.lineTotal === amt));
+                    if (matchedItem) {
+                        const qty = matchedItem.price > 0 ? (amt / matchedItem.price) : 1;
+                        vCost = Math.round(qty * (matchedItem.costPrice || 0));
+                    }
+                }
+            }
+            return sum + vCost;
+        }, 0);
+
         const dayGrossRevenue = dayRevenue;
+        const dayGrossCost = dayCost;
         const dayNetRevenue = Math.max(0, dayGrossRevenue - dayCustomerRefund);
-        const dayProfit = dayNetRevenue - dayCost;
+        const dayNetCost = Math.max(0, dayGrossCost - dayCustomerReturnCost);
+        const dayProfit = dayNetRevenue - dayNetCost;
+
+        // Lấy dữ liệu ngày đã tổng hợp chuẩn từ currentReportData (đồng bộ 100% với Bảng kê phía trên)
+        const dayData = this.currentReportData?.dailyBreakdown?.find(d => d.fullDate === dateStr);
+        const finalDayRevenue = dayData ? dayData.totalRevenue : dayNetRevenue;
+        const finalDayCost = dayData ? dayData.totalCost : dayNetCost;
+        const finalDayProfit = dayData ? dayData.profit : dayProfit;
+        const finalGrossRevenue = dayData ? (dayData.grossRevenue || dayGrossRevenue) : dayGrossRevenue;
+        const finalGrossCost = dayData ? (dayData.grossCost || dayGrossCost) : dayGrossCost;
+        const finalRefund = dayData ? (dayData.customerRefund || 0) : dayCustomerRefund;
+        const finalReturnCost = dayData ? (dayData.customerReturnCost || 0) : dayCustomerReturnCost;
 
         const elOrderCount = document.getElementById('rep-detail-order-count');
         const elItemCount = document.getElementById('rep-detail-item-count');
@@ -464,14 +550,20 @@ const ReportsModule = {
         }
         if (elItemCount) elItemCount.innerText = `${itemsList.length} mặt hàng`;
         if (elRevenue) {
-            if (dayCustomerRefund > 0) {
-                elRevenue.innerHTML = `${AppUtils.formatVND(dayNetRevenue)}<span class="text-[10px] text-rose-600 font-semibold block font-sans">Bán: ${AppUtils.formatVND(dayGrossRevenue)} | Trả: -${AppUtils.formatVND(dayCustomerRefund)}</span>`;
+            if (finalRefund > 0) {
+                elRevenue.innerHTML = `${AppUtils.formatVND(finalDayRevenue)}<span class="text-[10px] text-rose-600 font-semibold block font-sans">Bán: ${AppUtils.formatVND(finalGrossRevenue)} | Trả: -${AppUtils.formatVND(finalRefund)}</span>`;
             } else {
-                elRevenue.innerText = AppUtils.formatVND(dayNetRevenue);
+                elRevenue.innerText = AppUtils.formatVND(finalDayRevenue);
             }
         }
-        if (elCost) elCost.innerText = AppUtils.formatVND(dayCost);
-        if (elProfit) elProfit.innerText = AppUtils.formatVND(dayProfit);
+        if (elCost) {
+            if (finalReturnCost > 0) {
+                elCost.innerHTML = `${AppUtils.formatVND(finalDayCost)}<span class="text-[10px] text-rose-600 font-semibold block font-sans">Xuất: ${AppUtils.formatVND(finalGrossCost)} | Trả: -${AppUtils.formatVND(finalReturnCost)}</span>`;
+            } else {
+                elCost.innerText = AppUtils.formatVND(finalDayCost);
+            }
+        }
+        if (elProfit) elProfit.innerText = AppUtils.formatVND(finalDayProfit);
 
         // Hiển thị danh sách phiếu khách trả hàng trong ngày nếu có
         const returnsBox = document.getElementById('rep-detail-day-returns-box');
@@ -479,27 +571,57 @@ const ReportsModule = {
             if (dayReturnVouchers.length > 0) {
                 let rHtml = `
                     <div class="p-3 sm:p-3.5 bg-rose-50/90 text-xs">
-                        <div class="flex items-center justify-between text-rose-900 font-bold mb-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between text-rose-900 font-bold mb-2 gap-1">
                             <div class="flex items-center gap-1.5">
                                 <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i>
                                 <span class="uppercase tracking-wide">Phiếu Khách Trả Hàng Hoàn Tiền Trong Ngày (${dayReturnVouchers.length} phiếu)</span>
                             </div>
-                            <span class="text-rose-700 font-mono font-black text-sm">Tổng hoàn tiền: -${AppUtils.formatVND(dayCustomerRefund)}</span>
+                            <div class="flex items-center gap-2 text-xs flex-wrap">
+                                <span class="text-rose-700 font-mono font-black">Tổng hoàn tiền: -${AppUtils.formatVND(dayCustomerRefund)}</span>
+                                ${finalReturnCost > 0 ? `<span class="text-emerald-800 font-mono font-bold">| Giảm vốn: -${AppUtils.formatVND(finalReturnCost)}</span>` : ''}
+                            </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 `;
                 dayReturnVouchers.forEach(v => {
                     const method = v.paymentMethod === 'transfer' ? 'Chuyển khoản' : 'Tiền mặt';
                     const time = v.createdAt ? v.createdAt.slice(11, 16) : '';
+                    const vCost = v.returnCost || 0;
+                    let itemsDetail = '';
+                    if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
+                        itemsDetail = v.returnedItems.map(it => {
+                            if (typeof it === 'string') {
+                                const nameMatch = it.match(/medicineName=([^;]+)/) || it.match(/name=([^;]+)/);
+                                const qtyMatch = it.match(/quantity=([^;]+)/) || it.match(/qty=([^;]+)/);
+                                const unitMatch = it.match(/unit=([^;]+)/);
+                                const name = nameMatch ? nameMatch[1].trim() : it;
+                                const qty = qtyMatch ? qtyMatch[1].trim() : '1';
+                                const unit = unitMatch ? unitMatch[1].trim() : '';
+                                return `${name} (${qty} ${unit})`.trim();
+                            }
+                            const name = it.medicineName || it.name || 'Thuốc';
+                            const qty = it.quantity || it.qty || 1;
+                            const unit = it.unit || '';
+                            return `${name} (${qty} ${unit})`.trim();
+                        }).join(', ');
+                    }
                     rHtml += `
-                        <div class="bg-white p-2.5 rounded-lg border border-rose-200 shadow-sm flex items-center justify-between gap-2">
-                            <div>
-                                <div class="font-mono font-bold text-slate-800">${v.id} <span class="text-[10px] text-slate-400 font-normal">(${time})</span></div>
-                                <div class="text-[11px] text-slate-600 truncate max-w-[180px]">${v.person || v.targetName || 'Khách lẻ'} • <span class="text-amber-800 font-medium">${method}</span></div>
+                        <div class="bg-white p-2.5 rounded-lg border border-rose-200 shadow-sm flex flex-col justify-between gap-1.5">
+                            <div class="flex items-start justify-between gap-2">
+                                <div>
+                                    <div class="font-mono font-bold text-slate-800 flex items-center gap-1.5">
+                                        <span>${v.id}</span>
+                                        <span class="text-[10px] text-slate-400 font-normal">(${time})</span>
+                                        ${v.refId ? `<span class="text-[10px] bg-slate-100 text-slate-600 px-1 py-0.2 rounded font-mono">Đơn: ${v.refId}</span>` : ''}
+                                    </div>
+                                    <div class="text-[11px] text-slate-600 truncate max-w-[200px] mt-0.5">${v.person || v.targetName || 'Khách lẻ'} • <span class="text-amber-800 font-medium">${method}</span></div>
+                                </div>
+                                <div class="text-right whitespace-nowrap">
+                                    <div class="font-mono font-black text-rose-700">-${AppUtils.formatVND(Math.abs(Number(v.amount) || 0))}</div>
+                                    ${(vCost > 0) ? `<div class="font-mono text-[11px] text-slate-500 font-semibold">Vốn: -${AppUtils.formatVND(vCost)}</div>` : ''}
+                                </div>
                             </div>
-                            <div class="font-mono font-black text-rose-700 text-right whitespace-nowrap">
-                                -${AppUtils.formatVND(Math.abs(Number(v.amount) || 0))}
-                            </div>
+                            ${itemsDetail ? `<div class="text-[11px] text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200 font-medium">📦 Thuốc trả lại: ${itemsDetail}</div>` : ''}
                         </div>
                     `;
                 });
@@ -530,6 +652,7 @@ const ReportsModule = {
 
         let html = '';
         itemsList.sort((a, b) => b.revenue - a.revenue).forEach((item, idx) => {
+            const displayQty = (Number.isInteger(item.quantity)) ? item.quantity : (Math.round(item.quantity * 1000) / 1000);
             const margin = item.revenue > 0 ? (((item.revenue - item.cost) / item.revenue) * 100).toFixed(1) : 0;
             const ordersBadge = item.orderIds.map(id => `<span onclick="OrdersModule.openOrderDetailsModal('${id}')" class="cursor-pointer hover:underline text-emerald-700 font-mono text-[11px] font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mr-1">${id}</span>`).join('');
 
@@ -545,14 +668,14 @@ const ReportsModule = {
                         <span class="text-slate-400 font-normal">(${item.unit})</span>
                     </td>
                     <td class="py-2.5 px-3 text-center font-bold text-slate-800">
-                        ${item.quantity} ${item.unit}
+                        ${displayQty} ${item.unit}
                         ${item.returnedQuantity > 0 ? `<div class="text-[10px] text-rose-600 font-bold">(Đã trả: ${item.returnedQuantity})</div>` : ''}
                     </td>
                     <td class="py-2.5 px-3 text-right text-slate-700">${AppUtils.formatVND(item.price)}</td>
-                    <td class="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono">${AppUtils.formatVND(item.revenue)}</td>
-                    <td class="py-2.5 px-3 text-right text-slate-500 font-mono">${AppUtils.formatVND(item.cost)}</td>
+                    <td class="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono">${AppUtils.formatVND(Math.round(item.revenue))}</td>
+                    <td class="py-2.5 px-3 text-right text-slate-500 font-mono">${AppUtils.formatVND(Math.round(item.cost))}</td>
                     <td class="py-2.5 px-3 text-right">
-                        <div class="font-bold text-slate-900 font-mono">${AppUtils.formatVND(item.revenue - item.cost)}</div>
+                        <div class="font-bold text-slate-900 font-mono">${AppUtils.formatVND(Math.round(item.revenue - item.cost))}</div>
                         <div class="text-[10px] text-slate-400 font-semibold">${margin}%</div>
                     </td>
                     <td class="py-2.5 px-3">
@@ -617,6 +740,9 @@ const ReportsModule = {
             const refundInfo = (row.customerRefund > 0)
                 ? `<div class="text-[10px] text-rose-600 font-semibold leading-tight">-${AppUtils.formatVND(row.customerRefund)} trả</div>`
                 : '';
+            const returnCostInfo = (row.customerReturnCost > 0)
+                ? `<div class="text-[10px] text-rose-600 font-semibold leading-tight">-${AppUtils.formatVND(row.customerReturnCost)} trả</div>`
+                : '';
             const orderInfo = (row.returnVouchers && row.returnVouchers.length > 0)
                 ? `${row.orderCount} <span class="text-[10px] text-rose-600 font-normal block">(+${row.returnVouchers.length} trả)</span>`
                 : `${row.orderCount}`;
@@ -639,7 +765,10 @@ const ReportsModule = {
                         ${AppUtils.formatVND(row.totalRevenue)}
                         ${refundInfo}
                     </td>
-                    <td class="py-2.5 px-3 text-right text-slate-500 text-xs">${AppUtils.formatVND(row.totalCost)}</td>
+                    <td class="py-2.5 px-3 text-right text-slate-500 text-xs">
+                        <div>${AppUtils.formatVND(row.totalCost)}</div>
+                        ${returnCostInfo}
+                    </td>
                     <td class="py-2.5 px-3 text-right font-bold text-slate-800">${AppUtils.formatVND(row.profit)}</td>
                     <td class="py-2.5 px-3 text-center">
                         <button type="button" onclick="event.stopPropagation(); ReportsModule.selectDateForDetails('${row.fullDate}')" class="px-2 py-0.5 rounded text-[11px] font-semibold bg-white hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-300 inline-flex items-center gap-1 shadow-sm transition">
@@ -656,6 +785,9 @@ const ReportsModule = {
             const refundSummary = (r.totalCustomerRefund > 0)
                 ? `<div class="text-[10px] text-rose-700 font-normal mt-0.5">Bán: ${AppUtils.formatVND(r.grossRevenue)} • Trả: -${AppUtils.formatVND(r.totalCustomerRefund)}</div>`
                 : '';
+            const costSummary = (r.totalCustomerReturnCost > 0)
+                ? `<div class="text-[10px] text-rose-700 font-normal mt-0.5">Xuất: ${AppUtils.formatVND(r.grossCost)} • Trả: -${AppUtils.formatVND(r.totalCustomerReturnCost)}</div>`
+                : '';
             tfoot.innerHTML = `
                 <tr class="bg-emerald-50 text-emerald-950 font-extrabold text-sm border-t-2 border-emerald-300">
                     <td class="py-3 px-3 text-center">TỔNG CỘNG THÁNG</td>
@@ -666,7 +798,10 @@ const ReportsModule = {
                         ${AppUtils.formatVND(r.totalRevenue)}
                         ${refundSummary}
                     </td>
-                    <td class="py-3 px-3 text-right text-slate-700">${AppUtils.formatVND(r.totalCost)}</td>
+                    <td class="py-3 px-3 text-right text-slate-700">
+                        <div>${AppUtils.formatVND(r.totalCost)}</div>
+                        ${costSummary}
+                    </td>
                     <td class="py-3 px-3 text-right text-emerald-900 text-base">${AppUtils.formatVND(r.grossProfit)}</td>
                     <td class="py-3 px-3 text-center text-xs text-emerald-800 font-bold">${r.dailyBreakdown.filter(d => (d.totalRevenue > 0 || (d.grossRevenue && d.grossRevenue > 0))).length} ngày bán</td>
                 </tr>

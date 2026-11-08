@@ -146,7 +146,11 @@ const App = {
                 CustomersModule.renderCustomersTable();
             }
         } else if (tabId === 'settings') {
-            this.renderSettingsHistory();
+            if (window.AuditLogModule && typeof AuditLogModule.switchSettingsSubTab === 'function') {
+                AuditLogModule.switchSettingsSubTab(AuditLogModule.activeSubTab || 'store');
+            } else {
+                this.renderSettingsHistory();
+            }
         }
     },
 
@@ -176,6 +180,12 @@ const App = {
             } else {
                 badgeInventory.classList.add('hidden');
             }
+        }
+    },
+
+    switchSettingsSubTab(tabName) {
+        if (window.AuditLogModule && typeof AuditLogModule.switchSettingsSubTab === 'function') {
+            AuditLogModule.switchSettingsSubTab(tabName);
         }
     },
 

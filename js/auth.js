@@ -551,6 +551,11 @@ window.AuthModule = {
         }
 
         // 3. Cập nhật giao diện Đơn Hàng (Orders)
+        const thOrdersCost = document.getElementById('th-orders-cost');
+        const thOrdersProfit = document.getElementById('th-orders-profit');
+        if (thOrdersCost) thOrdersCost.classList.toggle('hidden', !isAdmin);
+        if (thOrdersProfit) thOrdersProfit.classList.toggle('hidden', !isAdmin);
+
         if (window.OrdersModule && OrdersModule.renderOrdersTable) {
             OrdersModule.renderOrdersTable();
         }

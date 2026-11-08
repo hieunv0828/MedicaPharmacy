@@ -5,7 +5,7 @@
  */
 
 const OrdersModule = {
-    currentTab: 'all', // 'all', 'cash', 'transfer'
+    currentTab: 'all', // 'all', 'cash', 'transfer', 'returns'
     timeFilter: 'this_month', // 'today', 'yesterday', 'last_7_days', 'this_month', 'all', 'custom'
     dateFrom: '',
     dateTo: '',
@@ -15,6 +15,8 @@ const OrdersModule = {
     selectedOrder: null,
     pendingCancelOrderId: null,
     pendingReturnOrderId: null,
+    aggregateReturnCart: [],
+    searchMedicineTimeout: null,
 
     init() {
         this.bindEvents();
@@ -106,10 +108,12 @@ const OrdersModule = {
         const tabAll = document.getElementById('tab-btn-orders-all');
         const tabCash = document.getElementById('tab-btn-orders-cash');
         const tabTransfer = document.getElementById('tab-btn-orders-transfer');
+        const tabReturns = document.getElementById('tab-btn-orders-returns');
 
         if (tabAll) tabAll.className = 'tab-filter-btn' + (tab === 'all' ? ' active-emerald' : '');
         if (tabCash) tabCash.className = 'tab-filter-btn' + (tab === 'cash' ? ' active-amber' : '');
         if (tabTransfer) tabTransfer.className = 'tab-filter-btn' + (tab === 'transfer' ? ' active-blue' : '');
+        if (tabReturns) tabReturns.className = 'tab-filter-btn' + (tab === 'returns' ? ' active-amber' : '');
 
         this.renderOrdersTable();
     },
@@ -117,11 +121,13 @@ const OrdersModule = {
     getFilteredOrders() {
         let orders = Store.getOrders();
 
-        // 1. Lọc theo Tab (Tất cả / Tiền mặt / Chuyển khoản)
+        // 1. Lọc theo Tab (Tất cả / Tiền mặt / Chuyển khoản / Đơn trả hàng)
         if (this.currentTab === 'cash') {
             orders = orders.filter(o => o.paymentMethod === 'cash');
         } else if (this.currentTab === 'transfer') {
             orders = orders.filter(o => o.paymentMethod === 'transfer');
+        } else if (this.currentTab === 'returns') {
+            orders = orders.filter(o => o.isReturn || o.orderType === 'return' || (o.returns && o.returns.length > 0) || o.returnStatus === 'fully_returned' || o.returnStatus === 'partially_returned');
         }
 
         // 2. Lọc theo Thời gian
@@ -165,19 +171,42 @@ const OrdersModule = {
 
         const cashOrders = validOrders.filter(o => o.paymentMethod === 'cash');
         const transferOrders = validOrders.filter(o => o.paymentMethod === 'transfer');
+        const returnOrders = validOrders.filter(o => o.isReturn || o.orderType === 'return' || (o.returns && o.returns.length > 0) || o.returnStatus === 'fully_returned' || o.returnStatus === 'partially_returned');
 
-        const totalCashAmount = cashOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-        const totalTransferAmount = transferOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-        const totalAllAmount = validOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        let totalCashAmount = 0;
+        let totalTransferAmount = 0;
+
+        validOrders.forEach(o => {
+            const isCash = o.paymentMethod === 'cash';
+            if (o.isReturn || o.orderType === 'return') {
+                const refund = o.totalRefund || o.totalAmount || 0;
+                if (isCash) totalCashAmount -= refund;
+                else totalTransferAmount -= refund;
+            } else {
+                const rawAmount = o.totalAmount || 0;
+                const refundAmount = o.totalRefunded || 0;
+                if (isCash) {
+                    totalCashAmount += (rawAmount - refundAmount);
+                } else {
+                    totalTransferAmount += rawAmount;
+                    if (refundAmount > 0) {
+                        totalCashAmount -= refundAmount;
+                    }
+                }
+            }
+        });
+        const totalAllAmount = totalCashAmount + totalTransferAmount;
 
         // Update badge counts trên tabs tương ứng theo bộ lọc
         const badgeAll = document.getElementById('badge-count-all');
         const badgeCash = document.getElementById('badge-count-cash');
         const badgeTransfer = document.getElementById('badge-count-transfer');
+        const badgeReturns = document.getElementById('badge-count-returns');
 
         if (badgeAll) badgeAll.innerText = validOrders.length;
         if (badgeCash) badgeCash.innerText = cashOrders.length;
         if (badgeTransfer) badgeTransfer.innerText = transferOrders.length;
+        if (badgeReturns) badgeReturns.innerText = returnOrders.length;
 
         // Update thẻ thống kê trên cùng trang Đơn Hàng tương ứng theo bộ lọc
         const cardTotalAll = document.getElementById('card-orders-total-all');
@@ -284,9 +313,44 @@ const OrdersModule = {
         btnsEl.innerHTML = html;
     },
 
+    calculateOrderCost(order) {
+        if (!order || order.isCancelled) return 0;
+        if (order.isReturn || order.orderType === 'return') {
+            return Math.round(order.totalCost || 0);
+        }
+        let totalCost = 0;
+        (order.items || []).forEach(item => {
+            const returnedQty = (order.returns || []).reduce((sum, r) => {
+                const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
+                return sum + (ri ? ri.quantity : 0);
+            }, 0);
+            
+            let rawQty = (typeof item.quantity === 'number') ? item.quantity : Number(item.quantity);
+            const lineVal = (typeof item.total === 'number') ? item.total : (item.lineTotal || 0);
+            if (isNaN(rawQty) || (rawQty <= 0 && lineVal > 0 && item.price > 0)) {
+                rawQty = item.price > 0 ? (lineVal / item.price) : 0;
+            }
+            const netQty = Math.max(0, rawQty - returnedQty);
+
+            let unitCost = item.costPrice || 0;
+            if (unitCost <= 0) {
+                const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
+                if (med) unitCost = Store.getMedicineUnitCost(med, item.unit);
+            }
+            totalCost += unitCost * netQty;
+        });
+        return Math.round(totalCost);
+    },
+
     renderOrdersTable() {
         const tbody = document.getElementById('orders-table-tbody');
         if (!tbody) return;
+
+        const isAdmin = !window.AuthModule || AuthModule.isAdmin();
+        const thCost = document.getElementById('th-orders-cost');
+        const thProfit = document.getElementById('th-orders-profit');
+        if (thCost) thCost.classList.toggle('hidden', !isAdmin);
+        if (thProfit) thProfit.classList.toggle('hidden', !isAdmin);
 
         const orders = this.getFilteredOrders();
         const total = orders.length;
@@ -294,7 +358,7 @@ const OrdersModule = {
         if (total === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center py-12 text-slate-400">
+                    <td colspan="${isAdmin ? 10 : 8}" class="text-center py-12 text-slate-400">
                         <i data-lucide="receipt-text" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
                         Không có hóa đơn nào thỏa mãn điều kiện lọc.
                     </td>
@@ -323,8 +387,110 @@ const OrdersModule = {
         displayedOrders.forEach((o, idx) => {
             const isCash = o.paymentMethod === 'cash';
             const isCancelled = o.isCancelled;
+
+            // Xử lý riêng giao diện cho Phiếu Trả Hàng Tổng Hợp
+            const isReturnOrder = !!(o.isReturn || o.orderType === 'return');
+            if (isReturnOrder) {
+                const totalRefund = o.totalRefund || o.totalAmount || 0;
+                const returnCost = o.totalCost || 0;
+
+                let methodBadge = '';
+                if (isCash) {
+                    methodBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        <i data-lucide="banknote" class="w-3.5 h-3.5"></i> Hoàn tiền mặt
+                    </span>`;
+                } else {
+                    methodBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                        <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Hoàn chuyển khoản
+                    </span>`;
+                }
+
+                const statusBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">ĐÃ HOÀN TRẢ</span>`;
+                const itemsSummary = (o.items || []).map(i => `${i.medicineName} (${i.quantity} ${i.unit})`).join(', ');
+
+                // Customer info
+                const custPhone = (o.customerPhone || '').trim();
+                const custName = (o.customerName || '').trim();
+                const isRetail = !custPhone && (!custName || custName.toLowerCase() === 'khách vãng lai' || custName.toLowerCase() === 'khách lẻ');
+
+                let customerCellHtml = '';
+                if (!isRetail) {
+                    const safeCustLookup = (custPhone || o.customerId || custName).replace(/'/g, "\\'");
+                    customerCellHtml = `
+                        <button type="button" 
+                                onclick="CustomersModule.openCustomerOrdersModal('${safeCustLookup}')"
+                                class="font-semibold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1 group"
+                                title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
+                            <span>${custName || 'Khách hàng'}</span>
+                            <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-600 opacity-60 group-hover:opacity-100"></i>
+                        </button>
+                        ${custPhone ? `<div class="text-xs text-slate-500 font-mono mt-0.5">${custPhone}</div>` : ''}
+                    `;
+                } else {
+                    customerCellHtml = `<div class="font-semibold text-slate-500">Khách lẻ</div>`;
+                }
+
+                html += `
+                    <tr class="border-b border-amber-100 hover:bg-amber-50/40 transition text-sm bg-amber-50/20">
+                        <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
+                        <td class="py-3 px-3">
+                            <div class="font-mono font-bold text-amber-700 text-sm hover:text-amber-900 cursor-pointer flex items-center gap-1" onclick="OrdersModule.openReturnOrderDetails('${o.id}')" title="Bấm để xem chi tiết phiếu trả hàng">
+                                <span>${o.id}</span>
+                                <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-60"></i>
+                            </div>
+                            <div class="text-[11px] text-slate-400">${AppUtils.formatDateTime(o.createdAt)}</div>
+                            <div class="inline-flex items-center gap-0.5 text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 mt-0.5">
+                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Trả hàng tổng hợp
+                            </div>
+                        </td>
+                        <td class="py-3 px-3">
+                            ${methodBadge}
+                        </td>
+                        <td class="py-3 px-3">
+                            ${customerCellHtml}
+                        </td>
+                        <td class="py-3 px-3">
+                            <div class="text-xs text-slate-600 line-clamp-1 max-w-xs" title="${itemsSummary}">${itemsSummary}</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">Dược sĩ: ${o.pharmacist || 'admin'} • Lý do: ${o.reason || 'Trả hàng'}</div>
+                        </td>
+                        <td class="py-3 px-3 text-right">
+                            <div class="font-bold text-rose-600 text-sm font-mono">-${AppUtils.formatVND(totalRefund)}</div>
+                            <div class="text-[10px] text-rose-500 font-medium">Hoàn khách</div>
+                        </td>
+                        ${isAdmin ? `
+                        <td class="py-3 px-3 text-right font-mono text-xs">
+                            <div class="font-medium text-slate-500 font-mono">-${AppUtils.formatVND(returnCost)}</div>
+                            <div class="text-[10px] text-slate-400 font-sans">Giảm vốn kho</div>
+                        </td>
+                        <td class="py-3 px-3 text-right font-mono text-xs">
+                            <div class="font-bold text-rose-700">-${AppUtils.formatVND(totalRefund - returnCost)}</div>
+                            <div class="text-[10px] text-slate-400 font-sans">Giảm lợi nhuận</div>
+                        </td>` : ''}
+                        <td class="py-3 px-3 text-center">
+                            ${statusBadge}
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="OrdersModule.openReturnOrderDetails('${o.id}')" title="Xem chi tiết phiếu trả hàng" class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition cursor-pointer">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="OrdersModule.printReturnOrder('${o.id}')" title="In phiếu trả hàng" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition cursor-pointer">
+                                    <i data-lucide="printer" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
             const hasReturn = o.returns && o.returns.length > 0;
             const isFullyReturned = o.returnStatus === 'fully_returned';
+
+            const orderCost = isAdmin ? this.calculateOrderCost(o) : 0;
+            const netRevenue = isCancelled ? 0 : Math.max(0, (o.totalAmount || 0) - (o.totalRefunded || 0));
+            const profit = isCancelled ? 0 : (netRevenue - orderCost);
+            const profitMargin = (netRevenue > 0 && !isCancelled) ? ((profit / netRevenue) * 100).toFixed(1) : 0;
 
             let methodBadge = '';
             if (isCash) {
@@ -398,6 +564,18 @@ const OrdersModule = {
                         ${hasReturn ? `<div class="text-[11px] text-rose-600 font-semibold">Đã hoàn: -${AppUtils.formatVND(o.totalRefunded)}</div>` : ''}
                         ${isCash && o.changeAmount > 0 && !hasReturn ? `<div class="text-[11px] text-slate-400">Thối: ${AppUtils.formatVND(o.changeAmount)}</div>` : ''}
                     </td>
+                    ${isAdmin ? `
+                    <td class="py-3 px-3 text-right font-mono text-slate-600 text-xs">
+                        ${isCancelled ? '<span class="text-slate-300">0 đ</span>' : AppUtils.formatVND(orderCost)}
+                    </td>
+                    <td class="py-3 px-3 text-right font-mono text-xs">
+                        ${isCancelled ? '<span class="text-slate-300">0 đ</span>' : `
+                            <div class="font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
+                                ${AppUtils.formatVND(profit)}
+                            </div>
+                            <div class="text-[10px] text-slate-400 font-sans font-semibold">${profitMargin}%</div>
+                        `}
+                    </td>` : ''}
                     <td class="py-3 px-3 text-center">
                         ${statusBadge}
                     </td>
@@ -445,7 +623,13 @@ const OrdersModule = {
         const hasReturns = order.returns && order.returns.length > 0;
         const isFullyReturned = order.returnStatus === 'fully_returned';
         const canCancelOrReturn = !window.AuthModule || AuthModule.canCancelOrReturnOrder();
+        const isAdmin = !window.AuthModule || AuthModule.isAdmin();
         const netTotal = Math.max(0, (order.totalAmount || 0) - (order.totalRefunded || 0));
+
+        const orderCost = isAdmin ? this.calculateOrderCost(order) : 0;
+        const netRevenue = order.isCancelled ? 0 : netTotal;
+        const profit = order.isCancelled ? 0 : (netRevenue - orderCost);
+        const profitMargin = (netRevenue > 0 && !order.isCancelled) ? ((profit / netRevenue) * 100).toFixed(1) : 0;
 
         let itemsHtml = '';
         (order.items || []).forEach((item, i) => {
@@ -458,6 +642,9 @@ const OrdersModule = {
             const med = Store.getMedicineById(item.medicineId) || Store.getMedicines().find(m => m.name === item.medicineName);
             const medId = med ? med.id : item.medicineId;
             const stockDisplay = med ? AppUtils.formatStockUnitsDisplay(med) : 'Chưa rõ';
+
+            const itemLineTotal = (item.total !== undefined) ? item.total : 
+                ((item.lineTotal !== undefined) ? item.lineTotal : ((item.price || item.unitPrice || 0) * (item.quantity ?? 1)));
 
             itemsHtml += `
                 <tr class="border-b border-slate-100 text-xs hover:bg-slate-50/70 transition">
@@ -483,7 +670,7 @@ const OrdersModule = {
                         ${returnedQty > 0 ? `<div class="text-[10px] text-rose-600 font-bold">(Đã trả: ${returnedQty} ${item.unit})</div>` : ''}
                     </td>
                     <td class="py-2.5 px-2 text-right">${AppUtils.formatVND(item.price || item.unitPrice || 0)}</td>
-                    <td class="py-2.5 px-2 text-right font-bold text-emerald-700">${AppUtils.formatVND((item.price || item.unitPrice || 0) * (item.quantity || 1))}</td>
+                    <td class="py-2.5 px-2 text-right font-bold text-emerald-700">${AppUtils.formatVND(itemLineTotal)}</td>
                 </tr>
             `;
         });
@@ -610,6 +797,20 @@ const OrdersModule = {
                     <div class="flex justify-between text-base font-black text-slate-900 border-t border-slate-200 pt-1">
                         <span>THỰC THU SAU TRẢ HÀNG:</span>
                         <span class="text-emerald-800">${AppUtils.formatVND(netTotal)}</span>
+                    </div>` : ''}
+                    ${isAdmin && !order.isCancelled ? `
+                    <div class="mt-3 pt-2.5 border-t border-dashed border-slate-200 bg-emerald-50/60 p-2.5 rounded-xl space-y-1 text-xs">
+                        <div class="flex justify-between text-slate-600 font-medium">
+                            <span class="flex items-center gap-1">
+                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                                <span>Tiền vốn ước tính (Admin):</span>
+                            </span>
+                            <span class="font-mono font-bold text-slate-700">${AppUtils.formatVND(orderCost)}</span>
+                        </div>
+                        <div class="flex justify-between font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
+                            <span>Lợi nhuận đơn hàng:</span>
+                            <span class="font-mono text-sm">${AppUtils.formatVND(profit)} <span class="text-[11px] font-semibold text-slate-500 font-sans">(${profitMargin}%)</span></span>
+                        </div>
                     </div>` : ''}
                 </div>
 
@@ -1131,6 +1332,748 @@ const OrdersModule = {
             return;
         }
         ExportService.exportOrders(orders, this.currentTab);
+    },
+
+    // ========================================================
+    // TÍNH NĂNG: TRẢ HÀNG TỔNG HỢP (AGGREGATE CUSTOMER RETURN)
+    // ========================================================
+    openAggregateReturnModal() {
+        if (window.AuthModule && !AuthModule.canCancelOrReturnOrder()) {
+            if (window.App && App.showToast) {
+                App.showToast('Bạn không có quyền thực hiện trả hàng. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            } else if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền thực hiện trả hàng. Chỉ Quản trị viên (Admin) mới có quyền này!', 'warning');
+            }
+            return;
+        }
+
+        this.aggregateReturnCart = [];
+        const modal = document.getElementById('modal-aggregate-return');
+        if (!modal) return;
+
+        // Reset inputs
+        const nameInp = document.getElementById('agg-return-customer-name');
+        const phoneInp = document.getElementById('agg-return-customer-phone');
+        const methodSel = document.getElementById('agg-return-payment-method');
+        const dtInp = document.getElementById('agg-return-datetime');
+        const searchInp = document.getElementById('agg-return-med-search');
+        const reasonSel = document.getElementById('agg-return-reason-select');
+        const reasonCustom = document.getElementById('agg-return-reason-custom');
+        const noteInp = document.getElementById('agg-return-note');
+        const chkRestock = document.getElementById('agg-return-opt-restock');
+        const chkVoucher = document.getElementById('agg-return-opt-voucher');
+
+        if (nameInp) nameInp.value = 'Khách lẻ';
+        if (phoneInp) phoneInp.value = '';
+        if (methodSel) methodSel.value = 'cash';
+        if (searchInp) searchInp.value = '';
+        if (reasonSel) reasonSel.value = 'Khách dùng không hết / dư thuốc';
+        if (reasonCustom) { reasonCustom.value = ''; reasonCustom.classList.add('hidden'); }
+        if (noteInp) noteInp.value = '';
+        if (chkRestock) chkRestock.checked = true;
+        if (chkVoucher) chkVoucher.checked = true;
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        if (dtInp) dtInp.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+        document.getElementById('agg-return-search-results')?.classList.add('hidden');
+        document.getElementById('agg-return-customer-dropdown')?.classList.add('hidden');
+        document.getElementById('agg-return-order-lookup-box')?.classList.add('hidden');
+
+        // Toggle Admin cost visibility
+        const isAdmin = !window.AuthModule || AuthModule.canViewCostPrice();
+        const costRow = document.getElementById('agg-return-summary-cost-row');
+        if (costRow) {
+            if (isAdmin) costRow.classList.remove('hidden');
+            else costRow.classList.add('hidden');
+        }
+        document.querySelectorAll('.th-cost-col').forEach(el => {
+            if (isAdmin) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        });
+
+        this.renderReturnCart();
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeAggregateReturnModal() {
+        document.getElementById('modal-aggregate-return')?.classList.add('hidden');
+        this.aggregateReturnCart = [];
+    },
+
+    handleCustomerInput(val) {
+        const dd = document.getElementById('agg-return-customer-dropdown');
+        if (!dd) return;
+        const q = (val || '').trim().toLowerCase();
+        if (!q || q.length < 1) {
+            dd.classList.add('hidden');
+            return;
+        }
+
+        const customers = (Store.getCustomers && Store.getCustomers()) || [];
+        const matches = customers.filter(c => 
+            (c.name && c.name.toLowerCase().includes(q)) || 
+            (c.phone && c.phone.includes(q))
+        ).slice(0, 8);
+
+        if (matches.length === 0) {
+            dd.classList.add('hidden');
+            return;
+        }
+
+        dd.innerHTML = matches.map(c => `
+            <div class="px-3 py-2 hover:bg-amber-50 cursor-pointer flex justify-between items-center text-xs"
+                 onclick="OrdersModule.selectCustomer('${AppUtils.escapeHtml(c.name || '')}', '${AppUtils.escapeHtml(c.phone || '')}')">
+                <div>
+                    <span class="font-bold text-slate-800">${c.name}</span>
+                    ${c.phone ? `<span class="text-slate-500 font-mono text-[11px] ml-2">(${c.phone})</span>` : ''}
+                </div>
+                ${c.points ? `<span class="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">${c.points} điểm</span>` : ''}
+            </div>
+        `).join('');
+        dd.classList.remove('hidden');
+    },
+
+    selectCustomer(name, phone) {
+        const nameInp = document.getElementById('agg-return-customer-name');
+        const phoneInp = document.getElementById('agg-return-customer-phone');
+        if (nameInp) nameInp.value = name;
+        if (phoneInp) phoneInp.value = phone || '';
+        document.getElementById('agg-return-customer-dropdown')?.classList.add('hidden');
+    },
+
+    setCustomerRetail() {
+        this.selectCustomer('Khách lẻ', '');
+    },
+
+    handleMedicineSearch(kw) {
+        clearTimeout(this.searchMedicineTimeout);
+        const dd = document.getElementById('agg-return-search-results');
+        if (!dd) return;
+
+        const q = (kw || '').trim().toLowerCase();
+        if (!q || q.length < 1) {
+            dd.classList.add('hidden');
+            return;
+        }
+
+        this.searchMedicineTimeout = setTimeout(() => {
+            const medicines = Store.getMedicines() || [];
+            const matches = medicines.filter(m => 
+                (m.name && m.name.toLowerCase().includes(q)) ||
+                (m.id && m.id.toLowerCase().includes(q)) ||
+                (m.code && m.code.toLowerCase().includes(q)) ||
+                (m.barcode && m.barcode.toLowerCase().includes(q)) ||
+                (m.activeIngredient && m.activeIngredient.toLowerCase().includes(q))
+            ).slice(0, 10);
+
+            if (matches.length === 0) {
+                dd.innerHTML = `<div class="p-3 text-center text-slate-400 text-xs">Không tìm thấy thuốc khớp với "${AppUtils.escapeHtml(kw)}"</div>`;
+                dd.classList.remove('hidden');
+                return;
+            }
+
+            const isAdmin = !window.AuthModule || AuthModule.canViewCostPrice();
+
+            dd.innerHTML = matches.map(m => {
+                const stockText = AppUtils.formatStockUnitsDisplay(m);
+                const defaultUnit = (m.packUnit && m.priceBox > 0) ? m.packUnit : m.baseUnit;
+                const defaultPrice = (m.packUnit && m.priceBox > 0) ? m.priceBox : (m.priceBase || 0);
+                const unitCost = Store.getMedicineUnitCost(m, defaultUnit);
+
+                return `
+                    <div class="p-2.5 hover:bg-amber-50 cursor-pointer flex items-center justify-between gap-3 text-xs"
+                         onclick="OrdersModule.addMedicineToReturnCart('${m.id}')">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-slate-800 truncate">${m.name}</div>
+                            <div class="text-[11px] text-slate-400 font-mono flex items-center gap-2 mt-0.5">
+                                <span>Mã: ${m.barcode || m.id}</span>
+                                <span class="text-emerald-700 font-semibold bg-emerald-50 px-1 rounded border border-emerald-200">Tồn: ${stockText}</span>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <div class="font-bold text-slate-800">${AppUtils.formatVND(defaultPrice)} / ${defaultUnit}</div>
+                            ${isAdmin ? `<div class="text-[10px] text-slate-400">Vốn: ${AppUtils.formatVND(unitCost)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            dd.classList.remove('hidden');
+        }, 120);
+    },
+
+    addMedicineToReturnCart(medId, forcedUnit = null, forcedPrice = null, orderId = '') {
+        const med = Store.getMedicineById(medId) || (Store.getMedicines() || []).find(m => m.id === medId || m.barcode === medId);
+        if (!med) {
+            App.showToast('Không tìm thấy thuốc!', 'error');
+            return;
+        }
+
+        const unit = forcedUnit || (med.packUnit && med.priceBox > 0 ? med.packUnit : med.baseUnit);
+        let price = (forcedPrice !== null && forcedPrice !== undefined) ? forcedPrice : 0;
+        if (price <= 0) {
+            if (unit === med.packUnit && med.priceBox > 0) price = med.priceBox;
+            else if (unit === med.subUnit && med.priceSub > 0) price = med.priceSub;
+            else price = med.priceBase || 0;
+        }
+
+        const costPrice = Store.getMedicineUnitCost(med, unit);
+
+        // Check if item already exists in cart with same unit
+        const existing = this.aggregateReturnCart.find(it => it.medicineId === med.id && it.unit === unit);
+        if (existing) {
+            existing.quantity += 1;
+            existing.lineTotal = Math.round(existing.quantity * existing.price);
+            existing.totalCost = Math.round(existing.quantity * (existing.costPrice || 0));
+        } else {
+            this.aggregateReturnCart.push({
+                medicineId: med.id,
+                medicineCode: med.barcode || med.id,
+                medicineName: med.name,
+                unit: unit,
+                quantity: 1,
+                price: price,
+                costPrice: costPrice,
+                lineTotal: price,
+                totalCost: costPrice,
+                orderId: orderId,
+                medRef: med
+            });
+        }
+
+        // Clear search input and dropdown
+        const sInp = document.getElementById('agg-return-med-search');
+        if (sInp) sInp.value = '';
+        document.getElementById('agg-return-search-results')?.classList.add('hidden');
+
+        this.renderReturnCart();
+        AppUtils.playBeepSound('success');
+    },
+
+    removeReturnCartItem(idx) {
+        if (idx >= 0 && idx < this.aggregateReturnCart.length) {
+            this.aggregateReturnCart.splice(idx, 1);
+            this.renderReturnCart();
+        }
+    },
+
+    updateReturnCartItem(idx, field, val) {
+        const item = this.aggregateReturnCart[idx];
+        if (!item) return;
+
+        const med = item.medRef || Store.getMedicineById(item.medicineId) || (Store.getMedicines() || []).find(m => m.id === item.medicineId);
+
+        if (field === 'unit') {
+            item.unit = val;
+            if (med) {
+                if (val === med.packUnit && med.priceBox > 0) item.price = med.priceBox;
+                else if (val === med.subUnit && med.priceSub > 0) item.price = med.priceSub;
+                else item.price = med.priceBase || 0;
+                item.costPrice = Store.getMedicineUnitCost(med, val);
+            }
+        } else if (field === 'quantity') {
+            item.quantity = Math.max(0.01, parseFloat(val) || 1);
+        } else if (field === 'price') {
+            item.price = Math.max(0, parseFloat(val) || 0);
+        }
+
+        item.lineTotal = Math.round(item.quantity * item.price);
+        item.totalCost = Math.round(item.quantity * (item.costPrice || 0));
+
+        this.renderReturnCart();
+    },
+
+    toggleOrderLookup() {
+        const box = document.getElementById('agg-return-order-lookup-box');
+        if (!box) return;
+        box.classList.toggle('hidden');
+        if (!box.classList.contains('hidden')) {
+            document.getElementById('agg-return-order-id-input')?.focus();
+        }
+    },
+
+    lookupOrderItems() {
+        const inp = document.getElementById('agg-return-order-id-input');
+        const preview = document.getElementById('agg-return-order-items-preview');
+        if (!inp || !preview) return;
+
+        const orderId = inp.value.trim().toUpperCase();
+        if (!orderId) {
+            App.showToast('Vui lòng nhập mã hóa đơn!', 'warning');
+            return;
+        }
+
+        const order = Store.getOrderById(orderId);
+        if (!order) {
+            preview.innerHTML = `<div class="p-3 text-center text-rose-600">Không tìm thấy hóa đơn <b>${orderId}</b></div>`;
+            preview.classList.remove('hidden');
+            return;
+        }
+
+        if (order.isCancelled) {
+            preview.innerHTML = `<div class="p-3 text-center text-rose-600">Hóa đơn <b>${orderId}</b> đã bị hủy!</div>`;
+            preview.classList.remove('hidden');
+            return;
+        }
+
+        // Fill customer name & phone if currently default
+        const nameInp = document.getElementById('agg-return-customer-name');
+        const phoneInp = document.getElementById('agg-return-customer-phone');
+        if (nameInp && (nameInp.value === 'Khách lẻ' || !nameInp.value) && order.customerName) {
+            nameInp.value = order.customerName;
+        }
+        if (phoneInp && !phoneInp.value && order.customerPhone) {
+            phoneInp.value = order.customerPhone;
+        }
+
+        let html = `
+            <div class="p-2 bg-slate-50 font-bold text-slate-700 flex justify-between items-center text-[11px]">
+                <span>Thuốc trong đơn ${order.id} (${AppUtils.formatDateTime(order.createdAt)}):</span>
+                <span class="text-emerald-700 font-mono">${AppUtils.formatVND(order.totalAmount)}</span>
+            </div>
+        `;
+
+        (order.items || []).forEach(it => {
+            const safeName = AppUtils.escapeHtml(it.medicineName || '');
+            const safeUnit = AppUtils.escapeHtml(it.unit || '');
+            html += `
+                <div class="p-2 flex items-center justify-between gap-2 hover:bg-blue-50 text-xs">
+                    <div class="flex-1 min-w-0">
+                        <span class="font-bold text-slate-800">${safeName}</span>
+                        <span class="text-slate-500 font-mono ml-1">(${it.quantity} ${safeUnit} x ${AppUtils.formatVND(it.price)})</span>
+                    </div>
+                    <button type="button" onclick="OrdersModule.addMedicineToReturnCart('${it.medicineId}', '${safeUnit}', ${it.price}, '${order.id}')"
+                            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer">
+                        <i data-lucide="plus" class="w-3 h-3"></i>
+                        <span>Thêm</span>
+                    </button>
+                </div>
+            `;
+        });
+
+        preview.innerHTML = html;
+        preview.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    renderReturnCart() {
+        const tbody = document.getElementById('agg-return-cart-tbody');
+        const countEl = document.getElementById('agg-return-item-count');
+        const sumItemsEl = document.getElementById('agg-return-summary-items');
+        const sumTotalEl = document.getElementById('agg-return-summary-total');
+        const sumCostEl = document.getElementById('agg-return-summary-cost');
+        const btnConfirm = document.getElementById('btn-confirm-agg-return');
+        const btnConfirmPrint = document.getElementById('btn-confirm-agg-return-print');
+
+        const isAdmin = !window.AuthModule || AuthModule.canViewCostPrice();
+
+        if (!tbody) return;
+
+        let totalRefund = 0;
+        let totalReturnCost = 0;
+        let totalQuantity = 0;
+
+        if (this.aggregateReturnCart.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-slate-400">
+                        <i data-lucide="package-search" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+                        <p class="font-medium">Chưa có mặt hàng nào trong phiếu trả.</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Vui lòng gõ tên thuốc vào ô tìm kiếm bên trên hoặc bấm "Gom từ Hóa Đơn cũ".</p>
+                    </td>
+                </tr>
+            `;
+        } else {
+            let html = '';
+            this.aggregateReturnCart.forEach((item, idx) => {
+                totalRefund += item.lineTotal;
+                totalReturnCost += (item.totalCost || 0);
+                totalQuantity += item.quantity;
+
+                const med = item.medRef || Store.getMedicineById(item.medicineId) || (Store.getMedicines() || []).find(m => m.id === item.medicineId);
+
+                // Tạo danh sách đơn vị có thể chọn (Hộp, Vỉ, Viên, Gói)
+                let units = [item.unit];
+                if (med) {
+                    const candidateUnits = [med.packUnit, med.subUnit, med.baseUnit].filter(u => u && u.trim().length > 0);
+                    candidateUnits.forEach(u => {
+                        if (!units.includes(u)) units.push(u);
+                    });
+                }
+
+                const unitOptionsHtml = units.map(u => `<option value="${u}" ${u === item.unit ? 'selected' : ''}>${u}</option>`).join('');
+
+                html += `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-xs">
+                        <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
+                        <td class="p-2.5">
+                            <div class="font-bold text-slate-800">${item.medicineName}</div>
+                            <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                                <span>Mã: ${item.medicineCode}</span>
+                                ${item.orderId ? `<span class="text-blue-600 bg-blue-50 px-1 rounded font-semibold border border-blue-200">Đơn: ${item.orderId}</span>` : ''}
+                            </div>
+                        </td>
+                        <td class="p-2.5 text-center">
+                            <select onchange="OrdersModule.updateReturnCartItem(${idx}, 'unit', this.value)"
+                                    class="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-semibold focus:ring-1 focus:ring-amber-500 outline-none">
+                                ${unitOptionsHtml}
+                            </select>
+                        </td>
+                        <td class="p-2.5 text-center">
+                            <input type="number" min="0.01" step="any" value="${item.quantity}"
+                                   onchange="OrdersModule.updateReturnCartItem(${idx}, 'quantity', this.value)"
+                                   class="w-18 px-2 py-1 text-center font-bold text-rose-700 bg-white border border-slate-300 rounded focus:ring-1 focus:ring-amber-500 outline-none" />
+                        </td>
+                        <td class="p-2.5 text-right">
+                            <input type="number" min="0" step="500" value="${item.price}"
+                                   onchange="OrdersModule.updateReturnCartItem(${idx}, 'price', this.value)"
+                                   class="w-24 px-2 py-1 text-right font-bold text-slate-800 bg-white border border-slate-300 rounded focus:ring-1 focus:ring-amber-500 outline-none" />
+                        </td>
+                        <td class="p-2.5 text-right font-mono text-slate-500 ${isAdmin ? '' : 'hidden'} th-cost-col">
+                            <div>${AppUtils.formatVND(item.totalCost || 0)}</div>
+                            <div class="text-[10px] text-slate-400">@${AppUtils.formatVND(item.costPrice || 0)}</div>
+                        </td>
+                        <td class="p-2.5 text-right font-mono font-bold text-rose-700">
+                            ${AppUtils.formatVND(item.lineTotal)}
+                        </td>
+                        <td class="p-2.5 text-center">
+                            <button type="button" onclick="OrdersModule.removeReturnCartItem(${idx})" title="Xóa dòng"
+                                    class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        if (countEl) countEl.innerText = this.aggregateReturnCart.length;
+        if (sumItemsEl) sumItemsEl.innerText = `${this.aggregateReturnCart.length} loại thuốc (tổng ${totalQuantity} SP)`;
+        if (sumTotalEl) sumTotalEl.innerText = AppUtils.formatVND(totalRefund);
+        if (sumCostEl) sumCostEl.innerText = AppUtils.formatVND(totalReturnCost);
+
+        const hasItems = this.aggregateReturnCart.length > 0 && totalRefund > 0;
+        if (btnConfirm) btnConfirm.disabled = !hasItems;
+        if (btnConfirmPrint) btnConfirmPrint.disabled = !hasItems;
+
+        if (window.lucide) lucide.createIcons();
+    },
+
+    handleAggReasonChange() {
+        const sel = document.getElementById('agg-return-reason-select');
+        const custom = document.getElementById('agg-return-reason-custom');
+        if (!sel || !custom) return;
+        if (sel.value === 'other') {
+            custom.classList.remove('hidden');
+            custom.focus();
+        } else {
+            custom.classList.add('hidden');
+        }
+    },
+
+    confirmAggregateReturn(andPrint = false) {
+        if (this.aggregateReturnCart.length === 0) {
+            App.showToast('Vui lòng thêm ít nhất một mặt hàng khách trả lại!', 'warning');
+            return;
+        }
+
+        const nameInp = document.getElementById('agg-return-customer-name');
+        const phoneInp = document.getElementById('agg-return-customer-phone');
+        const methodSel = document.getElementById('agg-return-payment-method');
+        const dtInp = document.getElementById('agg-return-datetime');
+        const reasonSel = document.getElementById('agg-return-reason-select');
+        const reasonCustom = document.getElementById('agg-return-reason-custom');
+        const noteInp = document.getElementById('agg-return-note');
+        const chkRestock = document.getElementById('agg-return-opt-restock');
+        const chkVoucher = document.getElementById('agg-return-opt-voucher');
+
+        let reason = reasonSel ? reasonSel.value : 'Khách trả hàng';
+        if (reason === 'other' && reasonCustom && reasonCustom.value.trim()) {
+            reason = reasonCustom.value.trim();
+        }
+
+        const returnData = {
+            customerName: (nameInp && nameInp.value.trim()) || 'Khách lẻ',
+            customerPhone: (phoneInp && phoneInp.value.trim()) || '',
+            paymentMethod: methodSel ? methodSel.value : 'cash',
+            createdAt: (dtInp && dtInp.value) ? new Date(dtInp.value).toISOString() : new Date().toISOString(),
+            reason: reason,
+            note: (noteInp && noteInp.value.trim()) || '',
+            shouldRestock: chkRestock ? chkRestock.checked : true,
+            shouldCreateVoucher: chkVoucher ? chkVoucher.checked : true,
+            items: this.aggregateReturnCart.map(it => ({
+                medicineId: it.medicineId,
+                medicineCode: it.medicineCode,
+                medicineName: it.medicineName,
+                unit: it.unit,
+                quantity: it.quantity,
+                price: it.price,
+                costPrice: it.costPrice,
+                lineTotal: it.lineTotal,
+                totalCost: it.totalCost,
+                orderId: it.orderId || ''
+            }))
+        };
+
+        const res = Store.createAggregateReturn(returnData);
+        if (!res || !res.success) {
+            App.showToast(res ? res.message : 'Có lỗi xảy ra khi tạo phiếu trả hàng!', 'error');
+            return;
+        }
+
+        this.closeAggregateReturnModal();
+        this.renderOrdersTable();
+        this.updateTabSummaryCards();
+
+        App.showToast(`Đã tạo thành công Phiếu trả hàng tổng hợp ${res.returnOrder.id}!`, 'success');
+        AppUtils.playBeepSound('success');
+
+        if (andPrint && res.returnOrder) {
+            this.printReturnOrder(res.returnOrder.id);
+        }
+    },
+
+    openReturnOrderDetails(orderId) {
+        const order = Store.getOrderById(orderId);
+        if (!order) {
+            App.showToast('Không tìm thấy thông tin phiếu trả hàng!', 'error');
+            return;
+        }
+
+        const modal = document.getElementById('modal-return-details');
+        const body = document.getElementById('return-detail-body');
+        const idText = document.getElementById('return-detail-id-text');
+        const vLink = document.getElementById('return-detail-voucher-link');
+        const btnPrint = document.getElementById('btn-print-from-return-detail');
+
+        if (!modal || !body) return;
+
+        if (idText) idText.innerText = `Mã phiếu: ${order.id} • ${AppUtils.formatDateTime(order.createdAt)}`;
+        if (vLink) {
+            if (order.voucherId) {
+                vLink.innerHTML = `Phiếu chi Sổ Quỹ: <b>${order.voucherId}</b> (${order.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})`;
+            } else {
+                vLink.innerText = '';
+            }
+        }
+
+        if (btnPrint) {
+            btnPrint.onclick = () => this.printReturnOrder(order.id);
+        }
+
+        const isAdmin = !window.AuthModule || AuthModule.canViewCostPrice();
+        const totalRefund = order.totalRefund || order.totalAmount || 0;
+        const totalCost = order.totalCost || 0;
+
+        let rowsHtml = '';
+        (order.items || []).forEach((it, idx) => {
+            const lineTotal = it.lineTotal || (it.quantity * it.price);
+            const lineCost = it.totalCost || (it.quantity * (it.costPrice || 0));
+
+            rowsHtml += `
+                <tr class="border-b border-slate-100 text-xs hover:bg-slate-50">
+                    <td class="p-2 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="p-2">
+                        <div class="font-bold text-slate-800">${it.medicineName}</div>
+                        <div class="text-[11px] text-slate-400 font-mono">Mã: ${it.medicineCode || it.medicineId}</div>
+                    </td>
+                    <td class="p-2 text-center font-semibold text-slate-600">${it.unit}</td>
+                    <td class="p-2 text-center font-bold text-rose-700 font-mono">${it.quantity}</td>
+                    <td class="p-2 text-right font-medium text-slate-800 font-mono">${AppUtils.formatVND(it.price)}</td>
+                    ${isAdmin ? `
+                    <td class="p-2 text-right text-slate-500 font-mono">
+                        <div>${AppUtils.formatVND(lineCost)}</div>
+                        <div class="text-[10px] text-slate-400">@${AppUtils.formatVND(it.costPrice || 0)}</div>
+                    </td>` : ''}
+                    <td class="p-2 text-right font-bold text-rose-700 font-mono">${AppUtils.formatVND(lineTotal)}</td>
+                </tr>
+            `;
+        });
+
+        body.innerHTML = `
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                <div>
+                    <span class="text-slate-400 block text-[11px]">Khách Hàng:</span>
+                    <span class="font-bold text-slate-800">${order.customerName || 'Khách lẻ'}</span>
+                    ${order.customerPhone ? `<div class="text-slate-500 font-mono text-[11px]">${order.customerPhone}</div>` : ''}
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[11px]">Hình Thức Hoàn:</span>
+                    <span class="font-bold ${order.paymentMethod === 'cash' ? 'text-amber-700' : 'text-blue-700'}">
+                        ${order.paymentMethod === 'cash' ? '💵 Tiền mặt' : '🏦 Chuyển khoản'}
+                    </span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[11px]">Lý Do Trả:</span>
+                    <span class="font-medium text-slate-800">${order.reason || 'Khách trả hàng'}</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[11px]">Dược Sĩ Lập:</span>
+                    <span class="font-medium text-slate-800">${order.pharmacist || 'admin'}</span>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-slate-100 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
+                        <tr>
+                            <th class="p-2 text-center w-10">#</th>
+                            <th class="p-2">Tên Thuốc</th>
+                            <th class="p-2 text-center w-20">ĐVT</th>
+                            <th class="p-2 text-center w-20">SL Trả</th>
+                            <th class="p-2 text-right w-24">Đơn Giá</th>
+                            ${isAdmin ? '<th class="p-2 text-right w-24">Giá Vốn</th>' : ''}
+                            <th class="p-2 text-right w-28">Thành Tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex justify-between items-center text-xs">
+                <div>
+                    <div class="font-bold text-slate-700">Tổng mặt hàng trả: <span class="font-mono">${(order.items || []).length} loại</span></div>
+                    ${isAdmin ? `<div class="text-[11px] text-slate-500 mt-0.5">Tổng vốn giảm kho: <b class="font-mono">${AppUtils.formatVND(totalCost)}</b></div>` : ''}
+                </div>
+                <div class="text-right">
+                    <div class="text-[11px] font-bold uppercase text-amber-900">Tổng Tiền Hoàn Khách</div>
+                    <div class="text-xl font-black text-rose-700 font-mono">${AppUtils.formatVND(totalRefund)}</div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeReturnDetailsModal() {
+        document.getElementById('modal-return-details')?.classList.add('hidden');
+    },
+
+    printReturnOrder(orderId) {
+        const order = Store.getOrderById(orderId);
+        if (!order) return;
+
+        const modal = document.getElementById('modal-return-print');
+        const container = document.getElementById('return-print-content');
+        if (!modal || !container) return;
+
+        const settings = Store.getSettings() || {};
+        const totalRefund = order.totalRefund || order.totalAmount || 0;
+
+        let rowsHtml = '';
+        (order.items || []).forEach((it, idx) => {
+            const lineTotal = it.lineTotal || (it.quantity * it.price);
+            rowsHtml += `
+                <tr class="border-b border-dashed border-slate-200 text-xs">
+                    <td class="py-1.5 text-center">${idx + 1}</td>
+                    <td class="py-1.5">
+                        <div class="font-bold">${it.medicineName}</div>
+                    </td>
+                    <td class="py-1.5 text-center">${it.unit}</td>
+                    <td class="py-1.5 text-center font-bold">${it.quantity}</td>
+                    <td class="py-1.5 text-right">${AppUtils.formatVND(it.price)}</td>
+                    <td class="py-1.5 text-right font-bold">${AppUtils.formatVND(lineTotal)}</td>
+                </tr>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="receipt-paper k80-width bg-white text-slate-900 mx-auto p-4 shadow-sm font-sans text-xs">
+                <div class="text-center pb-2 border-b border-dashed border-slate-300">
+                    <div class="font-extrabold text-sm uppercase">${settings.pharmacyName || 'MEDICA PHARMACY'}</div>
+                    <div class="text-[10px] text-slate-500">${settings.address || ''}</div>
+                    <div class="text-[10px] text-slate-500">Hotline: ${settings.phone || ''}</div>
+                </div>
+
+                <div class="text-center my-3">
+                    <div class="font-black text-base uppercase text-slate-800">PHIẾU TRẢ HÀNG & HOÀN TIỀN</div>
+                    <div class="text-[11px] font-mono font-bold text-slate-600">Số: ${order.id}</div>
+                    <div class="text-[10px] text-slate-400">${AppUtils.formatDateTime(order.createdAt)}</div>
+                </div>
+
+                <div class="space-y-1 border-t border-b border-dashed border-slate-300 py-2 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Khách hàng:</span>
+                        <span class="font-bold text-slate-800">${order.customerName || 'Khách lẻ'}</span>
+                    </div>
+                    ${order.customerPhone ? `
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Số điện thoại:</span>
+                        <span class="font-mono">${order.customerPhone}</span>
+                    </div>` : ''}
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Hình thức hoàn:</span>
+                        <span class="font-semibold">${order.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Lý do trả:</span>
+                        <span class="font-medium text-slate-700">${order.reason || 'Khách trả hàng'}</span>
+                    </div>
+                </div>
+
+                <div class="my-3">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-300 text-[10px] font-bold uppercase text-slate-500">
+                                <th class="py-1 text-center w-6">#</th>
+                                <th class="py-1">Thuốc</th>
+                                <th class="py-1 text-center w-10">ĐVT</th>
+                                <th class="py-1 text-center w-8">SL</th>
+                                <th class="py-1 text-right w-16">Đơn giá</th>
+                                <th class="py-1 text-right w-18">T.Tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="border-t border-b border-dashed border-slate-300 py-2 space-y-1">
+                    <div class="flex justify-between items-baseline">
+                        <span class="font-extrabold text-sm uppercase text-slate-800">TỔNG TIỀN HOÀN:</span>
+                        <span class="font-black text-base text-rose-700 font-mono">${AppUtils.formatVND(totalRefund)}</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 text-center text-[10px] text-slate-600 pt-3">
+                    <div>
+                        <p class="font-bold uppercase">Người trả hàng</p>
+                        <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
+                        <div class="h-10"></div>
+                        <p class="font-semibold">${order.customerName || ''}</p>
+                    </div>
+                    <div>
+                        <p class="font-bold uppercase">Người lập phiếu</p>
+                        <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
+                        <div class="h-10"></div>
+                        <p class="font-semibold">${order.pharmacist || ''}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    executePrintReturn() {
+        window.print();
+    },
+
+    closeReturnPrintModal() {
+        document.getElementById('modal-return-print')?.classList.add('hidden');
     }
 };
 

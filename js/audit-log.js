@@ -10,41 +10,68 @@ const AuditLogModule = {
     currentTimeFilter: 'all',
     currentPage: 1,
     pageSize: 25,
+    activeSubTab: 'store',
+    _initialized: false,
 
     init() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         this.setupSettingsSubTabs();
         this.bindEvents();
         this.renderTable();
 
-        Store.on('audit_log:changed', () => {
-            this.renderTable();
-        });
+        if (window.Store) {
+            Store.on('audit_log:changed', () => {
+                this.renderTable();
+            });
+        }
 
         console.log('✅ Khởi tạo AuditLogModule thành công');
     },
 
     setupSettingsSubTabs() {
-        const navBtns = document.querySelectorAll('.settings-nav-item');
-        navBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
+        // Event delegation trên toàn document để không bao giờ bị trượt click (dù bấm vào icon hay chữ)
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.settings-nav-item');
+            if (btn) {
                 const targetTab = btn.getAttribute('data-settings-nav');
-                this.switchSettingsSubTab(targetTab);
-            });
+                if (targetTab) {
+                    this.switchSettingsSubTab(targetTab);
+                }
+            }
         });
     },
 
     switchSettingsSubTab(tabName) {
+        if (!tabName) return;
+        this.activeSubTab = tabName;
+
+        // 1. Cập nhật trạng thái active của các nút sidebar
         const navBtns = document.querySelectorAll('.settings-nav-item');
         navBtns.forEach(btn => {
             const nav = btn.getAttribute('data-settings-nav');
+            const icon = btn.querySelector('svg, i');
             if (nav === tabName) {
-                btn.className = 'settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl transition text-emerald-800 bg-emerald-50 border-l-4 border-emerald-600 shadow-xs';
+                btn.className = 'settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl transition text-emerald-800 bg-emerald-50 border-l-4 border-emerald-600 shadow-xs cursor-pointer';
+                if (icon) {
+                    icon.classList.remove('text-slate-400', 'text-blue-500');
+                    icon.classList.add('text-emerald-600');
+                }
             } else {
-                btn.className = 'settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition';
+                btn.className = 'settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer';
+                if (icon) {
+                    icon.classList.remove('text-emerald-600');
+                    if (nav === 'audit_log') {
+                        icon.classList.add('text-blue-500');
+                    } else {
+                        icon.classList.add('text-slate-400');
+                    }
+                }
             }
         });
 
+        // 2. Ẩn tất cả các panels con và chỉ mở panel được chọn
         const panels = document.querySelectorAll('.settings-subpanel');
         panels.forEach(panel => {
             if (panel.id === `settings-panel-${tabName}`) {
@@ -54,15 +81,22 @@ const AuditLogModule = {
             }
         });
 
+        // 3. Render dữ liệu tương ứng
         if (tabName === 'audit_log') {
             this.renderTable();
+        } else if (tabName === 'backup') {
+            if (window.App && typeof App.renderSettingsHistory === 'function') {
+                App.renderSettingsHistory();
+            }
         }
 
-        if (window.lucide) lucide.createIcons();
+        if (window.lucide) {
+            try { lucide.createIcons(); } catch(e){}
+        }
     },
 
     bindEvents() {
-        // Search
+        // Tìm kiếm
         const searchInput = document.getElementById('audit-search-keyword');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -72,7 +106,7 @@ const AuditLogModule = {
             });
         }
 
-        // Filter Feature
+        // Lọc Tính năng
         const featSelect = document.getElementById('audit-filter-feature');
         if (featSelect) {
             featSelect.addEventListener('change', (e) => {
@@ -82,7 +116,7 @@ const AuditLogModule = {
             });
         }
 
-        // Filter Staff
+        // Lọc Nhân viên
         const staffSelect = document.getElementById('audit-filter-staff');
         if (staffSelect) {
             staffSelect.addEventListener('change', (e) => {
@@ -92,7 +126,7 @@ const AuditLogModule = {
             });
         }
 
-        // Filter Time
+        // Lọc Thời gian
         const timeSelect = document.getElementById('audit-filter-time');
         if (timeSelect) {
             timeSelect.addEventListener('change', (e) => {
@@ -102,7 +136,7 @@ const AuditLogModule = {
             });
         }
 
-        // Toggle filter bar
+        // Nút mở/đóng thanh lọc
         const toggleBtn = document.getElementById('audit-toggle-filter-btn');
         const filterBar = document.getElementById('audit-filter-bar');
         if (toggleBtn && filterBar) {
@@ -111,7 +145,7 @@ const AuditLogModule = {
             });
         }
 
-        // Refresh
+        // Nút làm mới
         const refreshBtn = document.getElementById('audit-refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
@@ -122,7 +156,7 @@ const AuditLogModule = {
             });
         }
 
-        // Export
+        // Nút xuất file
         const exportBtn = document.getElementById('audit-export-excel-btn');
         if (exportBtn) {
             exportBtn.addEventListener('click', () => {
@@ -132,9 +166,10 @@ const AuditLogModule = {
     },
 
     getFilteredLogs() {
+        if (!window.Store || typeof Store.getAuditLog !== 'function') return [];
         const logs = Store.getAuditLog() || [];
         return logs.filter(item => {
-            // Keyword
+            // Từ khóa
             if (this.searchKeyword) {
                 const kw = this.searchKeyword;
                 const matchStaff = (item.staff || '').toLowerCase().includes(kw);
@@ -143,17 +178,17 @@ const AuditLogModule = {
                 if (!matchStaff && !matchFeat && !matchDetail) return false;
             }
 
-            // Feature
+            // Tính năng
             if (this.currentFeature !== 'all') {
                 if (item.feature !== this.currentFeature) return false;
             }
 
-            // Staff
+            // Nhân viên
             if (this.currentStaff !== 'all') {
                 if (item.staff !== this.currentStaff) return false;
             }
 
-            // Time filter
+            // Khoảng thời gian
             if (this.currentTimeFilter !== 'all') {
                 const itemDate = new Date(item.timestamp);
                 const now = new Date();
@@ -196,11 +231,13 @@ const AuditLogModule = {
             `;
             if (pInfo) pInfo.innerText = 'Hiển thị 0 trong 0 thao tác';
             if (pControls) pControls.innerHTML = '';
-            if (window.lucide) lucide.createIcons();
+            if (window.lucide) {
+                try { lucide.createIcons(); } catch(e){}
+            }
             return;
         }
 
-        // Pagination
+        // Phân trang
         const totalPages = Math.ceil(filtered.length / this.pageSize);
         if (this.currentPage > totalPages) this.currentPage = totalPages;
         if (this.currentPage < 1) this.currentPage = 1;
@@ -212,6 +249,9 @@ const AuditLogModule = {
         pageItems.forEach(item => {
             const timeFormatted = this.formatDateTime(item.timestamp);
             const badgeClass = this.getFeatureBadgeClass(item.feature);
+            const safeStaff = AppUtils ? AppUtils.escapeHtml(item.staff || 'ADMIN') : (item.staff || 'ADMIN');
+            const safeFeat = AppUtils ? AppUtils.escapeHtml(item.feature || 'Hệ thống') : (item.feature || 'Hệ thống');
+            const safeDetails = AppUtils ? AppUtils.escapeHtml(item.details || '') : (item.details || '');
 
             html += `
                 <tr class="hover:bg-slate-50/80 transition-colors">
@@ -220,19 +260,19 @@ const AuditLogModule = {
                             <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-extrabold text-[10px] flex items-center justify-center border border-slate-200">
                                 ${(item.staff || 'AD').substring(0, 2).toUpperCase()}
                             </span>
-                            <span>${AppUtils.escapeHtml(item.staff || 'ADMIN')}</span>
+                            <span>${safeStaff}</span>
                         </span>
                     </td>
                     <td class="py-3 px-4 whitespace-nowrap">
                         <span class="inline-block px-2.5 py-1 rounded-md text-[11px] font-bold ${badgeClass}">
-                            ${AppUtils.escapeHtml(item.feature || 'Hệ thống')}
+                            ${safeFeat}
                         </span>
                     </td>
                     <td class="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                         ${timeFormatted}
                     </td>
                     <td class="py-3 px-4 text-slate-700 font-medium break-words leading-relaxed">
-                        ${AppUtils.escapeHtml(item.details || '')}
+                        ${safeDetails}
                     </td>
                 </tr>
             `;
@@ -245,7 +285,9 @@ const AuditLogModule = {
         }
 
         this.renderPaginationControls(pControls, totalPages);
-        if (window.lucide) lucide.createIcons();
+        if (window.lucide) {
+            try { lucide.createIcons(); } catch(e){}
+        }
     },
 
     getFeatureBadgeClass(feat) {
@@ -294,32 +336,29 @@ const AuditLogModule = {
         }
 
         let html = '';
-        // Previous
         html += `
             <button onclick="AuditLogModule.goToPage(${this.currentPage - 1})" 
-                    ${this.currentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-200"'} 
+                    ${this.currentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-200 cursor-pointer"'} 
                     class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold transition">
                 Trước
             </button>
         `;
 
-        // Pages
         for (let p = 1; p <= totalPages; p++) {
             if (p === 1 || p === totalPages || (p >= this.currentPage - 1 && p <= this.currentPage + 1)) {
                 if (p === this.currentPage) {
                     html += `<span class="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">${p}</span>`;
                 } else {
-                    html += `<button onclick="AuditLogModule.goToPage(${p})" class="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-xs font-semibold transition">${p}</button>`;
+                    html += `<button onclick="AuditLogModule.goToPage(${p})" class="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-xs font-semibold transition cursor-pointer">${p}</button>`;
                 }
             } else if (p === this.currentPage - 2 || p === this.currentPage + 2) {
                 html += `<span class="px-1 text-slate-400">...</span>`;
             }
         }
 
-        // Next
         html += `
             <button onclick="AuditLogModule.goToPage(${this.currentPage + 1})" 
-                    ${this.currentPage === totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-200"'} 
+                    ${this.currentPage === totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-200 cursor-pointer"'} 
                     class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold transition">
                 Sau
             </button>
@@ -360,6 +399,23 @@ const AuditLogModule = {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        Store.logAction('Lịch sử thao tác', `Xuất file Danh sách lịch sử thao tác (${filtered.length} dòng)`, 'ADMIN', 'export');
+        if (window.Store && typeof Store.logAction === 'function') {
+            Store.logAction('Lịch sử thao tác', `Xuất file Danh sách lịch sử thao tác (${filtered.length} dòng)`, 'ADMIN', 'export');
+        }
     }
 };
+
+// Gắn trực tiếp lên window để đảm bảo gọi được ở mọi nơi
+window.AuditLogModule = AuditLogModule;
+window.switchSettingsSubTab = function(tabName) {
+    AuditLogModule.switchSettingsSubTab(tabName);
+};
+
+// Tự động khởi tạo ngay khi tài liệu sẵn sàng
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        AuditLogModule.init();
+    });
+} else {
+    AuditLogModule.init();
+}

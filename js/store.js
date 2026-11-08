@@ -337,6 +337,11 @@ class DataStore {
         return Math.round(baseCost);
     }
 
+    formatLocalISO(d = new Date()) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}+07:00`;
+    }
+
     saveMedicine(med) {
         const medicines = this.getMedicines();
         const index = medicines.findIndex(m => m.id === med.id);
@@ -474,10 +479,27 @@ class DataStore {
                     if (item.batchNo) med.batchNo = item.batchNo;
                     if (item.expiryDate) med.expiryDate = item.expiryDate;
                     if (item.costPrice && item.costPrice > 0) {
-                        if (item.unit === med.packUnit) {
-                            med.costPrice = item.costPrice;
+                        const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
+                        const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
+
+                        // Quy đổi giá nhập hiện tại về đơn vị hộp (packUnit)
+                        let inCostPack = item.costPrice;
+                        if (item.unit !== med.packUnit && packRatio > 1) {
+                            if (item.unit === med.baseUnit) inCostPack = item.costPrice * packRatio;
+                            else if (item.unit === med.subUnit && subRatio > 0) inCostPack = item.costPrice * (packRatio / subRatio);
+                        }
+
+                        // Bình quân gia quyền di động: (giá nhập hiện tại * số lượng nhập + giá nhập TB trước đó * số lượng tồn) / (số lượng nhập + số lượng tồn)
+                        const prevStockUnits = Math.max(0, med.stockUnits || 0);
+                        const prevCostPack = med.costPrice || 0;
+
+                        if (prevStockUnits <= 0 || prevCostPack <= 0) {
+                            med.costPrice = Math.round(inCostPack);
                         } else {
-                            med.costPrice = Math.round(item.costPrice * (med.packRatio / (item.unit === med.subUnit ? med.subRatio : 1)));
+                            const prevPackStock = prevStockUnits / packRatio;
+                            const inPackQty = addedUnits / packRatio;
+                            const avgCost = ((prevPackStock * prevCostPack) + (inPackQty * inCostPack)) / (prevPackStock + inPackQty);
+                            med.costPrice = Math.round(avgCost);
                         }
                     }
 
@@ -548,10 +570,27 @@ class DataStore {
                     if (newItem.batchNo) med.batchNo = newItem.batchNo;
                     if (newItem.expiryDate) med.expiryDate = newItem.expiryDate;
                     if (newItem.costPrice && newItem.costPrice > 0) {
-                        if (newItem.unit === med.packUnit) {
-                            med.costPrice = newItem.costPrice;
+                        const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
+                        const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
+
+                        // Quy đổi giá nhập hiện tại về đơn vị hộp (packUnit)
+                        let inCostPack = newItem.costPrice;
+                        if (newItem.unit !== med.packUnit && packRatio > 1) {
+                            if (newItem.unit === med.baseUnit) inCostPack = newItem.costPrice * packRatio;
+                            else if (newItem.unit === med.subUnit && subRatio > 0) inCostPack = newItem.costPrice * (packRatio / subRatio);
+                        }
+
+                        // Bình quân gia quyền di động: (giá nhập hiện tại * số lượng nhập + giá nhập TB trước đó * số lượng tồn) / (số lượng nhập + số lượng tồn)
+                        const prevStockUnits = Math.max(0, med.stockUnits || 0);
+                        const prevCostPack = med.costPrice || 0;
+
+                        if (prevStockUnits <= 0 || prevCostPack <= 0) {
+                            med.costPrice = Math.round(inCostPack);
                         } else {
-                            med.costPrice = Math.round(newItem.costPrice * (med.packRatio / (newItem.unit === med.subUnit ? med.subRatio : 1)));
+                            const prevPackStock = prevStockUnits / packRatio;
+                            const inPackQty = unitsToAdd / packRatio;
+                            const avgCost = ((prevPackStock * prevCostPack) + (inPackQty * inCostPack)) / (prevPackStock + inPackQty);
+                            med.costPrice = Math.round(avgCost);
                         }
                     }
 
@@ -1011,6 +1050,15 @@ class DataStore {
         if (!raw) return [];
         try {
             this._cachedOrders = JSON.parse(raw);
+            if (Array.isArray(this._cachedOrders)) {
+                this._cachedOrders.forEach(o => {
+                    (o.items || []).forEach(it => {
+                        if ((it.quantity === 0 || !it.quantity) && it.lineTotal > 0 && it.price > 0) {
+                            it.quantity = Math.round((it.lineTotal / it.price) * 1000) / 1000;
+                        }
+                    });
+                });
+            }
             return this._cachedOrders;
         } catch(e) {
             return [];
@@ -1292,6 +1340,151 @@ class DataStore {
         this.schedulePersistToServer();
         this.emit('orders:changed', orders);
         return { order, returnRecord };
+    }
+
+    /**
+     * Tạo phiếu trả hàng tổng hợp (Aggregate Customer Return)
+     * Cho phép nhận trả hàng tự do từ kho hoặc gom từ nhiều hóa đơn
+     * @param {Object} data 
+     */
+    createAggregateReturn(data) {
+        if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+            return { success: false, message: 'Danh sách mặt hàng trả lại trống!' };
+        }
+
+        const now = data.createdAt ? new Date(data.createdAt) : new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const datePrefix = `TH${String(year).slice(-2)}${month}${day}`;
+
+        // Sinh mã phiếu trả hàng duy nhất
+        const existingReturns = (this.getOrders() || []).filter(o => o.id && o.id.startsWith(datePrefix));
+        const seq = String(existingReturns.length + 1).padStart(3, '0');
+        const returnId = data.id || `${datePrefix}-${seq}`;
+
+        let totalRefund = 0;
+        let totalReturnCost = 0;
+
+        const processedItems = data.items.map(item => {
+            const qty = parseFloat(item.quantity) || 0;
+            const price = parseFloat(item.price) || 0;
+            const lineTotal = (item.lineTotal !== undefined) ? parseFloat(item.lineTotal) : Math.round(qty * price);
+            totalRefund += lineTotal;
+
+            const med = this.getMedicineById(item.medicineId) || (this._medicineMap ? this._medicineMap[item.medicineId] : null);
+            let costPrice = item.costPrice;
+            if (typeof costPrice !== 'number' || costPrice <= 0) {
+                if (med) costPrice = this.getMedicineUnitCost(med, item.unit);
+            }
+            costPrice = parseFloat(costPrice) || 0;
+            const lineCost = Math.round(qty * costPrice);
+            totalReturnCost += lineCost;
+
+            // 1. Hoàn kho nếu shouldRestock = true
+            if (data.shouldRestock !== false && med && qty > 0) {
+                let unitsToReturn = qty;
+                if (item.unit === med.packUnit && med.packRatio > 1) {
+                    unitsToReturn = qty * med.packRatio;
+                } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                    unitsToReturn = qty * med.subRatio;
+                }
+                this.updateStockUnits(item.medicineId, unitsToReturn);
+            }
+
+            return {
+                medicineId: item.medicineId,
+                medicineCode: item.medicineCode || (med ? med.barcode || med.id : item.medicineId),
+                medicineName: item.medicineName || (med ? med.name : 'Thuốc'),
+                unit: item.unit || (med ? med.baseUnit : 'Đơn vị'),
+                quantity: qty,
+                price: price,
+                costPrice: costPrice,
+                lineTotal: lineTotal,
+                totalCost: lineCost,
+                orderId: item.orderId || ''
+            };
+        });
+
+        // 2. Tạo Phiếu Chi trong Sổ Quỹ nếu shouldCreateVoucher = true
+        let voucher = null;
+        if (data.shouldCreateVoucher !== false && totalRefund > 0) {
+            const voucherId = `TT${returnId}`;
+            const targetName = (data.customerName || '').trim() || 'Khách lẻ';
+            voucher = this.addVoucher({
+                id: voucherId,
+                type: 'payment',
+                paymentMethod: data.paymentMethod || 'cash',
+                category: 'Tiền trả khách',
+                targetType: 'customer',
+                targetName: targetName,
+                person: targetName,
+                amount: totalRefund,
+                reason: `Phiếu chi Tiền trả khách: ${data.reason || 'Khách trả hàng tổng hợp'}`,
+                note: data.note ? `Trả hàng ${returnId}: ${data.note}` : `Phiếu chi hoàn tiền trả hàng ${returnId}`,
+                isAccounting: true,
+                refId: returnId,
+                returnCost: totalReturnCost,
+                returnedItems: processedItems.map(it => ({
+                    medicineId: it.medicineId,
+                    medicineCode: it.medicineCode,
+                    medicineName: it.medicineName,
+                    unit: it.unit,
+                    quantity: it.quantity,
+                    price: it.price,
+                    costPrice: it.costPrice,
+                    total: it.lineTotal,
+                    totalCost: it.totalCost
+                })),
+                pharmacist: data.pharmacist || this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung',
+                createdAt: this.formatLocalISO(now)
+            });
+        }
+
+        // 3. Tạo bản ghi Phiếu Trả Hàng trong danh sách orders
+        const returnOrder = {
+            id: returnId,
+            isReturn: true,
+            orderType: 'return',
+            createdAt: this.formatLocalISO(now),
+            customerId: data.customerId || '',
+            customerName: (data.customerName || '').trim() || 'Khách lẻ',
+            customerPhone: (data.customerPhone || '').trim(),
+            paymentMethod: data.paymentMethod || 'cash',
+            items: processedItems,
+            subTotal: totalRefund,
+            totalAmount: totalRefund,
+            totalRefund: totalRefund,
+            totalCost: totalReturnCost,
+            reason: data.reason || 'Khách trả hàng',
+            note: data.note || '',
+            pharmacist: data.pharmacist || this.getSettings().pharmacist || 'admin',
+            status: 'completed',
+            returnStatus: 'aggregate_returned',
+            voucherId: voucher ? voucher.id : null,
+            shouldRestock: data.shouldRestock !== false,
+            shouldCreateVoucher: data.shouldCreateVoucher !== false
+        };
+
+        const orders = this.getOrders();
+        orders.unshift(returnOrder);
+        this._cachedOrders = orders;
+        try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)); } catch(e){}
+        this.schedulePersistToServer();
+
+        // 4. Ghi Audit Log
+        if (typeof this.logAction === 'function') {
+            const currentStaff = (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN';
+            this.logAction(
+                'Trả hàng',
+                `Tạo phiếu trả hàng tổng hợp: ${returnId}, cho khách: ${returnOrder.customerName}, với giá trị hoàn: ${AppUtils.formatVND(totalRefund)}`,
+                currentStaff,
+                'create'
+            );
+        }
+
+        this.emit('orders:changed', orders);
+        return { success: true, returnOrder, voucher };
     }
 
     // --- LỊCH SỬ CHỈNH SỬA CÀI ĐẶT (Settings History) ---
@@ -1848,6 +2041,23 @@ class DataStore {
         }
         this.emit('vouchers:changed', vouchers);
         return voucher;
+    }
+
+    updateVoucher(voucherId, updatedFields) {
+        const vouchers = this.getVouchers();
+        const index = vouchers.findIndex(v => v.id === voucherId);
+        if (index === -1) return null;
+
+        const oldVoucher = vouchers[index];
+        const updated = Object.assign({}, oldVoucher, updatedFields);
+        if (typeof updated.amount !== 'undefined') {
+            updated.amount = Math.abs(Number(updated.amount) || 0);
+        }
+        updated.updatedAt = new Date().toISOString();
+        vouchers[index] = updated;
+
+        this.saveVouchers(vouchers);
+        return updated;
     }
 
     deleteVoucher(voucherId) {
