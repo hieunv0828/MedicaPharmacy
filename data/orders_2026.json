@@ -17,7 +17,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  18000,
-                          "costPrice":  230750,
+                          "costPrice":  15383,
                           "total":  18000
                       },
                       {
@@ -26,7 +26,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  9000,
-                          "costPrice":  142000,
+                          "costPrice":  5680,
                           "total":  9000
                       }
                   ],
@@ -89,7 +89,7 @@
                           "unit":  "Cái",
                           "quantity":  1,
                           "price":  30000,
-                          "costPrice":  264000,
+                          "costPrice":  22000,
                           "total":  30000
                       }
                   ],
@@ -116,7 +116,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  20000,
-                          "costPrice":  33102,
+                          "costPrice":  16551,
                           "total":  20000
                       }
                   ],
@@ -170,7 +170,7 @@
                           "unit":  "Cái",
                           "quantity":  1,
                           "price":  2000,
-                          "costPrice":  117695,
+                          "costPrice":  1177,
                           "total":  2000
                       }
                   ],
@@ -197,7 +197,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  18000,
-                          "costPrice":  230750,
+                          "costPrice":  15383,
                           "total":  18000
                       },
                       {
@@ -206,7 +206,7 @@
                           "unit":  "vỉ",
                           "quantity":  1,
                           "price":  13000,
-                          "costPrice":  72064,
+                          "costPrice":  4804,
                           "total":  13000
                       }
                   ],
@@ -242,7 +242,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  37000,
-                          "costPrice":  0,
+                          "costPrice":  34079,
                           "total":  37000
                       },
                       {
@@ -251,7 +251,7 @@
                           "unit":  "Miếng",
                           "quantity":  10,
                           "price":  1000,
-                          "costPrice":  19598,
+                          "costPrice":  653,
                           "total":  10000
                       },
                       {
@@ -260,7 +260,7 @@
                           "unit":  "Túi",
                           "quantity":  1,
                           "price":  10000,
-                          "costPrice":  50685,
+                          "costPrice":  5068,
                           "total":  10000
                       },
                       {
@@ -269,7 +269,7 @@
                           "unit":  "Miếng",
                           "quantity":  10,
                           "price":  500,
-                          "costPrice":  27143,
+                          "costPrice":  271,
                           "total":  5000
                       }
                   ],
@@ -296,7 +296,7 @@
                           "unit":  "Vỉ",
                           "quantity":  2,
                           "price":  30000,
-                          "costPrice":  0,
+                          "costPrice":  18200,
                           "total":  60000
                       }
                   ],
@@ -323,7 +323,7 @@
                           "unit":  "Chai",
                           "quantity":  1,
                           "price":  6000,
-                          "costPrice":  82440,
+                          "costPrice":  3128,
                           "total":  6000
                       }
                   ],
@@ -368,7 +368,7 @@
                           "unit":  "Hộp",
                           "quantity":  1,
                           "price":  120000,
-                          "costPrice":  69752,
+                          "costPrice":  70361,
                           "total":  120000
                       }
                   ],
@@ -395,7 +395,7 @@
                           "unit":  "Gói",
                           "quantity":  1,
                           "price":  14000,
-                          "costPrice":  259278,
+                          "costPrice":  12964,
                           "total":  14000
                       }
                   ],
@@ -449,7 +449,7 @@
                           "unit":  "Vỉ",
                           "quantity":  6,
                           "price":  6000,
-                          "costPrice":  109965,
+                          "costPrice":  4359,
                           "total":  36000
                       },
                       {
@@ -458,7 +458,7 @@
                           "unit":  "Hộp",
                           "quantity":  1,
                           "price":  74000,
-                          "costPrice":  0,
+                          "costPrice":  68158,
                           "total":  74000
                       }
                   ],
@@ -485,7 +485,7 @@
                           "unit":  "Túi",
                           "quantity":  2,
                           "price":  25000,
-                          "costPrice":  90387,
+                          "costPrice":  15065,
                           "total":  50000
                       }
                   ],
@@ -539,7 +539,7 @@
                           "unit":  "Hộp nhỏ",
                           "quantity":  1,
                           "price":  55000,
-                          "costPrice":  138675,
+                          "costPrice":  23113,
                           "total":  55000
                       }
                   ],
@@ -593,7 +593,7 @@
                           "unit":  "Viên",
                           "quantity":  30,
                           "price":  1500,
-                          "costPrice":  71554,
+                          "costPrice":  716,
                           "total":  45000
                       },
                       {
@@ -602,7 +602,7 @@
                           "unit":  "viên",
                           "quantity":  10,
                           "price":  4000,
-                          "costPrice":  233571,
+                          "costPrice":  2336,
                           "total":  40000
                       },
                       {
@@ -611,7 +611,7 @@
                           "unit":  "Hộp",
                           "quantity":  1,
                           "price":  168000,
-                          "costPrice":  0,
+                          "costPrice":  56413,
                           "total":  168000
                       }
                   ],
@@ -665,7 +665,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  18000,
-                          "costPrice":  92000,
+                          "costPrice":  9189,
                           "total":  18000
                       },
                       {
@@ -674,7 +674,7 @@
                           "unit":  "viên",
                           "quantity":  10,
                           "price":  4000,
-                          "costPrice":  233571,
+                          "costPrice":  2336,
                           "total":  40000
                       },
                       {
@@ -746,7 +746,7 @@
                           "unit":  "Gói",
                           "quantity":  1,
                           "price":  30000,
-                          "costPrice":  220001,
+                          "costPrice":  27500,
                           "total":  30000
                       }
                   ],
@@ -800,7 +800,7 @@
                           "unit":  "Lọ",
                           "quantity":  1,
                           "price":  58000,
-                          "costPrice":  53656,
+                          "costPrice":  54345,
                           "total":  58000
                       }
                   ],
@@ -854,7 +854,7 @@
                           "unit":  "Hộp",
                           "quantity":  1,
                           "price":  165000,
-                          "costPrice":  135446,
+                          "costPrice":  136748,
                           "total":  165000
                       },
                       {
@@ -899,7 +899,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  18000,
-                          "costPrice":  230750,
+                          "costPrice":  15383,
                           "total":  18000
                       }
                   ],
@@ -926,7 +926,7 @@
                           "unit":  "Vỉ",
                           "quantity":  5,
                           "price":  6000,
-                          "costPrice":  109965,
+                          "costPrice":  4359,
                           "total":  30000
                       },
                       {
@@ -962,7 +962,7 @@
                           "unit":  "Vỉ",
                           "quantity":  1,
                           "price":  18000,
-                          "costPrice":  92000,
+                          "costPrice":  9189,
                           "total":  18000
                       }
                   ],
@@ -1016,7 +1016,7 @@
                           "unit":  "Hộp",
                           "quantity":  1,
                           "price":  116000,
-                          "costPrice":  96009,
+                          "costPrice":  95392,
                           "total":  116000
                       }
                   ],
@@ -1043,7 +1043,7 @@
                           "unit":  "Túi",
                           "quantity":  2,
                           "price":  25000,
-                          "costPrice":  90387,
+                          "costPrice":  15065,
                           "total":  50000
                       }
                   ],

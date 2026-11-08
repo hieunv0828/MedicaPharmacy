@@ -255,11 +255,24 @@ try {
                 }
             }
 
-            # Tính giá vốn ước tính
+            # Tính giá vốn ước tính chuẩn theo ĐVT bán
             $unitCost = 0
             if ($medMap.ContainsKey($medCode)) {
                 $m = $medMap[$medCode]
-                $unitCost = if ($m.costPrice) { [Math]::Round([double]$m.costPrice) } else { 0 }
+                if ($m.costPrice) {
+                    $cPrice = [double]$m.costPrice
+                    $pRatio = if ($m.packRatio -and [double]$m.packRatio -gt 0) { [double]$m.packRatio } else { 1.0 }
+                    $sRatio = if ($m.subRatio -and [double]$m.subRatio -gt 0) { [double]$m.subRatio } else { 1.0 }
+                    $baseCost = $cPrice / $pRatio
+
+                    if ($unit -and $unit -eq $m.packUnit) {
+                        $unitCost = [Math]::Round($cPrice)
+                    } elseif ($unit -and $unit -eq $m.subUnit -and $m.subUnit -ne $m.packUnit) {
+                        $unitCost = [Math]::Round($baseCost * $sRatio)
+                    } else {
+                        $unitCost = [Math]::Round($baseCost)
+                    }
+                }
             }
 
             $itemObj = [PSCustomObject]@{
