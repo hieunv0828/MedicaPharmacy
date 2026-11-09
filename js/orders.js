@@ -30,14 +30,18 @@ const OrdersModule = {
     },
 
     bindEvents() {
-        // Tìm kiếm đơn hàng
+        // Tìm kiếm đơn hàng (có debounce 150ms chống lag trên 15.000+ đơn)
         const searchInput = document.getElementById('orders-search-input');
         if (searchInput) {
+            let searchTimer = null;
             searchInput.addEventListener('input', (e) => {
-                this.searchKeyword = e.target.value.trim().toLowerCase();
-                this.currentPage = 1;
-                this.renderOrdersTable();
-                this.updateTabSummaryCards();
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.searchKeyword = e.target.value.trim().toLowerCase();
+                    this.currentPage = 1;
+                    this.renderOrdersTable();
+                    this.updateTabSummaryCards();
+                }, 150);
             });
         }
 
@@ -332,10 +336,13 @@ const OrdersModule = {
             }
             const netQty = Math.max(0, rawQty - returnedQty);
 
-            let unitCost = item.costPrice || 0;
+            let unitCost = 0;
+            const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
+            if (med) {
+                unitCost = Store.getMedicineUnitCost(med, item.unit);
+            }
             if (unitCost <= 0) {
-                const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                if (med) unitCost = Store.getMedicineUnitCost(med, item.unit);
+                unitCost = item.costPrice || 0;
             }
             totalCost += unitCost * netQty;
         });

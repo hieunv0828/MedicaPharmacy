@@ -20,6 +20,8 @@ const POSModule = {
     customerSearchHighlightedIndex: -1,
     customerSearchResultsList: [],
     selectedCustomerId: '',
+    medicineSearchResultsList: [],
+    medicineSearchHighlightedIndex: -1,
 
     init() {
         this.bindEvents();
@@ -29,13 +31,18 @@ const POSModule = {
     },
 
     bindEvents() {
-        // Tìm kiếm thuốc
+        // Tìm kiếm thuốc & máy quét mã vạch
         const searchInput = document.getElementById('pos-search-input');
         const searchResults = document.getElementById('pos-search-results');
 
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 this.handleSearch(e.target.value.trim());
+            });
+
+            // Bắt phím Enter từ máy quét mã vạch hoặc bàn phím mũi tên lên/xuống
+            searchInput.addEventListener('keydown', (e) => {
+                this.handleMedicineSearchKeydown(e);
             });
 
             // Khi click ra ngoài thì ẩn gợi ý
@@ -174,6 +181,8 @@ const POSModule = {
 
         if (!query || query.length === 0) {
             resultsEl.classList.add('hidden');
+            this.medicineSearchResultsList = [];
+            this.medicineSearchHighlightedIndex = -1;
             return;
         }
 
@@ -184,6 +193,9 @@ const POSModule = {
             (m.barcode && m.barcode.includes(q)) ||
             (m.id && m.id.toLowerCase().includes(q))
         );
+
+        this.medicineSearchResultsList = medicines.slice(0, 10);
+        this.medicineSearchHighlightedIndex = -1;
 
         if (medicines.length === 0) {
             resultsEl.innerHTML = `
@@ -196,7 +208,7 @@ const POSModule = {
         }
 
         let html = '';
-        medicines.slice(0, 10).forEach(m => {
+        this.medicineSearchResultsList.forEach((m, idx) => {
             const stockStatus = AppUtils.checkStockStatus(m);
             const isOutOfStock = stockStatus.status === 'out_of_stock';
             const priceBox = AppUtils.formatVND(m.priceBox);
@@ -204,7 +216,8 @@ const POSModule = {
 
             html += `
                 <div onclick="POSModule.addToCart('${m.id}')" 
-                     class="p-2.5 hover:bg-emerald-50 transition border-b border-slate-100 cursor-pointer flex items-center justify-between group ${isOutOfStock ? 'opacity-60 bg-slate-50' : ''}">
+                     data-med-index="${idx}"
+                     class="pos-med-search-item p-2.5 hover:bg-emerald-50 transition border-b border-slate-100 cursor-pointer flex items-center justify-between group ${isOutOfStock ? 'opacity-60 bg-slate-50' : ''}">
                     <div>
                         <div class="font-bold text-slate-800 text-sm group-hover:text-emerald-700 flex items-center gap-2 flex-wrap">
                             <span class="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">${m.id}</span>
@@ -226,6 +239,84 @@ const POSModule = {
 
         resultsEl.innerHTML = html;
         resultsEl.classList.remove('hidden');
+    },
+
+    // Bắt phím cho ô tìm kiếm thuốc: hỗ trợ Enter của máy quét mã vạch và phím mũi tên
+    handleMedicineSearchKeydown(e) {
+        const resultsEl = document.getElementById('pos-search-results');
+        const searchInput = document.getElementById('pos-search-input');
+        if (!searchInput) return;
+
+        const val = searchInput.value.trim();
+
+        if (e.key === 'ArrowDown') {
+            if (!this.medicineSearchResultsList || this.medicineSearchResultsList.length === 0) return;
+            e.preventDefault();
+            this.medicineSearchHighlightedIndex++;
+            if (this.medicineSearchHighlightedIndex >= this.medicineSearchResultsList.length) {
+                this.medicineSearchHighlightedIndex = 0;
+            }
+            this.updateMedicineHighlight();
+            return;
+        }
+
+        if (e.key === 'ArrowUp') {
+            if (!this.medicineSearchResultsList || this.medicineSearchResultsList.length === 0) return;
+            e.preventDefault();
+            this.medicineSearchHighlightedIndex--;
+            if (this.medicineSearchHighlightedIndex < 0) {
+                this.medicineSearchHighlightedIndex = this.medicineSearchResultsList.length - 1;
+            }
+            this.updateMedicineHighlight();
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (!val) return;
+
+            // 1. Kiểm tra khớp chính xác mã thuốc hoặc mã vạch (Hỗ trợ máy quét Barcode Scanner)
+            const exactMed = Store.getMedicineById(val);
+            if (exactMed) {
+                this.addToCart(exactMed.id);
+                if (window.AppUtils && AppUtils.playBeepSound) AppUtils.playBeepSound('success');
+                return;
+            }
+
+            // 2. Nếu đang dùng mũi tên di chuyển chọn 1 mục trong danh sách
+            if (this.medicineSearchHighlightedIndex >= 0 && this.medicineSearchResultsList[this.medicineSearchHighlightedIndex]) {
+                const selected = this.medicineSearchResultsList[this.medicineSearchHighlightedIndex];
+                this.addToCart(selected.id);
+                if (window.AppUtils && AppUtils.playBeepSound) AppUtils.playBeepSound('success');
+                return;
+            }
+
+            // 3. Nếu danh sách tìm kiếm có kết quả, chọn ngay kết quả đầu tiên
+            if (this.medicineSearchResultsList && this.medicineSearchResultsList.length > 0) {
+                const first = this.medicineSearchResultsList[0];
+                this.addToCart(first.id);
+                if (window.AppUtils && AppUtils.playBeepSound) AppUtils.playBeepSound('success');
+                return;
+            }
+        }
+
+        if (e.key === 'Escape') {
+            if (resultsEl) resultsEl.classList.add('hidden');
+        }
+    },
+
+    updateMedicineHighlight() {
+        const items = document.querySelectorAll('.pos-med-search-item');
+        items.forEach((item, idx) => {
+            if (idx === this.medicineSearchHighlightedIndex) {
+                item.classList.add('bg-emerald-100/90', 'border-l-4', 'border-emerald-600');
+                item.classList.remove('hover:bg-emerald-50');
+                try { item.scrollIntoView({ block: 'nearest' }); } catch(err){}
+            } else {
+                item.classList.remove('bg-emerald-100/90', 'border-l-4', 'border-emerald-600');
+                item.classList.add('hover:bg-emerald-50');
+            }
+        });
     },
 
     // Thêm thuốc vào giỏ hàng
@@ -1104,6 +1195,11 @@ const POSModule = {
         };
 
         const savedOrder = Store.addOrder(newOrder);
+
+        // Lưu tức thì lên máy chủ, không chờ debounce
+        if (window.Store && typeof Store.persistImmediately === 'function') {
+            Store.persistImmediately();
+        }
 
         // Ghi nhận vào Lịch Sử Thao Tác (Audit Log)
         Store.logAction('Hóa đơn', `Tạo hóa đơn: ${savedOrder.id}, bảng giá: Bảng giá chung, Thuế: Tắt thuế, giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}, khách hàng: ${savedOrder.customerName || 'Khách vãng lai'}`, savedOrder.pharmacist || 'ADMIN', 'create');

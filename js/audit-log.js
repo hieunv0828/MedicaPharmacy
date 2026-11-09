@@ -104,13 +104,17 @@ const AuditLogModule = {
     },
 
     bindEvents() {
-        // Tìm kiếm
+        // Tìm kiếm (có debounce 150ms)
         const searchInput = document.getElementById('audit-search-keyword');
         if (searchInput) {
+            let auditSearchTimer = null;
             searchInput.addEventListener('input', (e) => {
-                this.searchKeyword = e.target.value.trim().toLowerCase();
-                this.currentPage = 1;
-                this.renderTable();
+                clearTimeout(auditSearchTimer);
+                auditSearchTimer = setTimeout(() => {
+                    this.searchKeyword = e.target.value.trim().toLowerCase();
+                    this.currentPage = 1;
+                    this.renderTable();
+                }, 150);
             });
         }
 

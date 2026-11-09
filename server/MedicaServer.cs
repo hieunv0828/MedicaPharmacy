@@ -584,16 +584,34 @@ namespace MedicaPharmacy
                         {
                             List<string> ips = GetLocalIPv4Addresses();
                             string ipsJson = string.Join(",", ips.ConvertAll(ip => "\"" + ip + "\"").ToArray());
+                            string lastUpdated = GetDataDirLastWrite().ToString("yyyy-MM-ddTHH:mm:ssZ");
                             string json = string.Format(
-                                "{{\"status\":\"online\",\"app\":\"MedicaPharmacy\",\"port\":{0},\"domain\":\"medica.com\",\"ips\":[{1}],\"time\":\"{2}\",\"licensed\":{3},\"machineCode\":\"{4}\",\"ngrokEnabled\":{5}}}",
+                                "{{\"status\":\"online\",\"app\":\"MedicaPharmacy\",\"port\":{0},\"domain\":\"medica.com\",\"ips\":[{1}],\"time\":\"{2}\",\"licensed\":{3},\"machineCode\":\"{4}\",\"ngrokEnabled\":{5},\"lastUpdated\":\"{6}\"}}",
                                 _activePort,
                                 ipsJson,
                                 DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
                                 _isLicensed ? "true" : "false",
                                 _machineCode,
-                                _enableNgrok ? "true" : "false"
+                                _enableNgrok ? "true" : "false",
+                                lastUpdated
                             );
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(json));
+                            return;
+                        }
+
+                        // API kiểm tra trạng thái cơ sở dữ liệu siêu nhẹ (chỉ ~70 bytes thay vì tải toàn bộ database 17MB)
+                        if (rawUrl.Equals("/api/database/status", StringComparison.OrdinalIgnoreCase))
+                        {
+                            CheckLicenseStatus();
+                            if (!_isLicensed)
+                            {
+                                string forbid = string.Format("{{\"error\":\"license_required\",\"machineCode\":\"{0}\",\"message\":\"Phần mềm chưa kích hoạt bản quyền trên máy tính này!\"}}", _machineCode);
+                                SendResponse(stream, 403, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(forbid));
+                                return;
+                            }
+                            string lastUpdated = GetDataDirLastWrite().ToString("yyyy-MM-ddTHH:mm:ssZ");
+                            string statusJson = string.Format("{{\"status\":\"online\",\"lastUpdated\":\"{0}\"}}", lastUpdated);
+                            SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(statusJson));
                             return;
                         }
 

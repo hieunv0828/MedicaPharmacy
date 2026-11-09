@@ -18,10 +18,14 @@ const CustomersModule = {
     init() {
         const searchInput = document.getElementById('customers-search-input');
         if (searchInput && !searchInput._bound) {
+            let custSearchTimer = null;
             searchInput.addEventListener('input', (e) => {
-                this.searchQuery = e.target.value.trim().toLowerCase();
-                this.currentPage = 1;
-                this.renderCustomersTable();
+                clearTimeout(custSearchTimer);
+                custSearchTimer = setTimeout(() => {
+                    this.searchQuery = e.target.value.trim().toLowerCase();
+                    this.currentPage = 1;
+                    this.renderCustomersTable();
+                }, 150);
             });
             searchInput._bound = true;
         }

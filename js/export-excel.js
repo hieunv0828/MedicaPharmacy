@@ -277,7 +277,7 @@ const ExportService = {
             this.csvCell('Mã Vạch'),
             this.csvCell('Tên Thuốc'),
             this.csvCell('Hoạt Chất'),
-            this.csvCell('Nhóm Dược Lý'),
+            this.csvCell('Nhóm Hàng'),
             this.csvCell('Đơn Vị Cơ Bản'),
             this.csvCell('Đơn Vị Đóng Gói'),
             this.csvCell('Tồn Kho Hiện Tại'),

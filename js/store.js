@@ -40,8 +40,15 @@ class DataStore {
         if (this.isServerMode) {
             console.log('🌐 Đang chạy ở chế độ MÁY CHỦ DÙNG CHUNG (http://medica.com)');
             await this.syncWithServer();
-            // Tự động kiểm tra đồng bộ dữ liệu mới từ máy khác mỗi 8 giây
+            // Tự động kiểm tra đồng bộ dữ liệu mới từ máy khác mỗi 8 giây (qua endpoint siêu nhẹ)
             setInterval(() => this.backgroundCheckServerSync(), 8000);
+
+            // Đảm bảo khi đóng tab thì lưu dứt điểm dữ liệu chưa kịp hết hạn debounce
+            window.addEventListener('beforeunload', () => {
+                if (this._persistTimer) {
+                    this.persistImmediately();
+                }
+            });
         } else {
             console.log('💻 Đang chạy ở chế độ CỤC BỘ TRỰC TIẾP (file://)');
             if (!localStorage.getItem(STORAGE_KEYS.MEDICINES)) {
@@ -98,6 +105,20 @@ class DataStore {
     async backgroundCheckServerSync() {
         if (!this.isServerMode || this.syncInProgress) return;
         try {
+            // Bước 1: Kiểm tra trạng thái siêu nhẹ qua endpoint /api/database/status (chỉ ~70 bytes thay vì 17MB)
+            try {
+                const statusRes = await fetch('/api/database/status', { cache: 'no-store' });
+                if (statusRes.ok) {
+                    const statusData = await statusRes.json();
+                    this.updateServerStatusBadge(true);
+                    // Nếu thời gian thay đổi trên server trùng khớp với dữ liệu máy đang giữ -> Dừng ngay, không cần tải lại 17MB!
+                    if (statusData && statusData.lastUpdated && this.lastDatabaseTimestamp && statusData.lastUpdated === this.lastDatabaseTimestamp) {
+                        return; // Tiết kiệm 99.9% lưu lượng và giải phóng CPU!
+                    }
+                }
+            } catch(eStatus) {}
+
+            // Bước 2: Chỉ khi phát hiện mốc thời gian thay đổi, mới tải lại database
             const res = await fetch('/api/database', { cache: 'no-store' });
             if (res.ok) {
                 const serverData = await res.json();
@@ -108,6 +129,8 @@ class DataStore {
                         console.log('⚡ Phát hiện dữ liệu mới từ máy khác, đang cập nhật...');
                         this.saveToLocalCache(serverData);
                         this.emit('all:changed');
+                    } else {
+                        if (serverData.lastUpdated) this.lastDatabaseTimestamp = serverData.lastUpdated;
                     }
                 }
                 this.updateServerStatusBadge(true);
@@ -120,11 +143,14 @@ class DataStore {
     async uploadDatabaseToServer(fullDb) {
         if (!this.isServerMode) return;
         try {
-            await fetch('/api/database', {
+            const res = await fetch('/api/database', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fullDb)
             });
+            if (res.ok && fullDb && fullDb.lastUpdated) {
+                this.lastDatabaseTimestamp = fullDb.lastUpdated;
+            }
         } catch (e) {
             console.error('Lỗi khi lưu dữ liệu lên máy chủ:', e);
         }
@@ -171,6 +197,9 @@ class DataStore {
                 this._cachedAuditLog = db.auditLog;
                 try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(db.auditLog)); } catch(e){}
             }
+            if (db.lastUpdated) {
+                this.lastDatabaseTimestamp = db.lastUpdated;
+            }
         } catch (e) {
             console.warn('LocalStorage quota limit reached, maintaining state in-memory:', e);
         }
@@ -192,11 +221,28 @@ class DataStore {
         };
     }
 
-    // Tự động đẩy toàn bộ state lên Server khi có thay đổi
-    schedulePersistToServer() {
-        if (this.isServerMode) {
+    // Tự động đẩy toàn bộ state lên Server khi có thay đổi (Debounce 500ms chống nghẽn CPU và I/O mạng)
+    schedulePersistToServer(delayMs = 500) {
+        if (!this.isServerMode) return;
+        if (this._persistTimer) {
+            clearTimeout(this._persistTimer);
+        }
+        this._persistTimer = setTimeout(() => {
+            this._persistTimer = null;
             const fullDb = this.getCurrentFullDatabase();
             this.uploadDatabaseToServer(fullDb);
+        }, delayMs);
+    }
+
+    // Lưu ngay lập tức (không chờ debounce), dùng khi thanh toán xong hóa đơn hoặc đóng tab
+    async persistImmediately() {
+        if (this._persistTimer) {
+            clearTimeout(this._persistTimer);
+            this._persistTimer = null;
+        }
+        if (this.isServerMode) {
+            const fullDb = this.getCurrentFullDatabase();
+            return await this.uploadDatabaseToServer(fullDb);
         }
     }
 
@@ -321,19 +367,49 @@ class DataStore {
         return (this._medicineMap && this._medicineMap[id]) ? this._medicineMap[id] : null;
     }
 
+    // Lấy danh sách Nhóm Hàng thực tế từ danh mục thuốc
+    getCategories() {
+        const medicines = this.getMedicines();
+        const catSet = new Set();
+        medicines.forEach(m => {
+            if (m.category && typeof m.category === 'string') {
+                const c = m.category.trim();
+                if (c) catSet.add(c);
+            }
+        });
+        if (catSet.size === 0 && typeof SampleData !== 'undefined' && SampleData.categories) {
+            return [...SampleData.categories];
+        }
+        const cats = Array.from(catSet);
+        cats.sort((a, b) => {
+            const isNumA = /^\d+$/.test(a);
+            const isNumB = /^\d+$/.test(b);
+            if (isNumA && !isNumB) return -1;
+            if (!isNumA && isNumB) return 1;
+            if (isNumA && isNumB) return parseInt(a, 10) - parseInt(b, 10);
+            return a.localeCompare(b, 'vi', { sensitivity: 'base' });
+        });
+        return cats;
+    }
+
     getMedicineUnitCost(med, unit) {
         if (!med) return 0;
         const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
         const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
         const baseCost = (med.costPrice || 0) / packRatio;
 
-        if (unit && unit === med.packUnit) {
+        const u = (unit || '').trim().toLowerCase();
+        const pack = (med.packUnit || '').trim().toLowerCase();
+        const sub = (med.subUnit || '').trim().toLowerCase();
+        const base = (med.baseUnit || '').trim().toLowerCase();
+
+        if (u && pack && u === pack) {
             return med.costPrice || 0;
         }
-        if (unit && unit === med.subUnit && med.subUnit !== med.packUnit) {
+        if (u && sub && u === sub && sub !== pack) {
             return Math.round(baseCost * subRatio);
         }
-        if (unit && unit === med.baseUnit) {
+        if (u && base && u === base) {
             return Math.round(baseCost);
         }
         return Math.round(baseCost);
@@ -1375,11 +1451,13 @@ class DataStore {
             totalRefund += lineTotal;
 
             const med = this.getMedicineById(item.medicineId) || (this._medicineMap ? this._medicineMap[item.medicineId] : null);
-            let costPrice = item.costPrice;
-            if (typeof costPrice !== 'number' || costPrice <= 0) {
-                if (med) costPrice = this.getMedicineUnitCost(med, item.unit);
+            let costPrice = 0;
+            if (med) {
+                costPrice = this.getMedicineUnitCost(med, item.unit);
             }
-            costPrice = parseFloat(costPrice) || 0;
+            if (costPrice <= 0) {
+                costPrice = parseFloat(item.costPrice) || 0;
+            }
             const lineCost = Math.round(qty * costPrice);
             totalReturnCost += lineCost;
 

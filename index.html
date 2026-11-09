@@ -40,7 +40,7 @@
     <!-- QRCode generator for offline VietQR fallback -->
     <script src="vendor/qrcode.min.js"></script>
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/app.css?v=20261109_v11">
+    <link rel="stylesheet" href="css/app.css?v=20261109_v12">
     <link rel="stylesheet" href="css/print.css?v=20261107_v3">
 </head>
 <body class="bg-[#b8d9cb] text-slate-800 min-h-screen flex flex-col font-sans select-none" data-theme="medical-mint">
@@ -283,7 +283,7 @@
     </header>
 
     <!-- MAIN CONTENT VIEW CONTAINER -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-2.5 sm:p-5 overflow-x-hidden">
+    <main class="flex-1 max-w-[1600px] w-full mx-auto p-2.5 sm:p-5">
 
         <!-- ========================================== -->
         <!-- 1. TAB: BÁN THUỐC TẠI QUẦY (POS) -->
@@ -642,7 +642,7 @@
                     </div>
 
                     <select id="inventory-filter-category" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                        <option value="all">Tất cả nhóm thuốc</option>
+                        <option value="all">Tất cả nhóm hàng</option>
                     </select>
 
                     <select id="inventory-filter-status" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
@@ -1537,253 +1537,549 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- 5. TAB: TỔNG HỢP DOANH SỐ THEO THÁNG -->
         <!-- ========================================== -->
-        <section id="section-reports" class="app-tab-section hidden space-y-5">
+        <!-- 5. TAB: BÁO CÁO HOẠT ĐỘNG KINH DOANH & PHÂN TÍCH DOANH SỐ -->
+        <!-- ========================================== -->
+        <section id="section-reports" class="app-tab-section hidden space-y-4">
             
-            <!-- Toolbar Chọn Tháng/Năm & Nút Xuất -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-xl bg-emerald-100 text-emerald-800">
-                        <i data-lucide="calendar" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-base font-extrabold text-slate-800">Báo Cáo Tổng Hợp Doanh Số Bán Hàng</h2>
-                        <p class="text-xs text-slate-500">Phân tích chuyên sâu doanh thu tiền mặt, chuyển khoản và lợi nhuận gộp</p>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <!-- Dropdown chọn tháng -->
-                    <select id="report-select-month" class="bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                        <!-- 1-12 -->
-                    </select>
-
-                    <!-- Dropdown chọn năm -->
-                    <select id="report-select-year" class="bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                        <!-- Years -->
-                    </select>
-
-                    <button onclick="ReportsModule.exportExcel()" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition">
-                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
-                        <span>Xuất Excel Báo Cáo</span>
+            <!-- THANH ĐIỀU HƯỚNG SUB-TABS BÁO CÁO (KIOTVIET STYLE) -->
+            <div class="bg-white px-4 pt-3 pb-2.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                    <button type="button" onclick="ReportsModule.switchSubTab('daily')" id="rep-subtab-btn-daily" class="rep-subtab-btn px-3.5 py-1.5 text-xs font-bold rounded-lg transition bg-white text-emerald-800 shadow-xs flex items-center gap-2 cursor-pointer">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-600"></i>
+                        <span>Doanh Số Theo Ngày & Hóa Đơn</span>
                     </button>
-
-                    <button onclick="ReportsModule.printMonthlyReport()" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
-                        <i data-lucide="printer" class="w-4 h-4"></i>
-                        <span>In Báo Cáo</span>
+                    <button type="button" onclick="ReportsModule.switchSubTab('monthly')" id="rep-subtab-btn-monthly" class="rep-subtab-btn px-3.5 py-1.5 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center gap-2 cursor-pointer">
+                        <i data-lucide="calendar-range" class="w-4 h-4 text-slate-400"></i>
+                        <span>Bảng Kê Chi Tiết Theo Tháng</span>
+                    </button>
+                    <button type="button" onclick="ReportsModule.switchSubTab('pnl')" id="rep-subtab-btn-pnl" class="rep-subtab-btn px-3.5 py-1.5 text-xs font-bold rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center gap-2 cursor-pointer">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i>
+                        <span>Báo Cáo Hoạt Động Kinh Doanh</span>
                     </button>
                 </div>
-            </div>
 
-            <!-- 5 Thẻ Chỉ Số KPI Tháng Này (Clean Minimal SaaS) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                
-                <!-- 1. Tổng doanh thu tháng -->
-                <div class="bg-emerald-900 text-white p-4 rounded-2xl shadow-sm flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-emerald-200 mb-1">
-                        <span class="text-[11px] font-semibold uppercase tracking-wider">Tổng Doanh Thu</span>
-                        <div class="w-7 h-7 rounded-lg bg-emerald-800 text-emerald-200 flex items-center justify-center">
-                            <i data-lucide="wallet" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div id="rep-kpi-total-revenue" class="text-xl sm:text-2xl font-semibold tracking-tight tabular-nums font-mono mt-1">0 đ</div>
-                    <div id="rep-kpi-total-orders" class="text-[11px] text-emerald-300/80 mt-1 font-medium">0 đơn hoàn tất</div>
-                </div>
-
-                <!-- 2. Doanh thu tiền mặt -->
-                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tiền Mặt (Cash)</span>
-                        <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                            <i data-lucide="banknote" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div id="rep-kpi-cash-revenue" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
-                    <div id="rep-kpi-cash-ratio" class="text-[11px] text-slate-400 mt-1 font-medium">0% (0 đơn)</div>
-                </div>
-
-                <!-- 3. Doanh thu chuyển khoản -->
-                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chuyển Khoản (VietQR)</span>
-                        <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
-                            <i data-lucide="qr-code" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div id="rep-kpi-transfer-revenue" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
-                    <div id="rep-kpi-transfer-ratio" class="text-[11px] text-slate-400 mt-1 font-medium">0% (0 đơn)</div>
-                </div>
-
-                <!-- 4. Lợi nhuận gộp -->
-                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lợi Nhuận Gộp</span>
-                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <i data-lucide="trending-up" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div id="rep-kpi-gross-profit" class="text-xl font-semibold text-emerald-700 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
-                    <div id="rep-kpi-profit-margin" class="text-[11px] text-slate-400 mt-1">Tỷ suất: 0%</div>
-                </div>
-
-                <!-- 5. Giá trị trung bình đơn -->
-                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Giá Trị TB / Đơn</span>
-                        <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-                            <i data-lucide="shopping-bag" class="w-4 h-4"></i>
-                        </div>
-                    </div>
-                    <div id="rep-kpi-avg-order" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
-                    <div class="text-[11px] text-slate-400 mt-1">Trung bình mỗi hóa đơn</div>
-                </div>
-
-            </div>
-
-            <!-- Khối Biểu Đồ Phân Tích (Charts) -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                
-                <!-- Biểu đồ diễn biến doanh thu ngày (8 cột) -->
-                <div class="lg:col-span-8 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-600"></i>
-                            Diễn Biến Doanh Thu Từng Ngày Trong Tháng (Tiền Mặt vs Chuyển Khoản)
-                        </h3>
-                    </div>
-                    <div class="h-64">
-                        <canvas id="chart-revenue-daily"></canvas>
-                    </div>
-                </div>
-
-                <!-- Biểu đồ cơ cấu thanh toán (4 cột) -->
-                <div class="lg:col-span-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                            <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-600"></i>
-                            Tỷ Trọng Tiền Mặt & VietQR
-                        </h3>
-                        <p class="text-[11px] text-slate-500 mb-3">Cơ cấu phương thức khách thanh toán</p>
-                    </div>
-                    <div class="h-56 relative flex items-center justify-center">
-                        <canvas id="chart-payment-ratio"></canvas>
-                    </div>
-                </div>
-
-                <!-- Biểu đồ Top Thuốc Bán Chạy (12 cột) -->
-                <div class="lg:col-span-12 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
-                        <i data-lucide="award" class="w-4 h-4 text-amber-500"></i>
-                        Top Mặt Hàng Thuốc Bán Chạy Nhất Trong Tháng
-                    </h3>
-                    <div class="h-52">
-                        <canvas id="chart-top-medicines"></canvas>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Bảng Chi Tiết Doanh Số Từng Ngày Trong Tháng -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="px-4 py-3 bg-slate-50/60 border-b border-slate-100 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between items-center">
-                    <span>Bảng Kê Chi Tiết Doanh Số Theo Ngày</span>
-                    <span class="text-[11px] font-normal text-slate-500">Đơn vị tính: VNĐ</span>
-                </div>
-                <div class="overflow-x-auto max-h-96">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 sticky top-0">
-                            <tr>
-                                <th class="py-2.5 px-3 text-center">Ngày</th>
-                                <th class="py-2.5 px-3 text-center">Số Đơn</th>
-                                <th class="py-2.5 px-3 text-right">Doanh Thu Tiền Mặt</th>
-                                <th class="py-2.5 px-3 text-right">Doanh Thu Chuyển Khoản</th>
-                                <th class="py-2.5 px-3 text-right">Tổng Doanh Thu Ngày</th>
-                                <th class="py-2.5 px-3 text-right">Tiền Vốn (Ước tính)</th>
-                                <th class="py-2.5 px-3 text-right">Lợi Nhuận Gộp</th>
-                                <th class="py-2.5 px-3 text-center w-24">Mặt Hàng</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rep-daily-table-tbody" class="divide-y divide-slate-100">
-                            <!-- Rendered dynamically -->
-                        </tbody>
-                        <tfoot id="rep-daily-table-tfoot">
-                            <!-- Total Row -->
-                        </tfoot>
-                    </table>
+                <div class="text-xs text-slate-500 font-medium flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Cập nhật thời gian thực
+                    </span>
                 </div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- BOX: CHI TIẾT MẶT HÀNG ĐÃ BÁN THEO NGÀY ĐƯỢC CHỌN -->
-            <!-- ========================================== -->
-            <div id="rep-selected-date-box" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div class="flex items-center gap-2.5">
-                        <div class="p-2 rounded-xl bg-blue-100 text-blue-700">
-                            <i data-lucide="package-search" class="w-5 h-5"></i>
+            <!-- ========================================================= -->
+            <!-- SUB-TAB 1: DOANH SỐ THEO NGÀY & HÓA ĐƠN                  -->
+            <!-- ========================================================= -->
+            <div id="rep-subtab-content-daily" class="space-y-4">
+                <!-- Toolbar Chọn Tháng/Năm & Nút Xuất -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
                         </div>
                         <div>
-                            <h3 class="text-sm sm:text-base font-extrabold text-slate-800">
-                                Chi Tiết Mặt Hàng Đã Bán Ngày <span id="rep-selected-date-label" class="text-emerald-700 font-mono">--/--/----</span>
-                            </h3>
-                            <p class="text-xs text-slate-500">Bấm vào bất kỳ ngày nào trên bảng kê hoặc chọn ngày bên dưới để xem danh sách thuốc đã xuất bán</p>
+                            <h2 class="text-base font-extrabold text-slate-800">Báo Cáo Tổng Hợp Doanh Số Bán Hàng</h2>
+                            <p class="text-xs text-slate-500">Phân tích chuyên sâu doanh thu tiền mặt, chuyển khoản và lợi nhuận gộp</p>
                         </div>
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-slate-600">Chọn ngày:</span>
-                        <input id="rep-detail-date-picker" type="date" onchange="ReportsModule.selectDateForDetails(this.value)" class="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer" />
+                        <!-- Dropdown chọn tháng -->
+                        <select id="report-select-month" class="bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                            <!-- 1-12 -->
+                        </select>
+
+                        <!-- Dropdown chọn năm -->
+                        <select id="report-select-year" class="bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                            <!-- Years -->
+                        </select>
+
+                        <button onclick="ReportsModule.exportExcel()" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                            <span>Xuất Excel Báo Cáo</span>
+                        </button>
+
+                        <button onclick="ReportsModule.printMonthlyReport()" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                            <span>In Báo Cáo</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- 5 Thẻ Tóm Tắt Trong Ngày Được Chọn -->
-                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-4 bg-slate-50/30 border-b border-slate-100 text-xs">
-                    <div class="bg-white p-3 rounded-xl border border-slate-200">
-                        <span class="text-slate-400 block text-[11px] font-bold uppercase">Số Hóa Đơn</span>
-                        <div id="rep-detail-order-count" class="font-black text-sm sm:text-base text-slate-800 font-mono mt-0.5">0 đơn</div>
+                <!-- 5 Thẻ Chỉ Số KPI Tháng Này (Clean Minimal SaaS) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <!-- 1. Tổng doanh thu tháng -->
+                    <div class="bg-emerald-900 text-white p-4 rounded-2xl shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-emerald-200 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider">Tổng Doanh Thu</span>
+                            <div class="w-7 h-7 rounded-lg bg-emerald-800 text-emerald-200 flex items-center justify-center">
+                                <i data-lucide="wallet" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-kpi-total-revenue" class="text-xl sm:text-2xl font-semibold tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-kpi-total-orders" class="text-[11px] text-emerald-300/80 mt-1 font-medium">0 đơn hoàn tất</div>
                     </div>
-                    <div class="bg-white p-3 rounded-xl border border-slate-200">
-                        <span class="text-slate-400 block text-[11px] font-bold uppercase">Số Loại Thuốc</span>
-                        <div id="rep-detail-item-count" class="font-black text-sm sm:text-base text-slate-800 font-mono mt-0.5">0 mặt hàng</div>
+
+                    <!-- 2. Doanh thu tiền mặt -->
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tiền Mặt (Cash)</span>
+                            <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                                <i data-lucide="banknote" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-kpi-cash-revenue" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-kpi-cash-ratio" class="text-[11px] text-slate-400 mt-1 font-medium">0% (0 đơn)</div>
                     </div>
-                    <div class="bg-white p-3 rounded-xl border border-emerald-200">
-                        <span class="text-emerald-700 block text-[11px] font-bold uppercase">Doanh Thu Ngày</span>
-                        <div id="rep-detail-day-revenue" class="font-black text-sm sm:text-base text-emerald-700 font-mono mt-0.5">0 đ</div>
+
+                    <!-- 3. Doanh thu chuyển khoản -->
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chuyển Khoản (VietQR)</span>
+                            <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-kpi-transfer-revenue" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-kpi-transfer-ratio" class="text-[11px] text-slate-400 mt-1 font-medium">0% (0 đơn)</div>
                     </div>
-                    <div class="bg-white p-3 rounded-xl border border-slate-200">
-                        <span class="text-slate-500 block text-[11px] font-bold uppercase">Tiền Vốn Ngày</span>
-                        <div id="rep-detail-day-cost" class="font-bold text-sm sm:text-base text-slate-600 font-mono mt-0.5">0 đ</div>
+
+                    <!-- 4. Lợi nhuận gộp -->
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lợi Nhuận Gộp</span>
+                            <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                <i data-lucide="trending-up" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-kpi-gross-profit" class="text-xl font-semibold text-emerald-700 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-kpi-profit-margin" class="text-[11px] text-slate-400 mt-1">Tỷ suất: 0%</div>
                     </div>
-                    <div class="col-span-2 sm:col-span-1 bg-white p-3 rounded-xl border border-emerald-300">
-                        <span class="text-emerald-800 block text-[11px] font-bold uppercase">Lợi Nhuận Gộp</span>
-                        <div id="rep-detail-day-profit" class="font-black text-sm sm:text-base text-emerald-800 font-mono mt-0.5">0 đ</div>
+
+                    <!-- 5. Giá trị trung bình đơn -->
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Giá Trị TB / Đơn</span>
+                            <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                                <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-kpi-avg-order" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div class="text-[11px] text-slate-400 mt-1">Trung bình mỗi hóa đơn</div>
                     </div>
                 </div>
 
-                <!-- Danh sách phiếu hoàn tiền khách trả hàng trong ngày (nếu có) -->
-                <div id="rep-detail-day-returns-box" class="hidden border-b border-rose-200"></div>
+                <!-- Khối Biểu Đồ Phân Tích (Charts) -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <!-- Biểu đồ diễn biến doanh thu ngày (8 cột) -->
+                    <div class="lg:col-span-8 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-600"></i>
+                                Diễn Biến Doanh Thu Từng Ngày Trong Tháng (Tiền Mặt vs Chuyển Khoản)
+                            </h3>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="chart-revenue-daily"></canvas>
+                        </div>
+                    </div>
 
-                <!-- Bảng danh sách mặt hàng đã bán -->
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                            <tr>
-                                <th class="py-2.5 px-3 text-center w-10">#</th>
-                                <th class="py-2.5 px-3 w-24">Mã Thuốc</th>
-                                <th class="py-2.5 px-3">Tên Thuốc & Quy Cách</th>
-                                <th class="py-2.5 px-3 text-center w-28">Số Lượng Bán</th>
-                                <th class="py-2.5 px-3 text-right w-24">Đơn Giá Bán</th>
-                                <th class="py-2.5 px-3 text-right w-28">Doanh Thu</th>
-                                <th class="py-2.5 px-3 text-right w-24">Tiền Vốn</th>
-                                <th class="py-2.5 px-3 text-right w-28">Lợi Nhuận</th>
-                                <th class="py-2.5 px-3 w-40">Hóa Đơn Bán</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rep-selected-date-items-tbody" class="divide-y divide-slate-100">
-                            <!-- Rendered dynamically -->
-                        </tbody>
-                    </table>
+                    <!-- Biểu đồ cơ cấu thanh toán (4 cột) -->
+                    <div class="lg:col-span-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
+                                <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-600"></i>
+                                Tỷ Trọng Tiền Mặt & VietQR
+                            </h3>
+                            <p class="text-[11px] text-slate-500 mb-3">Cơ cấu phương thức khách thanh toán</p>
+                        </div>
+                        <div class="h-56 relative flex items-center justify-center">
+                            <canvas id="chart-payment-ratio"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Biểu đồ Top Thuốc Bán Chạy (12 cột) -->
+                    <div class="lg:col-span-12 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
+                            <i data-lucide="award" class="w-4 h-4 text-amber-500"></i>
+                            Top Mặt Hàng Thuốc Bán Chạy Nhất Trong Tháng
+                        </h3>
+                        <div class="h-52">
+                            <canvas id="chart-top-medicines"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng Chi Tiết Doanh Số Từng Ngày Trong Tháng -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50/60 border-b border-slate-100 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between items-center">
+                        <span>Bảng Kê Chi Tiết Doanh Số Theo Ngày</span>
+                        <span class="text-[11px] font-normal text-slate-500">Đơn vị tính: VNĐ</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="w-full text-left border-collapse min-w-[1050px]">
+                            <thead class="bg-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 sticky top-0">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-center whitespace-nowrap">Ngày</th>
+                                    <th class="py-2.5 px-3 text-center whitespace-nowrap">Số Đơn</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Doanh Thu Tiền Mặt</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Doanh Thu Chuyển Khoản</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Tổng Doanh Thu Ngày</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Tiền Vốn (Ước tính)</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Lợi Nhuận Gộp</th>
+                                    <th class="py-2.5 px-3 text-center w-24 whitespace-nowrap">Chi Tiết</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rep-daily-table-tbody" class="divide-y divide-slate-100">
+                                <!-- Rendered dynamically -->
+                            </tbody>
+                            <tfoot id="rep-daily-table-tfoot">
+                                <!-- Total Row -->
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ======================================================= -->
+                <!-- BOX: BẢNG BÁO CÁO THEO NGÀY - DANH SÁCH HÓA ĐƠN ĐÃ BÁN -->
+                <!-- ======================================================= -->
+                <div id="rep-selected-date-box" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="p-2 rounded-xl bg-blue-100 text-blue-700">
+                                <i data-lucide="receipt" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm sm:text-base font-extrabold text-slate-800">
+                                    Danh Sách Hóa Đơn Bán Hàng Ngày <span id="rep-selected-date-label" class="text-emerald-700 font-mono">--/--/----</span>
+                                </h3>
+                                <p class="text-xs text-slate-500">Xem danh sách hóa đơn xuất bán trong ngày (hoặc chuyển sang xem theo từng mặt hàng thuốc)</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Toggle Xem Theo Hóa Đơn vs Theo Mặt Hàng -->
+                            <div class="flex items-center bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold border border-slate-200">
+                                <button type="button" onclick="ReportsModule.setDailyDetailViewMode('orders')" id="rep-viewmode-orders-btn" class="px-3 py-1.5 rounded-lg transition bg-white text-emerald-800 shadow-xs flex items-center gap-1.5 cursor-pointer">
+                                    <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+                                    <span>Theo Hóa Đơn</span>
+                                </button>
+                                <button type="button" onclick="ReportsModule.setDailyDetailViewMode('items')" id="rep-viewmode-items-btn" class="px-3 py-1.5 rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer">
+                                    <i data-lucide="pill" class="w-3.5 h-3.5"></i>
+                                    <span>Theo Mặt Hàng</span>
+                                </button>
+                            </div>
+
+                            <div class="flex items-center gap-1.5 ml-1">
+                                <span class="text-xs font-bold text-slate-600">Chọn ngày:</span>
+                                <input id="rep-detail-date-picker" type="date" onchange="ReportsModule.selectDateForDetails(this.value)" class="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5 Thẻ Tóm Tắt Trong Ngày Được Chọn -->
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-4 bg-slate-50/30 border-b border-slate-100 text-xs">
+                        <div class="bg-white p-3 rounded-xl border border-slate-200">
+                            <span class="text-slate-400 block text-[11px] font-bold uppercase">Số Hóa Đơn</span>
+                            <div id="rep-detail-order-count" class="font-black text-sm sm:text-base text-slate-800 font-mono mt-0.5">0 đơn</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200">
+                            <span class="text-slate-400 block text-[11px] font-bold uppercase">Số Loại Thuốc</span>
+                            <div id="rep-detail-item-count" class="font-black text-sm sm:text-base text-slate-800 font-mono mt-0.5">0 mặt hàng</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-emerald-200">
+                            <span class="text-emerald-700 block text-[11px] font-bold uppercase">Doanh Thu Ngày</span>
+                            <div id="rep-detail-day-revenue" class="font-black text-sm sm:text-base text-emerald-700 font-mono mt-0.5">0 đ</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-slate-200">
+                            <span class="text-slate-500 block text-[11px] font-bold uppercase">Tiền Vốn Ngày</span>
+                            <div id="rep-detail-day-cost" class="font-bold text-sm sm:text-base text-slate-600 font-mono mt-0.5">0 đ</div>
+                        </div>
+                        <div class="col-span-2 sm:col-span-1 bg-white p-3 rounded-xl border border-emerald-300">
+                            <span class="text-emerald-800 block text-[11px] font-bold uppercase">Lợi Nhuận Gộp</span>
+                            <div id="rep-detail-day-profit" class="font-black text-sm sm:text-base text-emerald-800 font-mono mt-0.5">0 đ</div>
+                        </div>
+                    </div>
+
+                    <!-- Danh sách phiếu hoàn tiền khách trả hàng trong ngày (nếu có) -->
+                    <div id="rep-detail-day-returns-box" class="hidden border-b border-rose-200"></div>
+
+                    <!-- BẢNG 1: HIỂN THỊ THEO HÓA ĐƠN (MẶC ĐỊNH THEO YÊU CẦU NGƯỜI DÙNG) -->
+                    <div id="rep-selected-date-orders-container" class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[1150px]">
+                            <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-center w-10 whitespace-nowrap">#</th>
+                                    <th class="py-2.5 px-3 w-28 whitespace-nowrap">Mã Hóa Đơn</th>
+                                    <th class="py-2.5 px-3 w-20 text-center whitespace-nowrap">Giờ Bán</th>
+                                    <th class="py-2.5 px-3 w-40 whitespace-nowrap">Khách Hàng</th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Danh Sách Thuốc & SL Bán</th>
+                                    <th class="py-2.5 px-3 w-28 text-center whitespace-nowrap">Hình Thức</th>
+                                    <th class="py-2.5 px-3 text-right w-28 whitespace-nowrap">Doanh Thu</th>
+                                    <th class="py-2.5 px-3 text-right w-24 whitespace-nowrap">Tiền Vốn</th>
+                                    <th class="py-2.5 px-3 text-right w-28 whitespace-nowrap">Lợi Nhuận</th>
+                                    <th class="py-2.5 px-3 text-center w-20 whitespace-nowrap">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rep-selected-date-orders-tbody" class="divide-y divide-slate-100 text-xs">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- BẢNG 2: HIỂN THỊ THEO MẶT HÀNG (PHỤ TRỢ KHI NGƯỜI DÙNG MUỐN SOI THEO THUỐC) -->
+                    <div id="rep-selected-date-items-container" class="hidden overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th class="py-2.5 px-3 text-center w-10">#</th>
+                                    <th class="py-2.5 px-3 w-24">Mã Thuốc</th>
+                                    <th class="py-2.5 px-3">Tên Thuốc & Quy Cách</th>
+                                    <th class="py-2.5 px-3 text-center w-28">Số Lượng Bán</th>
+                                    <th class="py-2.5 px-3 text-right w-24">Đơn Giá Bán</th>
+                                    <th class="py-2.5 px-3 text-right w-28">Doanh Thu</th>
+                                    <th class="py-2.5 px-3 text-right w-24">Tiền Vốn</th>
+                                    <th class="py-2.5 px-3 text-right w-28">Lợi Nhuận</th>
+                                    <th class="py-2.5 px-3 w-40">Hóa Đơn Bán</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rep-selected-date-items-tbody" class="divide-y divide-slate-100 text-xs">
+                                <!-- Rendered dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================= -->
+            <!-- SUB-TAB 2: BẢNG KÊ CHI TIẾT THEO THÁNG                  -->
+            <!-- ========================================================= -->
+            <div id="rep-subtab-content-monthly" class="hidden space-y-4">
+                <!-- Toolbar Chọn Năm & Nút Xuất -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-xl bg-amber-100 text-amber-800">
+                            <i data-lucide="calendar-range" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base font-extrabold text-slate-800">Bảng Kê Chi Tiết Doanh Số & Lợi Nhuận Theo Tháng</h2>
+                            <p class="text-xs text-slate-500">Tổng hợp toàn diện 12 tháng trong năm, theo dõi tiến độ kinh doanh và hiệu quả tài chính</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Chọn năm -->
+                        <span class="text-xs font-bold text-slate-600">Năm báo cáo:</span>
+                        <select id="rep-yearly-select-year" onchange="ReportsModule.changeYearlyYear(this.value)" class="bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                            <!-- Populated with years -->
+                        </select>
+
+                        <button onclick="ReportsModule.exportYearlyExcel()" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                            <span>Xuất Excel Bảng Kê Năm</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4 Thẻ KPI Cả Năm -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="bg-emerald-900 text-white p-4 rounded-2xl shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-emerald-200 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider">Tổng Doanh Thu Cả Năm</span>
+                            <div class="w-7 h-7 rounded-lg bg-emerald-800 text-emerald-200 flex items-center justify-center">
+                                <i data-lucide="coins" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-yearly-kpi-revenue" class="text-xl sm:text-2xl font-bold tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-yearly-kpi-orders" class="text-[11px] text-emerald-300/80 mt-1 font-medium">0 hóa đơn hoàn tất</div>
+                    </div>
+
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider">Tiền Vốn Bán Hàng (COGS)</span>
+                            <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                                <i data-lucide="package" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-yearly-kpi-cost" class="text-xl font-bold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-yearly-kpi-cost-ratio" class="text-[11px] text-slate-400 mt-1">Chiếm 0% doanh thu</div>
+                    </div>
+
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider">Tổng Lợi Nhuận Gộp</span>
+                            <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                <i data-lucide="trending-up" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-yearly-kpi-gross-profit" class="text-xl font-bold text-emerald-700 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-yearly-kpi-margin" class="text-[11px] text-emerald-600 mt-1 font-semibold">Tỷ suất gộp: 0%</div>
+                    </div>
+
+                    <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider">Lợi Nhuận Thuần (Ròng)</span>
+                            <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                <i data-lucide="badge-dollar-sign" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <div id="rep-yearly-kpi-net-profit" class="text-xl font-bold text-blue-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                        <div id="rep-yearly-kpi-expenses" class="text-[11px] text-slate-400 mt-1">Sau trừ chi phí vận hành</div>
+                    </div>
+                </div>
+
+                <!-- Biểu đồ Doanh Thu & Lợi Nhuận 12 Tháng -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-600"></i>
+                            Diễn Biến Doanh Thu & Lợi Nhuận Qua Từng Tháng
+                        </h3>
+                        <span class="text-xs text-slate-400 font-medium">Đơn vị: VNĐ</span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="chart-yearly-monthly"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bảng Kê Chi Tiết 12 Tháng -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50/60 border-b border-slate-100 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between items-center">
+                        <span>Bảng Thống Kê Chi Tiết 12 Tháng Trong Năm</span>
+                        <span class="text-[11px] font-normal text-slate-500">Đơn vị: VNĐ</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[1250px]">
+                            <thead class="bg-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th class="py-2.5 px-3.5 text-center w-28 whitespace-nowrap">Tháng</th>
+                                    <th class="py-2.5 px-3 text-center w-20 whitespace-nowrap">Số Đơn</th>
+                                    <th class="py-2.5 px-3.5 text-right whitespace-nowrap">Doanh Thu Tiền Mặt</th>
+                                    <th class="py-2.5 px-3.5 text-right whitespace-nowrap">Doanh Thu CK (VietQR)</th>
+                                    <th class="py-2.5 px-3.5 text-right font-black text-emerald-900 whitespace-nowrap">Tổng Doanh Thu</th>
+                                    <th class="py-2.5 px-3.5 text-right whitespace-nowrap">Tiền Vốn Bán Hàng</th>
+                                    <th class="py-2.5 px-3.5 text-right font-bold text-emerald-700 whitespace-nowrap">Lợi Nhuận Gộp</th>
+                                    <th class="py-2.5 px-3 text-center w-20 whitespace-nowrap">Tỷ Suất</th>
+                                    <th class="py-2.5 px-3.5 text-right text-rose-700 whitespace-nowrap">Chi Phí Vận Hành</th>
+                                    <th class="py-2.5 px-3.5 text-right font-black text-blue-800 whitespace-nowrap">Lợi Nhuận Thuần</th>
+                                    <th class="py-2.5 px-3 text-center w-28 whitespace-nowrap">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rep-yearly-table-tbody" class="divide-y divide-slate-100 text-xs">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                            <tfoot id="rep-yearly-table-tfoot" class="bg-emerald-50/80 border-t-2 border-emerald-300 font-bold text-xs">
+                                <!-- Total Row -->
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================= -->
+            <!-- SUB-TAB 3: BÁO CÁO KẾT QUẢ HOẠT ĐỘNG KINH DOANH (P&L)    -->
+            <!-- ========================================================= -->
+            <div id="rep-subtab-content-pnl" class="hidden space-y-4">
+                <!-- Toolbar Lọc Kỳ Báo Cáo & Nút Thao Tác -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-xl bg-indigo-100 text-indigo-800">
+                            <i data-lucide="file-text" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base font-extrabold text-slate-800">Báo Cáo Kết Quả Hoạt Động Kinh Doanh</h2>
+                            <p class="text-xs text-slate-500">Mẫu báo cáo tài chính P&L chuẩn KiotViet: Doanh thu, Giảm trừ, Giá vốn, Chi phí hoạt động & Lợi nhuận</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Chọn khoảng thời gian nhanh -->
+                        <select id="rep-pnl-range-select" onchange="ReportsModule.changePnLRange(this.value)" class="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                            <option value="this_month">Tháng này</option>
+                            <option value="last_month">Tháng trước</option>
+                            <option value="this_quarter">Quý này</option>
+                            <option value="this_year">Năm nay</option>
+                            <option value="custom">Tùy chọn khoảng ngày...</option>
+                        </select>
+
+                        <!-- Khoảng ngày tùy chọn (ẩn khi không chọn custom) -->
+                        <div id="rep-pnl-custom-date-box" class="hidden flex items-center gap-1.5 text-xs">
+                            <span class="text-slate-500 font-medium">Từ:</span>
+                            <input id="rep-pnl-date-from" type="date" class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                            <span class="text-slate-500 font-medium">Đến:</span>
+                            <input id="rep-pnl-date-to" type="date" class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                            <button type="button" onclick="ReportsModule.applyPnLCustomDates()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer">Lọc</button>
+                        </div>
+
+                        <button onclick="ReportsModule.exportPnLExcel()" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                            <span>Xuất Excel P&L</span>
+                        </button>
+
+                        <button onclick="ReportsModule.printPnLReport()" class="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                            <span>In Báo Cáo P&L</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Khung Báo Cáo Chuẩn KiotViet (Container in ấn) -->
+                <div id="pnl-print-container" class="bg-white p-6 sm:p-10 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto space-y-6">
+                    <!-- Header Báo Cáo -->
+                    <div class="relative text-center border-b border-slate-200 pb-5">
+                        <div class="text-[11px] text-slate-400 absolute left-0 top-0 font-mono">
+                            Ngày lập: <span id="pnl-created-at">--/--/---- --:--</span>
+                        </div>
+                        <h1 class="text-xl sm:text-2xl font-black text-slate-800 uppercase tracking-wide">
+                            Báo Cáo Kết Quả Hoạt Động Kinh Doanh
+                        </h1>
+                        <p class="text-xs text-slate-600 mt-1 font-medium">
+                            Từ ngày <span id="pnl-period-from" class="font-bold font-mono text-emerald-800">--/--/----</span> đến ngày <span id="pnl-period-to" class="font-bold font-mono text-emerald-800">--/--/----</span>
+                        </p>
+                        <div class="text-xs text-slate-500 font-bold mt-1">
+                            Medica Trung Kính
+                        </div>
+                    </div>
+
+                    <!-- Bảng Báo Cáo P&L (2 cột) -->
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl overflow-hidden">
+                        <table class="w-full text-left border-collapse text-xs sm:text-[13px]">
+                            <thead>
+                                <tr class="bg-sky-100/70 border-b border-slate-200 text-slate-800">
+                                    <th class="py-2.5 px-4 font-bold text-left">Khoản Mục</th>
+                                    <th class="py-2.5 px-4 font-bold text-right w-44">Tổng (VNĐ)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pnl-report-tbody" class="divide-y divide-slate-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer & Chữ Ký -->
+                    <div class="pt-4 text-center text-xs text-slate-500 border-t border-slate-100 space-y-6">
+                        <div class="text-[11px] italic">
+                            Medica Trung Kính: 127 Trung Kính - Phường Trung Hòa - Quận Cầu Giấy - Hà Nội
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4 pt-4 text-slate-700">
+                            <div>
+                                <div class="font-bold uppercase text-[11px]">Người Lập Biểu</div>
+                                <div class="text-[10px] text-slate-400 italic">(Ký, họ tên)</div>
+                                <div id="pnl-signer-creator" class="font-bold text-slate-800 mt-16 font-serif">DS. Nguyễn Thanh Dung</div>
+                            </div>
+                            <div>
+                                <div class="font-bold uppercase text-[11px]">Kế Toán Trưởng</div>
+                                <div class="text-[10px] text-slate-400 italic">(Ký, họ tên)</div>
+                                <div class="text-slate-400 mt-16 italic text-xs font-serif">(Đã ký duyệt)</div>
+                            </div>
+                            <div>
+                                <div class="font-bold uppercase text-[11px]">Người Đại Diện Theo Pháp Luật</div>
+                                <div class="text-[10px] text-slate-400 italic">(Ký, đóng dấu, họ tên)</div>
+                                <div class="font-bold text-slate-800 mt-16 font-serif">Nguyễn Thanh Dung</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2559,7 +2855,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Nhóm Dược Lý</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Nhóm Hàng</label>
                         <select id="med-category" class="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500">
                             <!-- Populated -->
                         </select>
@@ -4984,21 +5280,21 @@
 
     <!-- Application JavaScript Bundles -->
     <script src="vendor/JsBarcode.all.min.js"></script>
-    <script src="js/vietqr.js?v=20261107_v3"></script>
-    <script src="js/sample-data.js?v=20261107_v3"></script>
-    <script src="js/store.js?v=20261109_v10"></script>
-    <script src="js/auth.js?v=20261109_v10"></script>
-    <script src="js/export-excel.js?v=20261109_v10"></script>
-    <script src="js/barcode-printer.js?v=20261109_v10"></script>
-    <script src="js/searchable-select.js?v=20261109_v10"></script>
-    <script src="js/vouchers.js?v=20261109_v10"></script>
-    <script src="js/inventory.js?v=20261109_v10"></script>
-    <script src="js/pos.js?v=20261109_v10"></script>
-    <script src="js/orders.js?v=20261109_v10"></script>
-    <script src="js/customers.js?v=20261109_v10"></script>
-    <script src="js/reports.js?v=20261109_v10"></script>
-    <script src="js/audit-log.js?v=20261109_v11"></script>
-    <script src="js/app.js?v=20261109_v11"></script>
+    <script src="js/vietqr.js?v=20261109_v13"></script>
+    <script src="js/sample-data.js?v=20261109_v13"></script>
+    <script src="js/store.js?v=20261110_v16"></script>
+    <script src="js/auth.js?v=20261109_v13"></script>
+    <script src="js/export-excel.js?v=20261109_v13"></script>
+    <script src="js/barcode-printer.js?v=20261109_v13"></script>
+    <script src="js/searchable-select.js?v=20261109_v13"></script>
+    <script src="js/vouchers.js?v=20261109_v13"></script>
+    <script src="js/inventory.js?v=20261109_v13"></script>
+    <script src="js/pos.js?v=20261109_v13"></script>
+    <script src="js/orders.js?v=20261110_v16"></script>
+    <script src="js/customers.js?v=20261109_v13"></script>
+    <script src="js/reports.js?v=20261110_v16"></script>
+    <script src="js/audit-log.js?v=20261109_v13"></script>
+    <script src="js/app.js?v=20261109_v13"></script>
 
     <!-- Đồng hồ thời gian thực ở Header -->
     <script>

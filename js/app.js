@@ -44,7 +44,7 @@ const App = {
             SearchableSelect.init('stockin-supplier', { richType: 'supplier', placeholder: '🔍 Tìm nhà cung cấp...' });
             SearchableSelect.init('stockin-medicine-select', { richType: 'medicine', placeholder: '🔍 Tìm tên thuốc cần nhập...' });
             SearchableSelect.init('med-supplier', { richType: 'supplier', placeholder: '🔍 Tìm nhà cung cấp...' });
-            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm nhóm dược lý...' });
+            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm nhóm hàng...' });
             SearchableSelect.init('voucher-input-category', { richType: 'category', placeholder: '🔍 Tìm loại thu / chi...' });
         }
 

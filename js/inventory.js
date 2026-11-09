@@ -63,6 +63,7 @@ const InventoryModule = {
 
         // Lắng nghe sự kiện thay đổi dữ liệu từ Store
         Store.on('medicines:changed', () => {
+            this.renderCategoryFilter();
             this.renderMedicineTable();
             this.updateInventoryStats();
         });
@@ -89,13 +90,17 @@ const InventoryModule = {
     },
 
     bindEvents() {
-        // Tìm kiếm thuốc trong kho
+        // Tìm kiếm thuốc trong kho (có debounce 150ms giúp gõ phím mượt)
         const searchInput = document.getElementById('inventory-search');
         if (searchInput) {
+            let searchTimer = null;
             searchInput.addEventListener('input', (e) => {
-                this.searchKeyword = e.target.value.trim().toLowerCase();
-                this.currentPage = 1;
-                this.renderMedicineTable();
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    this.searchKeyword = e.target.value.trim().toLowerCase();
+                    this.currentPage = 1;
+                    this.renderMedicineTable();
+                }, 150);
             });
         }
 
@@ -246,8 +251,8 @@ const InventoryModule = {
         const catSelect = document.getElementById('inventory-filter-category');
         if (!catSelect) return;
 
-        const categories = SampleData.categories || [];
-        let html = '<option value="all">Tất cả nhóm thuốc</option>';
+        const categories = (window.Store && Store.getCategories) ? Store.getCategories() : (SampleData.categories || []);
+        let html = '<option value="all">Tất cả nhóm hàng</option>';
         categories.forEach(cat => {
             html += `<option value="${cat}">${cat}</option>`;
         });
@@ -544,7 +549,7 @@ const InventoryModule = {
         this.populateSupplierOptions('med-supplier');
 
         if (window.SearchableSelect) {
-            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm dược lý...' });
+            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm hàng...' });
             SearchableSelect.init('med-supplier', { richType: 'supplier', placeholder: '🔍 Tìm hoặc chọn nhà cung cấp...' });
             SearchableSelect.refresh('med-category');
             SearchableSelect.refresh('med-supplier');
@@ -580,7 +585,7 @@ const InventoryModule = {
         document.getElementById('med-supplier').value = med.supplierId || '';
 
         if (window.SearchableSelect) {
-            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm dược lý...' });
+            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm hàng...' });
             SearchableSelect.init('med-supplier', { richType: 'supplier', placeholder: '🔍 Tìm hoặc chọn nhà cung cấp...' });
             SearchableSelect.refresh('med-category');
             SearchableSelect.refresh('med-supplier');
@@ -638,7 +643,7 @@ const InventoryModule = {
         this.populateSupplierOptions('med-supplier');
 
         if (window.SearchableSelect) {
-            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm dược lý...' });
+            SearchableSelect.init('med-category', { richType: 'category', placeholder: '🔍 Tìm hoặc chọn nhóm hàng...' });
             SearchableSelect.init('med-supplier', { richType: 'supplier', placeholder: '🔍 Tìm hoặc chọn nhà cung cấp...' });
             SearchableSelect.refresh('med-category');
             SearchableSelect.refresh('med-supplier');
@@ -755,8 +760,9 @@ const InventoryModule = {
     populateCategoryOptions(selectId) {
         const sel = document.getElementById(selectId);
         if (!sel) return;
-        const categories = SampleData.categories || [];
-        sel.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        const categories = (window.Store && Store.getCategories) ? Store.getCategories() : (SampleData.categories || []);
+        sel.innerHTML = '<option value="">-- Chọn nhóm hàng --</option>' + 
+            categories.map(c => `<option value="${c}">${c}</option>`).join('');
     },
 
     populateSupplierOptions(selectId) {
