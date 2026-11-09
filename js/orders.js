@@ -494,24 +494,24 @@ const OrdersModule = {
 
             let methodBadge = '';
             if (isCash) {
-                methodBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                    <i data-lucide="banknote" class="w-3.5 h-3.5"></i> Tiền mặt
+                methodBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-amber-800 bg-amber-50/70 border border-amber-200/60">
+                    <i data-lucide="banknote" class="w-3 h-3 text-amber-600"></i> Tiền mặt
                 </span>`;
             } else {
-                methodBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
-                    <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Chuyển khoản (VietQR)
+                methodBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-sky-800 bg-sky-50/70 border border-sky-200/60">
+                    <i data-lucide="qr-code" class="w-3 h-3 text-sky-600"></i> Chuyển khoản
                 </span>`;
             }
 
             let statusBadge = '';
             if (isCancelled) {
-                statusBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-800">ĐÃ HỦY</span>';
+                statusBadge = '<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500">Đã hủy</span>';
             } else if (isFullyReturned) {
-                statusBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800" title="Đã hoàn trả toàn bộ ${AppUtils.formatVND(o.totalRefunded || 0)}">ĐÃ TRẢ HẾT</span>`;
+                statusBadge = `<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60" title="Đã hoàn trả toàn bộ ${AppUtils.formatVND(o.totalRefunded || 0)}">Đã trả hết</span>`;
             } else if (o.returnStatus === 'partially_returned') {
-                statusBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800" title="Đã hoàn trả ${AppUtils.formatVND(o.totalRefunded || 0)}">TRẢ 1 PHẦN</span>`;
+                statusBadge = `<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60" title="Đã hoàn trả ${AppUtils.formatVND(o.totalRefunded || 0)}">Trả 1 phần</span>`;
             } else {
-                statusBadge = '<span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">Hoàn tất</span>';
+                statusBadge = '<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">Hoàn tất</span>';
             }
 
             const itemsSummary = (o.items || []).map(i => `${i.medicineName} (${i.quantity} ${i.unit})`).join(', ');
@@ -527,73 +527,73 @@ const OrdersModule = {
                 customerCellHtml = `
                     <button type="button" 
                             onclick="CustomersModule.openCustomerOrdersModal('${safeCustLookup}')"
-                            class="font-semibold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1 group"
+                            class="font-medium text-slate-900 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1 group text-[13px]"
                             title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
                         <span>${custName || 'Khách hàng'}</span>
-                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-600 opacity-60 group-hover:opacity-100"></i>
+                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 opacity-60 group-hover:opacity-100 transition"></i>
                     </button>
-                    ${custPhone ? `<div class="text-xs text-slate-500 font-mono mt-0.5">${custPhone}</div>` : ''}
-                    ${o.pointsEarned ? `<div class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full mt-0.5">⭐ +${o.pointsEarned} điểm</div>` : ''}
+                    ${custPhone ? `<div class="text-xs text-slate-600 mt-0.5">${custPhone}</div>` : ''}
+                    ${o.pointsEarned ? `<div class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200/70 px-1.5 py-0.2 rounded-md mt-0.5">⭐ +${o.pointsEarned}đ</div>` : ''}
                 `;
             } else {
                 customerCellHtml = `
-                    <div class="font-semibold text-slate-400 italic">Khách vãng lai</div>
+                    <div class="text-slate-900 text-[13px] font-normal">Khách lẻ</div>
                 `;
             }
 
             html += `
-                <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-sm ${isCancelled ? 'opacity-50 bg-slate-50/80 line-through' : ''}">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono text-xs">${startIdx + idx + 1}</td>
-                    <td class="py-3 px-3">
-                        <div class="font-mono font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" onclick="OrdersModule.openOrderDetails('${o.id}')" title="Bấm để xem chi tiết hóa đơn">${o.id}</div>
-                        <div class="text-[11px] text-slate-400">${AppUtils.formatDateTime(o.createdAt)}</div>
+                <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-[13px] ${isCancelled ? 'opacity-50 bg-slate-50/80 line-through' : ''}">
+                    <td class="py-3.5 px-3 text-center text-slate-500 text-[13px] tabular-nums">${startIdx + idx + 1}</td>
+                    <td class="py-3.5 px-3">
+                        <div class="font-medium text-slate-900 text-[13px] hover:text-emerald-700 cursor-pointer" onclick="OrdersModule.openOrderDetails('${o.id}')" title="Bấm để xem chi tiết hóa đơn">${o.id}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">${AppUtils.formatDateTime(o.createdAt)}</div>
                     </td>
-                    <td class="py-3 px-3">
+                    <td class="py-3.5 px-3">
                         ${methodBadge}
-                        ${o.transferCode ? `<div class="text-[11px] font-mono text-slate-500 mt-1">Mã GD: ${o.transferCode}</div>` : ''}
+                        ${o.transferCode ? `<div class="text-xs text-slate-600 mt-1">Mã GD: ${o.transferCode}</div>` : ''}
                     </td>
-                    <td class="py-3 px-3">
+                    <td class="py-3.5 px-3">
                         ${customerCellHtml}
                     </td>
-                    <td class="py-3 px-3">
-                        <div class="text-xs text-slate-600 line-clamp-1 max-w-xs" title="${itemsSummary}">${itemsSummary}</div>
-                        <div class="text-[11px] text-slate-400 mt-0.5">Dược sĩ: ${o.pharmacist || '---'}</div>
+                    <td class="py-3.5 px-3">
+                        <div class="text-[13px] text-slate-900 line-clamp-1 max-w-xs" title="${itemsSummary}">${itemsSummary}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">Dược sĩ: ${o.pharmacist || '---'}</div>
                     </td>
-                    <td class="py-3 px-3 text-right">
-                        <div class="font-bold text-slate-900 text-sm">${AppUtils.formatVND(o.totalAmount)}</div>
-                        ${hasReturn ? `<div class="text-[11px] text-rose-600 font-semibold">Đã hoàn: -${AppUtils.formatVND(o.totalRefunded)}</div>` : ''}
-                        ${isCash && o.changeAmount > 0 && !hasReturn ? `<div class="text-[11px] text-slate-400">Thối: ${AppUtils.formatVND(o.changeAmount)}</div>` : ''}
+                    <td class="py-3.5 px-3 text-right">
+                        <div class="font-semibold text-slate-900 text-[13px] tabular-nums">${AppUtils.formatVND(o.totalAmount)}</div>
+                        ${hasReturn ? `<div class="text-xs text-rose-600 font-medium">Đã hoàn: -${AppUtils.formatVND(o.totalRefunded)}</div>` : ''}
+                        ${isCash && o.changeAmount > 0 && !hasReturn ? `<div class="text-xs text-slate-600">Thối: ${AppUtils.formatVND(o.changeAmount)}</div>` : ''}
                     </td>
                     ${isAdmin ? `
-                    <td class="py-3 px-3 text-right font-mono text-slate-600 text-xs">
-                        ${isCancelled ? '<span class="text-slate-300">0 đ</span>' : AppUtils.formatVND(orderCost)}
+                    <td class="py-3.5 px-3 text-right text-slate-800 text-[13px] tabular-nums">
+                        ${isCancelled ? '<span class="text-slate-400">0 đ</span>' : AppUtils.formatVND(orderCost)}
                     </td>
-                    <td class="py-3 px-3 text-right font-mono text-xs">
-                        ${isCancelled ? '<span class="text-slate-300">0 đ</span>' : `
-                            <div class="font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
+                    <td class="py-3.5 px-3 text-right text-[13px] tabular-nums">
+                        ${isCancelled ? '<span class="text-slate-400">0 đ</span>' : `
+                            <div class="font-semibold ${profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}">
                                 ${AppUtils.formatVND(profit)}
                             </div>
-                            <div class="text-[10px] text-slate-400 font-sans font-semibold">${profitMargin}%</div>
+                            <div class="text-xs text-slate-600 font-medium">${profitMargin}%</div>
                         `}
                     </td>` : ''}
-                    <td class="py-3 px-3 text-center">
+                    <td class="py-3.5 px-3 text-center">
                         ${statusBadge}
                     </td>
-                    <td class="py-3 px-3 text-center">
+                    <td class="py-3.5 px-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="OrdersModule.reprintOrder('${o.id}')" title="In lại hóa đơn" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition cursor-pointer">
+                            <button onclick="OrdersModule.reprintOrder('${o.id}')" title="In lại hóa đơn" class="p-1.5 text-slate-700 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="printer" class="w-4 h-4"></i>
                             </button>
                             ${!isCancelled ? `
-                            <button onclick="OrdersModule.openEditOrderModal('${o.id}')" title="Chỉnh sửa hóa đơn (Đổi tiền mặt / chuyển khoản, thông tin khách, ghi chú)" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition cursor-pointer">
+                            <button onclick="OrdersModule.openEditOrderModal('${o.id}')" title="Chỉnh sửa hóa đơn" class="p-1.5 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="edit-3" class="w-4 h-4"></i>
                             </button>` : ''}
                             ${canCancelOrReturn && !isCancelled && !isFullyReturned ? `
-                            <button onclick="OrdersModule.openReturnModal('${o.id}')" title="Khách trả thuốc & trừ quỹ tiền mặt" class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition cursor-pointer">
+                            <button onclick="OrdersModule.openReturnModal('${o.id}')" title="Khách trả thuốc & trừ quỹ tiền mặt" class="p-1.5 text-slate-700 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="corner-down-left" class="w-4 h-4"></i>
                             </button>` : ''}
                             ${canCancelOrReturn && !isCancelled ? `
-                            <button onclick="OrdersModule.openCancelModal('${o.id}')" title="Hủy hóa đơn & hoàn kho" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer">
+                            <button onclick="OrdersModule.openCancelModal('${o.id}')" title="Hủy hóa đơn & hoàn kho" class="p-1.5 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="x-circle" class="w-4 h-4"></i>
                             </button>` : ''}
                         </div>

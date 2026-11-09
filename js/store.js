@@ -32,6 +32,7 @@ class DataStore {
         this._cachedVouchers = null;
         this._cachedStockIns = null;
         this._cachedReturns = null;
+        this._cachedAuditLog = null;
         this.init();
     }
 
@@ -166,7 +167,8 @@ class DataStore {
                 this._cachedReturns = db.purchaseReturns;
                 try { localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(db.purchaseReturns)); } catch(e){}
             }
-            if (db.auditLog) {
+            if (db.auditLog && Array.isArray(db.auditLog)) {
+                this._cachedAuditLog = db.auditLog;
                 try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(db.auditLog)); } catch(e){}
             }
         } catch (e) {
@@ -1516,17 +1518,26 @@ class DataStore {
 
     // --- LỊCH SỬ THAO TÁC TOÀN DIỆN (Audit Log - KiotViet Style) ---
     getAuditLog() {
+        if (this._cachedAuditLog && Array.isArray(this._cachedAuditLog) && this._cachedAuditLog.length > 0) {
+            return this._cachedAuditLog;
+        }
         const raw = localStorage.getItem(STORAGE_KEYS.AUDIT_LOG);
         if (raw) {
             try {
                 const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    this._cachedAuditLog = parsed;
+                    return parsed;
+                }
             } catch(e) {}
         }
-        return this.generateSeedAuditLog();
+        const seeds = this.generateSeedAuditLog();
+        this._cachedAuditLog = seeds;
+        return seeds;
     }
 
     saveAuditLog(logs) {
+        this._cachedAuditLog = logs;
         try {
             localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(logs));
         } catch(e){}
@@ -1738,10 +1749,10 @@ class DataStore {
 
     getCustomerTier(points) {
         const pts = points || 0;
-        if (pts >= 50) return { name: 'Kim Cương', badge: 'bg-cyan-100 text-cyan-800 border-cyan-300', icon: '💎' };
-        if (pts >= 20) return { name: 'Vàng', badge: 'bg-amber-100 text-amber-800 border-amber-300', icon: '🥇' };
-        if (pts >= 5) return { name: 'Bạc', badge: 'bg-slate-200 text-slate-800 border-slate-300', icon: '🥈' };
-        return { name: 'Thành Viên', badge: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: '🌱' };
+        if (pts >= 50) return { name: 'Kim Cương', badge: 'bg-sky-50 text-sky-700 border border-sky-200/70', icon: '💎' };
+        if (pts >= 20) return { name: 'Vàng', badge: 'bg-amber-50 text-amber-700 border border-amber-200/70', icon: '🥇' };
+        if (pts >= 5) return { name: 'Bạc', badge: 'bg-slate-100 text-slate-600 border border-slate-200/70', icon: '🥈' };
+        return { name: 'Thành Viên', badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200/70', icon: '🌱' };
     }
 
     getCustomers() {

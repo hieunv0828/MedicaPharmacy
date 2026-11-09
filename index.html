@@ -4,12 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MedicaPharmacy - Quản Lý Nhà Thuốc Chuẩn GPP</title>
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono (Vietnamese optimized, clean & modern) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Tailwind CSS (Offline local with CDN fallback) -->
     <script src="vendor/tailwind.js"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['Inter', '"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+                        mono: ['Inter', '"JetBrains Mono"', 'ui-monospace', 'monospace']
+                    },
                     colors: {
                         medical: {
                             50: '#ecfdf5',
@@ -32,10 +40,10 @@
     <!-- QRCode generator for offline VietQR fallback -->
     <script src="vendor/qrcode.min.js"></script>
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/app.css?v=20261107_v3">
+    <link rel="stylesheet" href="css/app.css?v=20261109_v11">
     <link rel="stylesheet" href="css/print.css?v=20261107_v3">
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans select-none">
+<body class="bg-[#b8d9cb] text-slate-800 min-h-screen flex flex-col font-sans select-none" data-theme="medical-mint">
 
     <!-- TOP HEADER & NAVIGATION BAR -->
     <header class="bg-emerald-900 text-white shadow-md sticky top-0 z-40 border-b border-emerald-800">
@@ -577,41 +585,49 @@
         <!-- ========================================== -->
         <section id="section-inventory" class="app-tab-section hidden space-y-4">
             
-            <!-- 4 Thẻ KPI Kho Thuốc -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-500 mb-2">
-                        <span class="text-xs font-bold uppercase tracking-wider">Tổng Mặt Hàng</span>
-                        <i data-lucide="pill" class="w-4 h-4 text-emerald-600"></i>
+            <!-- 4 Thẻ KPI Kho Thuốc (Clean Minimal SaaS) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Mặt Hàng</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="pill" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="stat-total-medicines" class="text-2xl font-black text-slate-800 font-mono">0</div>
+                    <div id="stat-total-medicines" class="text-2xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono">0</div>
                     <div class="text-[11px] text-slate-400 mt-1">Các nhóm thuốc chuẩn GPP</div>
                 </div>
 
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-500 mb-2">
-                        <span class="text-xs font-bold uppercase tracking-wider text-amber-700">Sắp Hết Hàng</span>
-                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i>
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sắp Hết Hàng</span>
+                        <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="stat-low-stock" class="text-2xl font-black text-amber-700 font-mono">0</div>
+                    <div id="stat-low-stock" class="text-2xl font-semibold text-amber-700 tracking-tight tabular-nums font-mono">0</div>
                     <div class="text-[11px] text-slate-400 mt-1">Dưới mức tồn tối thiểu</div>
                 </div>
 
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-500 mb-2">
-                        <span class="text-xs font-bold uppercase tracking-wider text-rose-700">Sắp Hết Hạn (HSD)</span>
-                        <i data-lucide="calendar-x" class="w-4 h-4 text-rose-500"></i>
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sắp Hết Hạn (HSD)</span>
+                        <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <i data-lucide="calendar-x" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="stat-near-expiry" class="text-2xl font-black text-rose-700 font-mono">0</div>
+                    <div id="stat-near-expiry" class="text-2xl font-semibold text-rose-700 tracking-tight tabular-nums font-mono">0</div>
                     <div class="text-[11px] text-slate-400 mt-1">Hạn dưới 90 ngày</div>
                 </div>
 
-                <div id="kpi-card-stock-value" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-500 mb-2">
-                        <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Giá Trị Tồn Kho</span>
-                        <i data-lucide="circle-dollar-sign" class="w-4 h-4 text-emerald-600"></i>
+                <div id="kpi-card-stock-value" class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Giá Trị Tồn Kho</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="circle-dollar-sign" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="stat-total-stock-value" class="text-2xl font-black text-emerald-700 font-mono">0 đ</div>
+                    <div id="stat-total-stock-value" class="text-2xl font-semibold text-emerald-700 tracking-tight tabular-nums font-mono">0 đ</div>
                     <div class="text-[11px] text-slate-400 mt-1">Ước tính theo giá vốn nhập</div>
                 </div>
             </div>
@@ -659,15 +675,15 @@
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <thead class="bg-slate-100/70 border-b border-slate-200">
                             <tr>
-                                <th class="py-3 px-3 w-28 font-mono">Mã Thuốc</th>
-                                <th class="py-3 px-3 min-w-[220px]">Tên Thuốc & Hoạt Chất</th>
-                                <th class="py-3 px-3">Tồn Kho (Quy Đổi)</th>
-                                <th class="py-3 px-3">Giá Bán Lẻ</th>
-                                <th id="th-cost-price" class="py-3 px-3">Giá Vốn Nhập</th>
-                                <th class="py-3 px-3">Số Lô & Hạn Dùng</th>
-                                <th id="th-actions" class="py-3 px-3 text-center w-24">Thao Tác</th>
+                                <th class="py-2.5 px-3 w-28">Mã thuốc</th>
+                                <th class="py-2.5 px-3 min-w-[220px]">Tên thuốc & hoạt chất</th>
+                                <th class="py-2.5 px-3">Tồn kho (quy đổi)</th>
+                                <th class="py-2.5 px-3">Giá bán lẻ</th>
+                                <th id="th-cost-price" class="py-2.5 px-3">Giá vốn nhập</th>
+                                <th class="py-2.5 px-3">Số lô & hạn dùng</th>
+                                <th id="th-actions" class="py-2.5 px-3 text-center w-28">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="medicine-table-body" class="divide-y divide-slate-100">
@@ -718,8 +734,8 @@
                         <i data-lucide="user-plus" class="w-4 h-4 text-emerald-600"></i>
                         <span>+ Thêm NCC Mới</span>
                     </button>
-                    <button onclick="InventoryModule.openGeneralPurchaseReturnModal()" class="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition cursor-pointer">
-                        <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i>
+                    <button onclick="InventoryModule.openGeneralPurchaseReturnModal()" class="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition cursor-pointer">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4 text-teal-700"></i>
                         <span>Tạo Phiếu Trả Hàng</span>
                     </button>
                     <button onclick="InventoryModule.openStockInModal()" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition cursor-pointer">
@@ -739,46 +755,46 @@
                 </button>
                 <button id="subtab-btn-stockin-returns" onclick="InventoryModule.switchStockInSubTab('returns')"
                         class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer">
-                    <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i>
+                    <i data-lucide="rotate-ccw" class="w-4 h-4 text-teal-700"></i>
                     <span>Quản Lý Trả Hàng NCC</span>
-                    <span id="badge-subtab-stockin-returns" class="px-2 py-0.5 rounded-full text-[11px] bg-rose-100 text-rose-700 font-mono">0</span>
+                    <span id="badge-subtab-stockin-returns" class="px-2 py-0.5 rounded-full text-[11px] bg-teal-100 text-teal-800 font-mono">0</span>
                 </button>
             </div>
 
             <!-- VIEW 1: DANH SÁCH CÁC PHIẾU NHẬP HÀNG (MẶC ĐỊNH) -->
             <div id="subtab-view-stockin-orders" class="space-y-4">
-                <!-- 3 Thẻ thống kê tiền nhập kho: Tổng / Tiền mặt / Chuyển khoản -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
-                    <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
-                        <i data-lucide="boxes" class="w-6 h-6"></i>
+                <!-- 3 Thẻ thống kê tiền nhập kho (Clean Minimal SaaS) -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                    <div class="card-clean p-4 rounded-2xl flex items-center gap-3.5">
+                        <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                            <i data-lucide="boxes" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Tiền Nhập Hàng</div>
+                            <div id="card-stockin-total-all" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums mt-0.5">0 đ</div>
+                        </div>
                     </div>
-                    <div>
-                        <div class="text-[11px] font-bold uppercase text-slate-400">Tổng Tiền Nhập Hàng</div>
-                        <div id="card-stockin-total-all" class="text-lg font-black text-slate-900 font-mono mt-0.5">0 đ</div>
-                    </div>
-                </div>
 
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-amber-200/80 flex items-center gap-3">
-                    <div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
-                        <i data-lucide="banknote" class="w-6 h-6"></i>
+                    <div class="card-clean p-4 rounded-2xl flex items-center gap-3.5">
+                        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                            <i data-lucide="banknote" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Tiền Mặt Chi Nhập</div>
+                            <div id="card-stockin-total-cash" class="text-xl font-semibold text-amber-700 tracking-tight tabular-nums mt-0.5">0 đ</div>
+                        </div>
                     </div>
-                    <div>
-                        <div class="text-[11px] font-bold uppercase text-amber-700">Tiền Mặt Chi Nhập</div>
-                        <div id="card-stockin-total-cash" class="text-lg font-black text-amber-900 font-mono mt-0.5">0 đ</div>
-                    </div>
-                </div>
 
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-blue-200/80 flex items-center gap-3">
-                    <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold shrink-0">
-                        <i data-lucide="qr-code" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <div class="text-[11px] font-bold uppercase text-blue-700">Chuyển Khoản Chi Nhập</div>
-                        <div id="card-stockin-total-transfer" class="text-lg font-black text-blue-900 font-mono mt-0.5">0 đ</div>
+                    <div class="card-clean p-4 rounded-2xl flex items-center gap-3.5">
+                        <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                            <i data-lucide="qr-code" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-wider text-sky-700">Chuyển Khoản Chi Nhập</div>
+                            <div id="card-stockin-total-transfer" class="text-xl font-semibold text-sky-700 tracking-tight tabular-nums mt-0.5">0 đ</div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
             <!-- Bảng Lịch Sử Nhập Hàng -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -841,15 +857,15 @@
 
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <thead class="bg-slate-100/70 border-b border-slate-200">
                             <tr>
-                                <th class="py-3 px-3 w-28">Mã Phiếu</th>
-                                <th class="py-3 px-3 w-32">Ngày Nhập</th>
-                                <th class="py-3 px-3 w-28">Hình Thức TT</th>
-                                <th class="py-3 px-3">Nhà Cung Cấp</th>
-                                <th class="py-3 px-3">Mặt Hàng Nhập</th>
-                                <th class="py-3 px-3 text-right w-32">Tổng Tiền Nhập</th>
-                                <th class="py-3 px-3 text-center w-24">Chi Tiết</th>
+                                <th class="py-2.5 px-3 w-28">Mã phiếu</th>
+                                <th class="py-2.5 px-3 w-36">Ngày nhập</th>
+                                <th class="py-2.5 px-3 w-32">Hình thức TT</th>
+                                <th class="py-2.5 px-3">Nhà cung cấp</th>
+                                <th class="py-2.5 px-3">Mặt hàng nhập</th>
+                                <th class="py-2.5 px-3 text-right w-36">Tổng tiền nhập</th>
+                                <th class="py-2.5 px-3 text-center w-32">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="stockin-history-tbody" class="divide-y divide-slate-100">
@@ -884,13 +900,13 @@
             <div id="subtab-view-stockin-returns" class="hidden space-y-4">
                 <!-- 3 Thẻ thống kê tiền xuất trả hàng: Tổng tiền hoàn / Tiền mặt / Chuyển khoản -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-rose-200/80 flex items-center gap-3">
-                        <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center font-bold shrink-0">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-teal-200/80 flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold shrink-0">
                             <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
                         </div>
                         <div>
-                            <div class="text-[11px] font-bold uppercase text-rose-700">Tổng Tiền Hoàn Trả Từ NCC</div>
-                            <div id="card-return-total-refund" class="text-lg font-black text-rose-700 font-mono mt-0.5">0 đ</div>
+                            <div class="text-[11px] font-bold uppercase text-teal-800">Tổng Tiền Hoàn Trả Từ NCC</div>
+                            <div id="card-return-total-refund" class="text-lg font-black text-teal-900 font-mono mt-0.5">0 đ</div>
                         </div>
                     </div>
 
@@ -920,13 +936,13 @@
                     <div class="p-4 border-b border-slate-100 bg-slate-50/60 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                         <div class="flex items-center gap-4 flex-wrap">
                             <div class="font-bold text-xs uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                                <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i>
+                                <i data-lucide="rotate-ccw" class="w-4 h-4 text-teal-700"></i>
                                 <span>Danh Sách Phiếu Xuất Trả Hàng Cho NCC</span>
                             </div>
 
                             <!-- Bộ lọc phân loại: Tất Cả / Theo Đơn Nhập (THN) / Trả Tổng Hợp (PTH) -->
                             <div class="flex items-center gap-1 border-b border-slate-200 text-xs">
-                                <button id="tab-btn-returns-all" onclick="InventoryModule.setReturnsFilterType('all')" class="tab-filter-btn active-rose">
+                                <button id="tab-btn-returns-all" onclick="InventoryModule.setReturnsFilterType('all')" class="tab-filter-btn active-teal">
                                     <span>Tất Cả</span>
                                     <span id="badge-returns-filter-all" class="tab-filter-badge">0</span>
                                 </button>
@@ -1021,40 +1037,63 @@
         <!-- ========================================== -->
         <section id="section-orders" class="app-tab-section hidden space-y-4">
             
-            <!-- 3 Thẻ Tổng Quan Doanh Số Hóa Đơn -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Tổng Doanh Thu Hóa Đơn</span>
-                        <i data-lucide="receipt" class="w-4 h-4 text-emerald-600"></i>
-                    </div>
-                    <div id="card-orders-total-all" class="text-2xl font-black text-slate-800 font-mono">0 đ</div>
-                    <div class="text-[11px] text-slate-400 mt-1">Toàn bộ đơn hàng hoàn tất</div>
+            <!-- Header Tab Hóa Đơn: Tiêu đề & Nút Xuất Excel ở góc trên bên phải -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="receipt" class="w-5 h-5 text-emerald-600"></i>
+                        Hóa Đơn & Đơn Hàng Bán Lẻ
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Theo dõi danh sách hóa đơn, phân loại tiền mặt, chuyển khoản và xử lý trả hàng</p>
                 </div>
-
-                <div class="bg-amber-50/60 p-4 rounded-2xl shadow-sm border border-amber-200">
-                    <div class="flex items-center justify-between text-amber-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Doanh Thu TIỀN MẶT</span>
-                        <i data-lucide="banknote" class="w-4 h-4 text-amber-600"></i>
-                    </div>
-                    <div id="card-orders-total-cash" class="text-2xl font-black text-amber-800 font-mono">0 đ</div>
-                    <div class="text-[11px] text-amber-700/70 mt-1">Tiền mặt tại quầy</div>
-                </div>
-
-                <div class="bg-blue-50/60 p-4 rounded-2xl shadow-sm border border-blue-200">
-                    <div class="flex items-center justify-between text-blue-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Doanh Thu CHUYỂN KHOẢN (VietQR)</span>
-                        <i data-lucide="qr-code" class="w-4 h-4 text-blue-600"></i>
-                    </div>
-                    <div id="card-orders-total-transfer" class="text-2xl font-black text-blue-800 font-mono">0 đ</div>
-                    <div class="text-[11px] text-blue-700/70 mt-1">Qua mã QR ngân hàng</div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="OrdersModule.exportCurrentTabOrders()" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition cursor-pointer">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-700"></i>
+                        <span>Xuất Excel</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Header Tabs & Bộ Lọc Đơn Hàng -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                <!-- 3 Tabs phân loại: TẤT CẢ / TIỀN MẶT / CHUYỂN KHOẢN -->
-                <div class="flex items-center border-b border-slate-200 gap-1 text-xs sm:text-sm">
+            <!-- 3 Thẻ Tổng Quan Doanh Số Hóa Đơn (Clean Minimal SaaS) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Doanh Thu Hóa Đơn</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="receipt" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div id="card-orders-total-all" class="text-2xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono">0 đ</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Toàn bộ đơn hàng hoàn tất</div>
+                </div>
+
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Doanh Thu TIỀN MẶT</span>
+                        <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="banknote" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div id="card-orders-total-cash" class="text-2xl font-semibold text-amber-700 tracking-tight tabular-nums font-mono">0 đ</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Tiền mặt tại quầy</div>
+                </div>
+
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-sky-700">Doanh Thu CHUYỂN KHOẢN (VietQR)</span>
+                        <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                            <i data-lucide="qr-code" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div id="card-orders-total-transfer" class="text-2xl font-semibold text-sky-700 tracking-tight tabular-nums font-mono">0 đ</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Qua mã QR ngân hàng</div>
+                </div>
+            </div>
+
+            <!-- Header Tabs & Bộ Lọc Đơn Hàng (Cùng 1 hàng) -->
+            <div class="bg-white p-3 sm:p-3.5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+                <!-- 4 Tabs phân loại: TẤT CẢ / TIỀN MẶT / CHUYỂN KHOẢN / ĐƠN TRẢ HÀNG -->
+                <div class="flex items-center gap-1 text-xs">
                     <button id="tab-btn-orders-all" onclick="OrdersModule.setTab('all')"
                             class="tab-filter-btn active-emerald">
                         <i data-lucide="layers" class="w-4 h-4"></i>
@@ -1084,9 +1123,9 @@
                     </button>
                 </div>
 
-                <!-- Lọc thời gian & Tìm kiếm & Xuất Excel & Trả hàng tổng hợp -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <select id="orders-time-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                <!-- Lọc thời gian, Tìm kiếm & Trả Hàng Tổng Hợp (Cùng 1 hàng) -->
+                <div class="flex items-center gap-2">
+                    <select id="orders-time-filter" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500">
                         <option value="this_month">Tháng Này</option>
                         <option value="today">Hôm Nay</option>
                         <option value="yesterday">Hôm Qua</option>
@@ -1105,18 +1144,13 @@
                     <div class="relative">
                         <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
                         <input id="orders-search-input" type="text" placeholder="Tìm mã đơn, tên khách, SĐT..."
-                               class="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                               class="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 w-44 sm:w-56" />
                     </div>
 
                     <!-- Nút Trả Hàng Tổng Hợp -->
-                    <button type="button" onclick="OrdersModule.openAggregateReturnModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow-amber-200 transition cursor-pointer">
-                        <i data-lucide="corner-down-left" class="w-3.5 h-3.5"></i>
+                    <button type="button" onclick="OrdersModule.openAggregateReturnModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 text-xs font-semibold rounded-xl shadow-xs transition cursor-pointer whitespace-nowrap">
+                        <i data-lucide="corner-down-left" class="w-3.5 h-3.5 text-teal-700"></i>
                         <span>+ Trả Hàng Tổng Hợp</span>
-                    </button>
-
-                    <button onclick="OrdersModule.exportCurrentTabOrders()" class="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        <span>Xuất Excel</span>
                     </button>
                 </div>
             </div>
@@ -1125,18 +1159,18 @@
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <thead class="bg-slate-100/70 border-b border-slate-200">
                             <tr>
-                                <th class="py-3 px-3 text-center w-12">#</th>
-                                <th class="py-3 px-3 w-36">Mã Hóa Đơn</th>
-                                <th class="py-3 px-3 w-48">Hình Thức TT</th>
-                                <th class="py-3 px-3">Khách Hàng</th>
-                                <th class="py-3 px-3">Thuốc Đã Bán</th>
-                                <th class="py-3 px-3 text-right w-32">Tổng Tiền</th>
-                                <th id="th-orders-cost" class="py-3 px-3 text-right w-28 hidden">Tổng Vốn</th>
-                                <th id="th-orders-profit" class="py-3 px-3 text-right w-28 hidden">Lợi Nhuận</th>
-                                <th class="py-3 px-3 text-center w-24">Trạng Thái</th>
-                                <th class="py-3 px-3 text-center w-28">Thao Tác</th>
+                                <th class="py-2.5 px-3 text-center w-12">#</th>
+                                <th class="py-2.5 px-3 w-36">Mã hóa đơn</th>
+                                <th class="py-2.5 px-3 w-40">Hình thức TT</th>
+                                <th class="py-2.5 px-3">Khách hàng</th>
+                                <th class="py-2.5 px-3">Thuốc đã bán</th>
+                                <th class="py-2.5 px-3 text-right w-32">Tổng tiền</th>
+                                <th id="th-orders-cost" class="py-2.5 px-3 text-right w-28 hidden">Tổng vốn</th>
+                                <th id="th-orders-profit" class="py-2.5 px-3 text-right w-28 hidden">Lợi nhuận</th>
+                                <th class="py-2.5 px-3 text-center w-28">Trạng thái</th>
+                                <th class="py-2.5 px-3 text-center w-28">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="orders-table-tbody" class="divide-y divide-slate-100">
@@ -1173,42 +1207,50 @@
         <!-- ========================================== -->
         <section id="section-customers" class="app-tab-section hidden space-y-4">
             
-            <!-- 4 Thẻ Thống Kê KPI Khách Hàng -->
+            <!-- 4 Thẻ Thống Kê KPI Khách Hàng (Clean Minimal SaaS) -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Tổng Khách Hàng</span>
-                        <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Khách Hàng</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="users" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="card-customers-total" class="text-2xl font-black text-slate-800 font-mono">0</div>
+                    <div id="card-customers-total" class="text-2xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono">0</div>
                     <div class="text-[11px] text-slate-400 mt-1">Đã lưu trong hệ thống</div>
                 </div>
 
-                <div class="bg-amber-50/60 p-4 rounded-2xl shadow-sm border border-amber-200">
-                    <div class="flex items-center justify-between text-amber-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Điểm Tích Lũy</span>
-                        <i data-lucide="star" class="w-4 h-4 text-amber-600"></i>
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Điểm Tích Lũy</span>
+                        <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="star" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="card-customers-points" class="text-2xl font-black text-amber-900 font-mono">0</div>
-                    <div class="text-[11px] text-amber-700/70 mt-1">Tổng điểm đang lưu hành</div>
+                    <div id="card-customers-points" class="text-2xl font-semibold text-amber-700 tracking-tight tabular-nums font-mono">0</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Tổng điểm đang lưu hành</div>
                 </div>
 
-                <div class="bg-cyan-50/60 p-4 rounded-2xl shadow-sm border border-cyan-200">
-                    <div class="flex items-center justify-between text-cyan-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Khách Hàng VIP</span>
-                        <i data-lucide="award" class="w-4 h-4 text-cyan-600"></i>
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Khách Hàng VIP</span>
+                        <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                            <i data-lucide="award" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="card-customers-vip" class="text-2xl font-black text-cyan-900 font-mono">0 khách</div>
-                    <div class="text-[11px] text-cyan-700/70 mt-1">Hạng Vàng &amp; Kim Cương</div>
+                    <div id="card-customers-vip" class="text-2xl font-semibold text-sky-700 tracking-tight tabular-nums font-mono">0 khách</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Hạng Vàng &amp; Kim Cương</div>
                 </div>
 
-                <div class="bg-emerald-50/60 p-4 rounded-2xl shadow-sm border border-emerald-200">
-                    <div class="flex items-center justify-between text-emerald-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Tổng Doanh Thu</span>
-                        <i data-lucide="wallet" class="w-4 h-4 text-emerald-600"></i>
+                <div class="card-clean p-4 rounded-2xl">
+                    <div class="flex items-center justify-between text-slate-500 mb-1.5">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Doanh Thu</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="wallet" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="card-customers-spent" class="text-2xl font-black text-emerald-900 font-mono">0 đ</div>
-                    <div class="text-[11px] text-emerald-700/70 mt-1">Doanh thu từ khách quen</div>
+                    <div id="card-customers-spent" class="text-2xl font-semibold text-emerald-700 tracking-tight tabular-nums font-mono">0 đ</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Doanh thu từ khách quen</div>
                 </div>
             </div>
 
@@ -1257,16 +1299,16 @@
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[750px]">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <thead class="bg-slate-100/70 border-b border-slate-200">
                             <tr>
-                                <th class="py-3 px-3 text-center w-12">#</th>
-                                <th class="py-3 px-3">Khách Hàng (Bấm tên xem đơn)</th>
-                                <th class="py-3 px-3 w-36 font-mono">Số Điện Thoại</th>
-                                <th class="py-3 px-3 text-center w-36">Điểm Tích Lũy</th>
-                                <th class="py-3 px-3 text-right w-36">Tổng Chi Tiêu</th>
-                                <th class="py-3 px-3 text-center w-28">Lượt Mua</th>
-                                <th class="py-3 px-3 w-40">Lần Ghé Cuối</th>
-                                <th class="py-3 px-3 text-center w-28">Thao Tác</th>
+                                <th class="py-2.5 px-3 text-center w-12">#</th>
+                                <th class="py-2.5 px-3">Khách hàng</th>
+                                <th class="py-2.5 px-3 w-36">Số điện thoại</th>
+                                <th class="py-2.5 px-3 text-center w-36">Điểm tích lũy</th>
+                                <th class="py-2.5 px-3 text-right w-36">Tổng chi tiêu</th>
+                                <th class="py-2.5 px-3 text-center w-28">Lượt mua</th>
+                                <th class="py-2.5 px-3 w-40">Lần ghé cuối</th>
+                                <th class="py-2.5 px-3 text-center w-28">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="customers-table-tbody" class="divide-y divide-slate-100">
@@ -1329,56 +1371,66 @@
                 </div>
             </div>
 
-            <!-- 5 Thẻ thống kê tài chính: Quỹ tiền mặt, Quỹ ngân hàng, Tổng thu kỳ, Tổng chi kỳ, Chênh lệch -->
+            <!-- 5 Thẻ thống kê tài chính: Quỹ tiền mặt, Quỹ ngân hàng, Tổng thu kỳ, Tổng chi kỳ, Chênh lệch (Clean Minimal SaaS) -->
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <!-- Quỹ tiền mặt tại quầy -->
-                <div class="bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-amber-200/80 flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-amber-800">
-                        <span class="text-[11px] font-bold uppercase">Quỹ Tiền Mặt Tại Quầy</span>
-                        <i data-lucide="banknote" class="w-4 h-4 text-amber-600"></i>
+                <div class="card-clean p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tiền Mặt Tại Quầy</span>
+                        <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="banknote" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="voucher-stat-cash-balance" class="text-base sm:text-lg font-black text-amber-900 font-mono mt-1">0 đ</div>
-                    <span class="text-[10px] text-amber-700/80 mt-0.5">Tiền mặt thực tế tại két</span>
+                    <div id="voucher-stat-cash-balance" class="text-base sm:text-lg font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-0.5">0 đ</div>
+                    <span class="text-[11px] text-slate-400 mt-0.5">Tiền mặt thực tế tại két</span>
                 </div>
 
                 <!-- Quỹ tài khoản chuyển khoản -->
-                <div class="bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-blue-200/80 flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-blue-800">
-                        <span class="text-[11px] font-bold uppercase">Tài Khoản Ngân Hàng</span>
-                        <i data-lucide="qr-code" class="w-4 h-4 text-blue-600"></i>
+                <div class="card-clean p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tài Khoản Ngân Hàng</span>
+                        <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                            <i data-lucide="qr-code" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="voucher-stat-bank-balance" class="text-base sm:text-lg font-black text-blue-900 font-mono mt-1">0 đ</div>
-                    <span class="text-[10px] text-blue-700/80 mt-0.5">Tiền chuyển khoản VietQR</span>
+                    <div id="voucher-stat-bank-balance" class="text-base sm:text-lg font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-0.5">0 đ</div>
+                    <span class="text-[11px] text-slate-400 mt-0.5">Tiền chuyển khoản VietQR</span>
                 </div>
 
                 <!-- Tổng Thu Trong Kỳ -->
-                <div class="bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-emerald-200/80 flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-emerald-800">
-                        <span class="text-[11px] font-bold uppercase">Tổng Thu Trong Kỳ</span>
-                        <i data-lucide="arrow-down-left" class="w-4 h-4 text-emerald-600"></i>
+                <div class="card-clean p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Thu Trong Kỳ</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="arrow-down-left" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="voucher-stat-period-in" class="text-base sm:text-lg font-black text-emerald-700 font-mono mt-1">0 đ</div>
-                    <span class="text-[10px] text-emerald-600/80 mt-0.5">Bán thuốc + Thu khác</span>
+                    <div id="voucher-stat-period-in" class="text-base sm:text-lg font-semibold text-emerald-700 tracking-tight tabular-nums font-mono mt-0.5">0 đ</div>
+                    <span class="text-[11px] text-slate-400 mt-0.5">Bán thuốc + Thu khác</span>
                 </div>
 
                 <!-- Tổng Chi Trong Kỳ -->
-                <div class="bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-rose-200/80 flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-rose-800">
-                        <span class="text-[11px] font-bold uppercase">Tổng Chi Trong Kỳ</span>
-                        <i data-lucide="arrow-up-right" class="w-4 h-4 text-rose-600"></i>
+                <div class="card-clean p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng Chi Trong Kỳ</span>
+                        <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="voucher-stat-period-out" class="text-base sm:text-lg font-black text-rose-700 font-mono mt-1">0 đ</div>
-                    <span class="text-[10px] text-rose-600/80 mt-0.5">Tiền hàng + Chi phí</span>
+                    <div id="voucher-stat-period-out" class="text-base sm:text-lg font-semibold text-rose-700 tracking-tight tabular-nums font-mono mt-0.5">0 đ</div>
+                    <span class="text-[11px] text-slate-400 mt-0.5">Tiền hàng + Chi phí</span>
                 </div>
 
                 <!-- Thu - Chi Thực Tế -->
-                <div class="col-span-2 lg:col-span-1 bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                    <div class="flex items-center justify-between text-slate-700">
-                        <span class="text-[11px] font-bold uppercase">Dòng Tiền Thuần</span>
-                        <i data-lucide="scale" class="w-4 h-4 text-slate-500"></i>
+                <div class="col-span-2 lg:col-span-1 card-clean p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Dòng Tiền Thuần</span>
+                        <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                            <i data-lucide="scale" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="voucher-stat-period-net" class="text-base sm:text-lg font-black text-slate-900 font-mono mt-1">0 đ</div>
-                    <span class="text-[10px] text-slate-400 mt-0.5">Chênh lệch Thu - Chi</span>
+                    <div id="voucher-stat-period-net" class="text-base sm:text-lg font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-0.5">0 đ</div>
+                    <span class="text-[11px] text-slate-400 mt-0.5">Chênh lệch Thu - Chi</span>
                 </div>
             </div>
 
@@ -1442,17 +1494,17 @@
                 <!-- Bảng danh sách phiếu thu chi -->
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <thead class="bg-slate-100/70 border-b border-slate-200">
                             <tr>
-                                <th class="py-3 px-3 text-center w-10">#</th>
-                                <th class="py-3 px-3 w-36">Mã Phiếu</th>
-                                <th class="py-3 px-3 text-center w-28">Phân Loại</th>
-                                <th class="py-3 px-3 w-32">Phương Thức</th>
-                                <th class="py-3 px-3">Danh Mục / Lý Do</th>
-                                <th class="py-3 px-3">Người Nhận / Nộp</th>
-                                <th class="py-3 px-3 text-right w-36">Số Tiền</th>
-                                <th class="py-3 px-3 text-center w-28">Hạch Toán</th>
-                                <th class="py-3 px-3 text-center w-24">Thao Tác</th>
+                                <th class="py-2.5 px-3 text-center w-10">#</th>
+                                <th class="py-2.5 px-3 w-36">Mã phiếu</th>
+                                <th class="py-2.5 px-3 text-center w-28">Phân loại</th>
+                                <th class="py-2.5 px-3 w-32">Phương thức</th>
+                                <th class="py-2.5 px-3">Danh mục / Lý do</th>
+                                <th class="py-2.5 px-3">Người nhận / nộp</th>
+                                <th class="py-2.5 px-3 text-right w-36">Số tiền</th>
+                                <th class="py-2.5 px-3 text-center w-28">Hạch toán</th>
+                                <th class="py-2.5 px-3 text-center w-28">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="vouchers-table-tbody" class="divide-y divide-slate-100">
@@ -1524,54 +1576,67 @@
                 </div>
             </div>
 
-            <!-- 5 Thẻ Chỉ Số KPI Tháng Này -->
+            <!-- 5 Thẻ Chỉ Số KPI Tháng Này (Clean Minimal SaaS) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 
                 <!-- 1. Tổng doanh thu tháng -->
-                <div class="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-4 rounded-2xl shadow-md">
-                    <span class="text-xs font-semibold text-emerald-100 uppercase tracking-wider block">Tổng Doanh Thu Tháng</span>
-                    <div id="rep-kpi-total-revenue" class="text-2xl font-black mt-2 font-mono">0 đ</div>
-                    <div id="rep-kpi-total-orders" class="text-[11px] text-emerald-200 mt-1 font-medium">0 đơn hoàn tất</div>
+                <div class="bg-emerald-900 text-white p-4 rounded-2xl shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-emerald-200 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider">Tổng Doanh Thu</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-800 text-emerald-200 flex items-center justify-center">
+                            <i data-lucide="wallet" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div id="rep-kpi-total-revenue" class="text-xl sm:text-2xl font-semibold tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                    <div id="rep-kpi-total-orders" class="text-[11px] text-emerald-300/80 mt-1 font-medium">0 đơn hoàn tất</div>
                 </div>
 
                 <!-- 2. Doanh thu tiền mặt -->
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-amber-200">
-                    <div class="flex items-center justify-between text-amber-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Tiền Mặt (Cash)</span>
-                        <i data-lucide="banknote" class="w-4 h-4 text-amber-600"></i>
+                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tiền Mặt (Cash)</span>
+                        <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="banknote" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="rep-kpi-cash-revenue" class="text-xl font-black text-amber-800 font-mono">0 đ</div>
-                    <div id="rep-kpi-cash-ratio" class="text-[11px] text-slate-500 mt-1 font-medium">0% (0 đơn)</div>
+                    <div id="rep-kpi-cash-revenue" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                    <div id="rep-kpi-cash-ratio" class="text-[11px] text-slate-400 mt-1 font-medium">0% (0 đơn)</div>
                 </div>
 
                 <!-- 3. Doanh thu chuyển khoản -->
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-blue-200">
-                    <div class="flex items-center justify-between text-blue-800 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Chuyển Khoản (VietQR)</span>
-                        <i data-lucide="qr-code" class="w-4 h-4 text-blue-600"></i>
+                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chuyển Khoản (VietQR)</span>
+                        <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                            <i data-lucide="qr-code" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="rep-kpi-transfer-revenue" class="text-xl font-black text-blue-800 font-mono">0 đ</div>
-                    <div id="rep-kpi-transfer-ratio" class="text-[11px] text-slate-500 mt-1 font-medium">0% (0 đơn)</div>
+                    <div id="rep-kpi-transfer-revenue" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                    <div id="rep-kpi-transfer-ratio" class="text-[11px] text-slate-400 mt-1 font-medium">0% (0 đơn)</div>
                 </div>
 
                 <!-- 4. Lợi nhuận gộp -->
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex items-center justify-between text-slate-600 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Lợi Nhuận Gộp</span>
-                        <i data-lucide="trending-up" class="w-4 h-4 text-emerald-600"></i>
+                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lợi Nhuận Gộp</span>
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i data-lucide="trending-up" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="rep-kpi-gross-profit" class="text-xl font-black text-emerald-700 font-mono">0 đ</div>
-                    <div id="rep-kpi-profit-margin" class="text-[11px] text-slate-500 mt-1">Tỷ suất: 0%</div>
+                    <div id="rep-kpi-gross-profit" class="text-xl font-semibold text-emerald-700 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                    <div id="rep-kpi-profit-margin" class="text-[11px] text-slate-400 mt-1">Tỷ suất: 0%</div>
                 </div>
 
                 <!-- 5. Giá trị trung bình đơn -->
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <div class="card-clean p-4 rounded-2xl flex flex-col justify-between">
                     <div class="flex items-center justify-between text-slate-500 mb-1">
-                        <span class="text-xs font-bold uppercase tracking-wider">Giá Trị TB / Đơn</span>
-                        <i data-lucide="shopping-bag" class="w-4 h-4 text-slate-400"></i>
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Giá Trị TB / Đơn</span>
+                        <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+                            <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                        </div>
                     </div>
-                    <div id="rep-kpi-avg-order" class="text-xl font-black text-slate-800 font-mono">0 đ</div>
-                    <div class="text-[11px] text-slate-400 mt-1">Trung bình trên mỗi hóa đơn</div>
+                    <div id="rep-kpi-avg-order" class="text-xl font-semibold text-slate-800 tracking-tight tabular-nums font-mono mt-1">0 đ</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Trung bình mỗi hóa đơn</div>
                 </div>
 
             </div>
@@ -1744,6 +1809,11 @@
                                 <i data-lucide="store" class="w-4 h-4 text-emerald-600"></i>
                                 <span>Thông tin cửa hàng</span>
                             </button>
+                            <button type="button" onclick="AuditLogModule.switchSettingsSubTab('theme')" data-settings-nav="theme" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
+                                <i data-lucide="palette" class="w-4 h-4 text-slate-400"></i>
+                                <span class="flex-1 text-left">Màu nền dịu mắt</span>
+                                <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">Bảo vệ mắt</span>
+                            </button>
                             <button type="button" onclick="AuditLogModule.switchSettingsSubTab('users')" data-settings-nav="users" class="settings-nav-item w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition cursor-pointer">
                                 <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
                                 <span>Quản lý người dùng</span>
@@ -1894,6 +1964,91 @@
                                 </div>
                             </div>
 
+                            <!-- Cấu hình Tông Màu Nền Dịu Mắt (Bảo Vệ Thị Lực) -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                            <i data-lucide="palette" class="w-5 h-5"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-extrabold text-slate-800">Tông Màu Giao Diện Dịu Mắt (Chống Chói Lóa)</h3>
+                                            <p class="text-xs text-slate-500">Giảm mỏi mắt, điều tiết nhẹ nhàng khi làm việc liên tục tại quầy thu ngân</p>
+                                        </div>
+                                    </div>
+                                    <button type="button" onclick="AuditLogModule.switchSettingsSubTab('theme')" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 hover:underline cursor-pointer self-start sm:self-auto">
+                                        <span>Xem chi tiết & khoa học thị lực</span>
+                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <!-- 1. Xanh Thảo Dược -->
+                                    <div onclick="App.setTheme('medical-mint')" data-theme-name="medical-mint" class="theme-option-card flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group">
+                                        <div class="flex items-center gap-2.5 min-w-0">
+                                            <div class="w-9 h-9 rounded-lg border border-emerald-400 shadow-inner flex items-center justify-center shrink-0" style="background-color: #b8d9cb;">
+                                                <span class="text-sm">🌿</span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-slate-900 truncate">Xanh Thảo Dược</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">#b8d9cb</div>
+                                            </div>
+                                        </div>
+                                        <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. Xám Bạc -->
+                                    <div onclick="App.setTheme('soft-slate')" data-theme-name="soft-slate" class="theme-option-card flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer group">
+                                        <div class="flex items-center gap-2.5 min-w-0">
+                                            <div class="w-9 h-9 rounded-lg border border-slate-400 shadow-inner flex items-center justify-center shrink-0" style="background-color: #dbe3eb;">
+                                                <span class="text-sm">🌫️</span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-slate-900 truncate">Xám Bạc</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">#dbe3eb</div>
+                                            </div>
+                                        </div>
+                                        <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+
+                                    <!-- 3. Giấy Ấm -->
+                                    <div onclick="App.setTheme('warm-paper')" data-theme-name="warm-paper" class="theme-option-card flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/20 transition cursor-pointer group">
+                                        <div class="flex items-center gap-2.5 min-w-0">
+                                            <div class="w-9 h-9 rounded-lg border border-amber-300 shadow-inner flex items-center justify-center shrink-0" style="background-color: #eae5d7;">
+                                                <span class="text-sm">📜</span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-slate-900 truncate">Giấy Ấm</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">#eae5d7</div>
+                                            </div>
+                                        </div>
+                                        <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+
+                                    <!-- 4. Trắng Sáng -->
+                                    <div onclick="App.setTheme('pure-white')" data-theme-name="pure-white" class="theme-option-card flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer group">
+                                        <div class="flex items-center gap-2.5 min-w-0">
+                                            <div class="w-9 h-9 rounded-lg border border-slate-200 shadow-inner flex items-center justify-center shrink-0" style="background-color: #f8fafc;">
+                                                <span class="text-sm">⚪</span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-bold text-slate-900 truncate">Trắng Sáng</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">#f8fafc</div>
+                                            </div>
+                                        </div>
+                                        <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="flex justify-end">
                                 <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer">
                                     <i data-lucide="check" class="w-4 h-4"></i>
@@ -1901,6 +2056,159 @@
                                 </button>
                             </div>
                         </form>
+                    </div>
+
+                    <!-- PANEL: CẤU HÌNH MÀU NỀN DỊU MẮT & BẢO VỆ THỊ LỰC (THEME) -->
+                    <div id="settings-panel-theme" class="settings-subpanel hidden space-y-6">
+                        <div class="bg-white p-6 sm:p-7 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                            <!-- Header -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 shadow-xs">
+                                        <i data-lucide="palette" class="w-6 h-6"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <h3 class="text-base sm:text-lg font-black text-slate-900">Cấu Hình Màu Nền Dịu Mắt (Eye-Comfort Themes)</h3>
+                                            <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-full">Bảo vệ thị lực</span>
+                                        </div>
+                                        <p class="text-xs text-slate-500 mt-0.5">Tùy biến bảng màu toàn hệ thống để chống chói lóa, giảm căng thẳng thị giác khi trực quầy bán thuốc liên tục</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <span class="text-xs text-slate-600 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                                        <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i>
+                                        <span>Tự động lưu & áp dụng tức thì</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- 4 Theme Cards Grid -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- 1. Xanh Thảo Dược (Medical Mint) -->
+                                <div onclick="App.setTheme('medical-mint')" data-theme-name="medical-mint" class="theme-option-card flex flex-col justify-between p-5 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 hover:shadow-md transition cursor-pointer group bg-white">
+                                    <div class="space-y-3">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-12 h-12 rounded-xl border-2 border-emerald-400 shadow-inner flex items-center justify-center text-xl shrink-0" style="background-color: #b8d9cb;">
+                                                    🌿
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition">Xanh Thảo Dược (Medical Mint)</h4>
+                                                    <span class="text-[11px] font-mono text-emerald-800 font-semibold">Mã màu: #b8d9cb</span>
+                                                </div>
+                                            </div>
+                                            <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                                <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-slate-600 leading-relaxed">
+                                            Sắc xanh thảo mộc tự nhiên rõ nét, tươi mát và êm dịu. Triệt tiêu ánh sáng chói lóa từ màn hình LED trắng, tạo cảm giác thân thiện y tế và thư thái khi kiểm kê, bán thuốc.
+                                        </p>
+                                    </div>
+                                    <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                        <span class="text-slate-500">Mức độ dịu mắt: <strong class="text-emerald-700 font-bold">Rất cao (9.8/10)</strong></span>
+                                        <span class="theme-active-badge hidden px-2 py-0.5 bg-emerald-600 text-white rounded-md font-bold text-[10px]">Đang áp dụng</span>
+                                    </div>
+                                </div>
+
+                                <!-- 2. Xám Bạc Dịu Mắt (Soft Slate) -->
+                                <div onclick="App.setTheme('soft-slate')" data-theme-name="soft-slate" class="theme-option-card flex flex-col justify-between p-5 rounded-2xl border-2 border-slate-200 hover:border-slate-400 hover:shadow-md transition cursor-pointer group bg-white">
+                                    <div class="space-y-3">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-12 h-12 rounded-xl border-2 border-slate-400 shadow-inner flex items-center justify-center text-xl shrink-0" style="background-color: #dbe3eb;">
+                                                    🌫️
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-sm font-black text-slate-900 group-hover:text-slate-800 transition">Xám Bạc Dịu Mắt (Soft Slate)</h4>
+                                                    <span class="text-[11px] font-mono text-slate-700 font-semibold">Mã màu: #dbe3eb</span>
+                                                </div>
+                                            </div>
+                                            <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                                <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-slate-600 leading-relaxed">
+                                            Tông xám trung tính thanh lịch, khử hoàn toàn độ chói lóa. Giữ chữ đen và số tiền tương phản sắc nét, chống mệt mỏi thị giác khi đối soát sổ sách và chứng từ.
+                                        </p>
+                                    </div>
+                                    <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                        <span class="text-slate-500">Mức độ dịu mắt: <strong class="text-slate-700 font-bold">Cao (9.2/10)</strong></span>
+                                        <span class="theme-active-badge hidden px-2 py-0.5 bg-emerald-600 text-white rounded-md font-bold text-[10px]">Đang áp dụng</span>
+                                    </div>
+                                </div>
+
+                                <!-- 3. Giấy Ấm Chống Mỏi (Warm Paper) -->
+                                <div onclick="App.setTheme('warm-paper')" data-theme-name="warm-paper" class="theme-option-card flex flex-col justify-between p-5 rounded-2xl border-2 border-slate-200 hover:border-amber-400 hover:shadow-md transition cursor-pointer group bg-white">
+                                    <div class="space-y-3">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-12 h-12 rounded-xl border-2 border-amber-300 shadow-inner flex items-center justify-center text-xl shrink-0" style="background-color: #eae5d7;">
+                                                    📜
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-sm font-black text-slate-900 group-hover:text-amber-800 transition">Giấy Ấm Chống Mỏi (Warm Paper)</h4>
+                                                    <span class="text-[11px] font-mono text-amber-800 font-semibold">Mã màu: #eae5d7</span>
+                                                </div>
+                                            </div>
+                                            <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                                <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-slate-600 leading-relaxed">
+                                            Ngả vàng ngà tự nhiên mô phỏng trang sách giấy. Khử ánh sáng xanh triệt để, đặc biệt lý tưởng khi nhân viên trực ca đêm hoặc làm việc trong môi trường ánh sáng đèn vàng.
+                                        </p>
+                                    </div>
+                                    <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                        <span class="text-slate-500">Mức độ dịu mắt: <strong class="text-amber-700 font-bold">Tối ưu ca đêm (9.5/10)</strong></span>
+                                        <span class="theme-active-badge hidden px-2 py-0.5 bg-emerald-600 text-white rounded-md font-bold text-[10px]">Đang áp dụng</span>
+                                    </div>
+                                </div>
+
+                                <!-- 4. Trắng Sáng Truyền Thống (Clean White) -->
+                                <div onclick="App.setTheme('pure-white')" data-theme-name="pure-white" class="theme-option-card flex flex-col justify-between p-5 rounded-2xl border-2 border-slate-200 hover:border-slate-300 hover:shadow-md transition cursor-pointer group bg-white">
+                                    <div class="space-y-3">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-12 h-12 rounded-xl border-2 border-slate-300 shadow-inner flex items-center justify-center text-xl shrink-0" style="background-color: #f8fafc;">
+                                                    ⚪
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-sm font-black text-slate-900 group-hover:text-slate-800 transition">Trắng Sáng Truyền Thống (Clean White)</h4>
+                                                    <span class="text-[11px] font-mono text-slate-600 font-semibold">Mã màu: #f8fafc</span>
+                                                </div>
+                                            </div>
+                                            <div class="theme-check-icon hidden text-emerald-600 shrink-0">
+                                                <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-slate-600 leading-relaxed">
+                                            Tông màu nền trắng sáng chuẩn mực giao diện web phẳng. Mang lại cảm giác sạch sẽ, độ tương phản kinh điển.
+                                        </p>
+                                    </div>
+                                    <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                        <span class="text-slate-500">Mức độ dịu mắt: <strong class="text-slate-600 font-bold">Chuẩn mực (7.5/10)</strong></span>
+                                        <span class="theme-active-badge hidden px-2 py-0.5 bg-emerald-600 text-white rounded-md font-bold text-[10px]">Đang áp dụng</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Khung Hướng Dẫn & Ghi chú Quang học Y Tế -->
+                            <div class="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                        <i data-lucide="shield-check" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-xs font-bold text-emerald-950">Khuyên Dùng Cho Nhà Thuốc GPP MedicaPharmacy</h4>
+                                        <p class="text-[11px] text-emerald-800/90 mt-0.5 leading-relaxed">
+                                            Hệ thống tự động đồng bộ tông màu trên thiết bị hiện tại mà không làm thay đổi hiển thị trên các máy tính hoặc máy tính bảng khác. Khuyên dùng tông màu <strong>Xanh Thảo Dược</strong> để đạt hiệu quả bảo vệ mắt tối ưu nhất.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- PANEL 2: LỊCH SỬ THAO TÁC (KIOTVIET STYLE - ĐÚNG NHƯ ẢNH ĐÍNH KÈM) -->
@@ -1926,7 +2234,7 @@
                                     <i data-lucide="filter" class="w-4 h-4 text-slate-500"></i>
                                     <span>Lọc</span>
                                 </button>
-                                <button id="audit-export-excel-btn" type="button" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                                <button id="audit-export-excel-btn" type="button" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer">
                                     <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
                                     <span>Xuất file</span>
                                 </button>
@@ -1937,19 +2245,19 @@
                         </div>
 
                         <!-- Thanh Bộ Lọc Thông Minh (Filter Bar) -->
-                        <div id="audit-filter-bar" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <div id="audit-filter-bar" class="card-clean p-4 rounded-2xl space-y-3">
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                                 <div>
-                                    <label class="block font-bold text-slate-600 mb-1">Tìm kiếm nội dung</label>
+                                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Tìm kiếm nội dung</label>
                                     <div class="relative">
-                                        <input id="audit-search-keyword" type="text" placeholder="Tìm theo mã đơn, nhân viên, chi tiết..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium" />
+                                        <input id="audit-search-keyword" type="text" placeholder="Tìm theo mã đơn, nhân viên, chi tiết..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 font-normal" />
                                         <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label class="block font-bold text-slate-600 mb-1">Tính năng</label>
-                                    <select id="audit-filter-feature" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Tính năng</label>
+                                    <select id="audit-filter-feature" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-normal text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
                                         <option value="all">Tất cả tính năng</option>
                                         <option value="Hóa đơn">Hóa đơn</option>
                                         <option value="Phiếu thu">Phiếu thu</option>
@@ -1963,8 +2271,8 @@
                                 </div>
 
                                 <div>
-                                    <label class="block font-bold text-slate-600 mb-1">Nhân viên</label>
-                                    <select id="audit-filter-staff" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Nhân viên</label>
+                                    <select id="audit-filter-staff" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-normal text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
                                         <option value="all">Tất cả nhân viên</option>
                                         <option value="ADMIN">ADMIN</option>
                                         <option value="DS. Nguyễn Thanh Dung">DS. Nguyễn Thanh Dung</option>
@@ -1972,8 +2280,8 @@
                                 </div>
 
                                 <div>
-                                    <label class="block font-bold text-slate-600 mb-1">Thời gian</label>
-                                    <select id="audit-filter-time" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Thời gian</label>
+                                    <select id="audit-filter-time" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-normal text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer">
                                         <option value="all" selected>Tất cả thời gian</option>
                                         <option value="today">Hôm nay (08/11/2026)</option>
                                         <option value="yesterday">Hôm qua</option>
@@ -1987,13 +2295,13 @@
                         <!-- Bảng Danh Sách Lịch Sử Thao Tác (Giao diện giống hệt KiotViet) -->
                         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                             <div class="overflow-x-auto">
-                                <table class="w-full text-left border-collapse text-xs">
-                                    <thead class="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
+                                <table class="w-full text-left border-collapse">
+                                    <thead class="bg-slate-100/70 border-b border-slate-200">
                                         <tr>
-                                            <th class="py-3 px-4 w-36">Nhân viên</th>
-                                            <th class="py-3 px-4 w-44">Tính năng</th>
-                                            <th class="py-3 px-4 w-44 font-mono">Thời gian</th>
-                                            <th class="py-3 px-4">Chi tiết</th>
+                                            <th class="py-2.5 px-4 w-40">Nhân viên</th>
+                                            <th class="py-2.5 px-4 w-44">Tính năng</th>
+                                            <th class="py-2.5 px-4 w-44">Thời gian</th>
+                                            <th class="py-2.5 px-4">Chi tiết thao tác</th>
                                         </tr>
                                     </thead>
                                     <tbody id="audit-log-tbody" class="divide-y divide-slate-100">
@@ -2696,6 +3004,8 @@
             </div>
         </div>
     </div>
+
+
 
     <!-- ========================================== -->
     <!-- MODAL 5: KẾT NỐI ĐIỆN THOẠI / IPAD -->
@@ -3538,41 +3848,47 @@
             <!-- Header Modal -->
             <div class="flex items-start justify-between pb-3 border-b border-slate-100 shrink-0">
                 <div class="flex items-center gap-3">
-                    <div class="p-2.5 bg-blue-50 text-blue-700 rounded-2xl">
-                        <i data-lucide="history" class="w-6 h-6"></i>
+                    <div class="p-2 bg-slate-100 text-slate-600 rounded-xl">
+                        <i data-lucide="history" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h3 id="med-history-name" class="font-black text-base text-slate-900">Tên thuốc</h3>
-                        <p id="med-history-sub" class="text-xs text-slate-500 mt-0.5">Thông tin thuốc & quy cách</p>
+                        <h3 id="med-history-name" class="font-semibold text-base text-slate-800">Tên thuốc</h3>
+                        <p id="med-history-sub" class="text-xs text-slate-400 mt-0.5">Thông tin thuốc & quy cách</p>
                     </div>
                 </div>
-                <button onclick="InventoryModule.closeMedicineHistoryModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
+                <button onclick="InventoryModule.closeMedicineHistoryModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
-            <!-- Thống kê tổng hợp số lượng Nhập / Bán / Tồn hiện tại -->
+            <!-- Thống kê tổng hợp số lượng Nhập / Bán / Tồn hiện tại (Clean Minimal SaaS) -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4 shrink-0">
-                <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between">
+                <div class="card-clean p-3 rounded-xl flex items-center justify-between">
                     <div>
-                        <span class="text-[11px] font-bold text-slate-500 uppercase block">Tồn Kho Hiện Tại</span>
-                        <div id="med-history-current-stock" class="text-sm font-extrabold text-slate-900 font-mono mt-0.5">0</div>
+                        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Tồn Kho Hiện Tại</span>
+                        <div id="med-history-current-stock" class="text-sm font-semibold text-slate-800 font-mono mt-0.5 tabular-nums">0</div>
                     </div>
-                    <i data-lucide="boxes" class="w-5 h-5 text-slate-400"></i>
+                    <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
+                        <i data-lucide="boxes" class="w-4 h-4"></i>
+                    </div>
                 </div>
-                <div class="bg-emerald-50/70 border border-emerald-200 p-3 rounded-xl flex items-center justify-between">
+                <div class="card-clean p-3 rounded-xl flex items-center justify-between bg-emerald-50/40 border-emerald-100">
                     <div>
-                        <span class="text-[11px] font-bold text-emerald-700 uppercase block">Tổng Lượng Đã Nhập</span>
-                        <div id="med-history-stat-imported" class="text-sm font-black text-emerald-800 font-mono mt-0.5">0</div>
+                        <span class="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">Tổng Lượng Đã Nhập</span>
+                        <div id="med-history-stat-imported" class="text-sm font-semibold text-emerald-800 font-mono mt-0.5 tabular-nums">0</div>
                     </div>
-                    <i data-lucide="truck" class="w-5 h-5 text-emerald-600"></i>
+                    <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <i data-lucide="truck" class="w-4 h-4"></i>
+                    </div>
                 </div>
-                <div class="bg-blue-50/70 border border-blue-200 p-3 rounded-xl flex items-center justify-between">
+                <div class="card-clean p-3 rounded-xl flex items-center justify-between bg-sky-50/40 border-sky-100">
                     <div>
-                        <span class="text-[11px] font-bold text-blue-700 uppercase block">Tổng Lượng Đã Bán</span>
-                        <div id="med-history-stat-sold" class="text-sm font-black text-blue-800 font-mono mt-0.5">0</div>
+                        <span class="text-[11px] font-semibold text-sky-700 uppercase tracking-wider block">Tổng Lượng Đã Bán</span>
+                        <div id="med-history-stat-sold" class="text-sm font-semibold text-sky-800 font-mono mt-0.5 tabular-nums">0</div>
                     </div>
-                    <i data-lucide="shopping-cart" class="w-5 h-5 text-blue-600"></i>
+                    <div class="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                        <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                    </div>
                 </div>
             </div>
 
@@ -3591,16 +3907,16 @@
             <!-- Content View 1: Bảng Lịch sử Nhập -->
             <div id="med-history-view-stockin" class="flex-1 overflow-y-auto overflow-x-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <thead class="bg-slate-100/70 border-b border-slate-200">
                         <tr>
                             <th class="py-2.5 px-2.5 text-center w-10">#</th>
-                            <th class="py-2.5 px-2.5 w-32">Mã Phiếu (Bấm xem)</th>
-                            <th class="py-2.5 px-2.5 w-32">Thời Gian</th>
-                            <th class="py-2.5 px-2.5">Nhà Cung Cấp</th>
+                            <th class="py-2.5 px-2.5 w-32">Mã phiếu</th>
+                            <th class="py-2.5 px-2.5 w-36">Thời gian</th>
+                            <th class="py-2.5 px-2.5">Nhà cung cấp</th>
                             <th class="py-2.5 px-2.5 w-36">Lô & HSD</th>
-                            <th class="py-2.5 px-2.5 text-center w-24">Số Lượng</th>
-                            <th class="py-2.5 px-2.5 text-right w-24">Giá Nhập</th>
-                            <th class="py-2.5 px-2.5 text-right w-28">Thành Tiền</th>
+                            <th class="py-2.5 px-2.5 text-center w-24">Số lượng</th>
+                            <th class="py-2.5 px-2.5 text-right w-28">Giá nhập</th>
+                            <th class="py-2.5 px-2.5 text-right w-32">Thành tiền</th>
                         </tr>
                     </thead>
                     <tbody id="med-history-stockin-tbody" class="divide-y divide-slate-100">
@@ -3612,16 +3928,16 @@
             <!-- Content View 2: Bảng Lịch sử Bán (mặc định ẩn) -->
             <div id="med-history-view-sales" class="hidden flex-1 overflow-y-auto overflow-x-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <thead class="bg-slate-100/70 border-b border-slate-200">
                         <tr>
                             <th class="py-2.5 px-2.5 text-center w-10">#</th>
-                            <th class="py-2.5 px-2.5 w-32">Mã Đơn (Bấm xem)</th>
-                            <th class="py-2.5 px-2.5 w-32">Thời Gian</th>
-                            <th class="py-2.5 px-2.5">Khách Hàng</th>
-                            <th class="py-2.5 px-2.5 text-center w-28">Số Lượng Bán</th>
-                            <th class="py-2.5 px-2.5 text-right w-24">Giá Bán</th>
-                            <th class="py-2.5 px-2.5 text-right w-28">Thành Tiền</th>
-                            <th class="py-2.5 px-2.5 text-center w-24">Trạng Thái</th>
+                            <th class="py-2.5 px-2.5 w-32">Mã đơn</th>
+                            <th class="py-2.5 px-2.5 w-36">Thời gian</th>
+                            <th class="py-2.5 px-2.5">Khách hàng</th>
+                            <th class="py-2.5 px-2.5 text-center w-28">Số lượng bán</th>
+                            <th class="py-2.5 px-2.5 text-right w-28">Giá bán</th>
+                            <th class="py-2.5 px-2.5 text-right w-32">Thành tiền</th>
+                            <th class="py-2.5 px-2.5 text-center w-24">Trạng thái</th>
                         </tr>
                     </thead>
                     <tbody id="med-history-sales-tbody" class="divide-y divide-slate-100">
@@ -3633,13 +3949,13 @@
             <!-- Footer Modal -->
             <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-3">
-                    <button type="button" id="btn-med-history-jump-inventory" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                    <button type="button" id="btn-med-history-jump-inventory" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="boxes" class="w-4 h-4"></i>
                         <span>Mở Trong Kho Thuốc</span>
                     </button>
-                    <span class="text-[11px] text-slate-500 hidden sm:inline">💡 Bấm trực tiếp vào <b>Mã Phiếu</b> hoặc <b>Mã Đơn</b> để xem chi tiết.</span>
+                    <span class="text-[11px] text-slate-400 hidden sm:inline">💡 Bấm vào <b>Mã Phiếu</b> hoặc <b>Mã Đơn</b> để xem chi tiết.</span>
                 </div>
-                <button onclick="InventoryModule.closeMedicineHistoryModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
+                <button onclick="InventoryModule.closeMedicineHistoryModal()" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-xl transition cursor-pointer">
                     Đóng
                 </button>
             </div>
@@ -3937,8 +4253,8 @@
         <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[95vh] flex flex-col">
             <!-- Modal Header -->
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-                <div class="flex items-center gap-2.5 text-rose-700">
-                    <div class="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <div class="flex items-center gap-2.5 text-teal-800">
+                    <div class="p-2 bg-teal-50 text-teal-700 rounded-xl">
                         <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
                     </div>
                     <div>
@@ -4068,7 +4384,7 @@
                 <button type="button" onclick="InventoryModule.closeReturnStockInModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
                     Hủy Bỏ / Đóng
                 </button>
-                <button type="button" onclick="InventoryModule.confirmReturnStockIn()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                <button type="button" onclick="InventoryModule.confirmReturnStockIn()" class="px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
                     <i data-lucide="check" class="w-4 h-4"></i>
                     <span>Xác Nhận Xuất Trả Hàng & Nhận Tiền</span>
                 </button>
@@ -4114,8 +4430,8 @@
         <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[95vh] flex flex-col">
             <!-- Modal Header -->
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-                <div class="flex items-center gap-2.5 text-rose-700">
-                    <div class="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <div class="flex items-center gap-2.5 text-teal-800">
+                    <div class="p-2 bg-teal-50 text-teal-700 rounded-xl">
                         <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
                     </div>
                     <div>
@@ -4274,7 +4590,7 @@
                     <div class="text-xs text-slate-500">
                         Tổng cộng: <b id="gen-return-summary-items-count" class="text-slate-800">0</b> mặt hàng
                     </div>
-                    <div class="text-base sm:text-lg font-black text-rose-700 font-mono">
+                    <div class="text-base sm:text-lg font-bold text-slate-900 tabular-nums">
                         Tiền hoàn: <span id="gen-return-summary-total-amount">0 đ</span>
                     </div>
                 </div>
@@ -4283,7 +4599,7 @@
                     <button type="button" onclick="InventoryModule.closeGeneralPurchaseReturnModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
                         Hủy Bỏ
                     </button>
-                    <button type="button" onclick="InventoryModule.confirmGeneralPurchaseReturn()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                    <button type="button" onclick="InventoryModule.confirmGeneralPurchaseReturn()" class="px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="check" class="w-4 h-4"></i>
                         <span>Xác Nhận Xuất Trả Hàng & Nhận Tiền</span>
                     </button>
@@ -4299,7 +4615,7 @@
         <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[92vh] flex flex-col">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
                 <div class="flex items-center gap-2.5">
-                    <div class="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                    <div class="p-2 bg-teal-50 text-teal-700 rounded-xl">
                         <i data-lucide="file-text" class="w-5 h-5"></i>
                     </div>
                     <div>
@@ -4327,7 +4643,7 @@
                     <i data-lucide="edit-3" class="w-4 h-4"></i>
                     <span>Chỉnh Sửa</span>
                 </button>
-                <button type="button" id="btn-print-from-return-detail" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                <button type="button" id="btn-print-from-return-detail" class="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
                     <i data-lucide="printer" class="w-4 h-4"></i>
                     <span>In Phiếu Trả Hàng</span>
                 </button>
@@ -4670,19 +4986,19 @@
     <script src="vendor/JsBarcode.all.min.js"></script>
     <script src="js/vietqr.js?v=20261107_v3"></script>
     <script src="js/sample-data.js?v=20261107_v3"></script>
-    <script src="js/store.js?v=20261108_v5"></script>
-    <script src="js/auth.js?v=20261108_v6"></script>
-    <script src="js/export-excel.js?v=20261109_v1"></script>
-    <script src="js/barcode-printer.js?v=20261108_v3"></script>
-    <script src="js/searchable-select.js?v=20261108_v3"></script>
-    <script src="js/vouchers.js?v=20261109_v1"></script>
-    <script src="js/inventory.js?v=20261108_v3"></script>
-    <script src="js/pos.js?v=20261108_v3"></script>
-    <script src="js/orders.js?v=20261109_v1"></script>
-    <script src="js/customers.js?v=20261108_v3"></script>
-    <script src="js/reports.js?v=20261109_v2"></script>
-    <script src="js/audit-log.js?v=20261108_v5"></script>
-    <script src="js/app.js?v=20261108_v5"></script>
+    <script src="js/store.js?v=20261109_v10"></script>
+    <script src="js/auth.js?v=20261109_v10"></script>
+    <script src="js/export-excel.js?v=20261109_v10"></script>
+    <script src="js/barcode-printer.js?v=20261109_v10"></script>
+    <script src="js/searchable-select.js?v=20261109_v10"></script>
+    <script src="js/vouchers.js?v=20261109_v10"></script>
+    <script src="js/inventory.js?v=20261109_v10"></script>
+    <script src="js/pos.js?v=20261109_v10"></script>
+    <script src="js/orders.js?v=20261109_v10"></script>
+    <script src="js/customers.js?v=20261109_v10"></script>
+    <script src="js/reports.js?v=20261109_v10"></script>
+    <script src="js/audit-log.js?v=20261109_v11"></script>
+    <script src="js/app.js?v=20261109_v11"></script>
 
     <!-- Đồng hồ thời gian thực ở Header -->
     <script>

@@ -429,56 +429,54 @@ const InventoryModule = {
             const stockStatus = AppUtils.checkStockStatus(m);
             const expiryStatus = AppUtils.checkExpiryStatus(m.expiryDate);
 
-            // Badge trạng thái tồn kho
+            // Badge trạng thái tồn kho (Soft Pastel)
             let stockBadge = '';
             if (stockStatus.status === 'out_of_stock') {
-                stockBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800">Hết hàng</span>';
+                stockBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200/60">Hết hàng</span>';
             } else if (stockStatus.status === 'low_stock') {
-                stockBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Sắp hết</span>';
+                stockBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60">Sắp hết</span>';
             } else {
-                stockBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">Còn hàng</span>';
+                stockBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">Còn hàng</span>';
             }
 
-            // Badge hạn sử dụng
+            // Badge hạn sử dụng (Soft Pastel)
             let expiryBadge = '';
             if (expiryStatus.status === 'expired') {
-                expiryBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-rose-200 text-rose-900 animate-pulse">Hết hạn: ${AppUtils.formatDate(m.expiryDate)}</span>`;
+                expiryBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/70 animate-pulse">Hết hạn: ${AppUtils.formatDate(m.expiryDate)}</span>`;
             } else if (expiryStatus.status === 'warning') {
-                expiryBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-200 text-amber-900">${AppUtils.formatDate(m.expiryDate)} (${expiryStatus.daysLeft} ngày)</span>`;
+                expiryBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60">${AppUtils.formatDate(m.expiryDate)} (${expiryStatus.daysLeft} ngày)</span>`;
             } else {
-                expiryBadge = `<span class="text-xs text-slate-600">${AppUtils.formatDate(m.expiryDate)}</span>`;
+                expiryBadge = `<span class="text-xs text-slate-500 font-mono">${AppUtils.formatDate(m.expiryDate)}</span>`;
             }
 
             const costPriceCell = canViewCost ? `
-                <td class="py-3 px-3">
-                    <div class="text-xs text-slate-600 font-medium">${AppUtils.formatVND(m.costPrice)} /${m.packUnit || 'Hộp'}</div>
+                <td class="py-3.5 px-3">
+                    <div class="text-[13px] text-slate-900 font-semibold tabular-nums">${AppUtils.formatVND(m.costPrice)} <span class="text-xs font-normal text-slate-700">/${m.packUnit || 'Hộp'}</span></div>
                 </td>
             ` : '';
 
             const actionButtons = canEdit ? `
-                <div class="flex items-center justify-center gap-1.5">
-                    <button onclick="BarcodePrinterModule.openForMedicine('${m.id}')" title="In tem mã vạch dán hộp" class="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition cursor-pointer">
+                <div class="flex items-center justify-center gap-1">
+                    <button onclick="BarcodePrinterModule.openForMedicine('${m.id}')" title="In tem mã vạch" class="p-1.5 text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition ghost-btn cursor-pointer">
                         <i data-lucide="scan" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử nhập kho và bán thuốc" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition cursor-pointer">
+                    <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử nhập kho và bán thuốc" class="p-1.5 text-slate-700 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition ghost-btn cursor-pointer">
                         <i data-lucide="history" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="InventoryModule.openEditModal('${m.id}')" title="Sửa thông tin thuốc" class="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition cursor-pointer">
+                    <button onclick="InventoryModule.openEditModal('${m.id}')" title="Sửa thông tin thuốc" class="p-1.5 text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition ghost-btn cursor-pointer">
                         <i data-lucide="edit-3" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="InventoryModule.deleteMedicine('${m.id}')" title="Xóa thuốc" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer">
+                    <button onclick="InventoryModule.deleteMedicine('${m.id}')" title="Xóa thuốc" class="p-1.5 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition ghost-btn cursor-pointer">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </div>
             ` : `
-                <div class="flex items-center justify-center gap-1.5">
-                    <button onclick="BarcodePrinterModule.openForMedicine('${m.id}')" title="In tem mã vạch dán hộp" class="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition cursor-pointer flex items-center gap-1">
-                        <i data-lucide="scan" class="w-3.5 h-3.5"></i>
-                        <span>In Tem</span>
+                <div class="flex items-center justify-center gap-1">
+                    <button onclick="BarcodePrinterModule.openForMedicine('${m.id}')" title="In tem mã vạch" class="p-1.5 text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition ghost-btn cursor-pointer">
+                        <i data-lucide="scan" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử bán thuốc" class="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition cursor-pointer flex items-center gap-1">
-                        <i data-lucide="history" class="w-3.5 h-3.5"></i>
-                        <span>Lịch sử</span>
+                    <button onclick="InventoryModule.openMedicineHistoryModal('${m.id}')" title="Xem lịch sử bán thuốc" class="p-1.5 text-slate-700 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition ghost-btn cursor-pointer">
+                        <i data-lucide="history" class="w-4 h-4"></i>
                     </button>
                 </div>
             `;
@@ -486,35 +484,31 @@ const InventoryModule = {
             const nameClickAction = canEdit ? `onclick="InventoryModule.openEditModal('${m.id}')"` : `onclick="InventoryModule.openMedicineHistoryModal('${m.id}')"`;
 
             html += `
-                <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-sm">
-                    <td class="py-3 px-3 whitespace-nowrap">
-                        <span class="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block hover:bg-emerald-100 transition cursor-pointer" ${nameClickAction} title="Mã thuốc: ${m.id} (nhấn để mở)">${m.id || '---'}</span>
+                <tr class="hover:bg-slate-50/80 transition-colors border-b border-slate-100 text-[13px]">
+                    <td class="py-3.5 px-3 whitespace-nowrap">
+                        <span class="text-[13px] font-medium text-slate-900 hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="Mã thuốc: ${m.id}">${m.id || '---'}</span>
                     </td>
-                    <td class="py-3 px-3">
+                    <td class="py-3.5 px-3">
                         <div>
-                            <span class="font-bold text-slate-800 text-sm hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</span>
+                            <span class="font-semibold text-slate-900 text-[13px] hover:text-emerald-700 cursor-pointer transition-colors" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</span>
                         </div>
-                        <div class="text-xs text-slate-500 line-clamp-1 italic">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${m.category || 'Thuốc chung'}</span>
-                            ${m.barcode ? `<span class="text-[11px] font-mono text-slate-400"><i data-lucide="scan" class="w-3 h-3 inline"></i> ${m.barcode}</span>` : ''}
-                        </div>
+                        <div class="text-xs text-slate-600 line-clamp-1 mt-0.5">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
                     </td>
-                    <td class="py-3 px-3">
-                        <div class="font-semibold text-slate-800">${AppUtils.formatStockUnitsDisplay(m)}</div>
+                    <td class="py-3.5 px-3">
+                        <div class="font-medium text-slate-900 text-[13px] tabular-nums">${AppUtils.formatStockUnitsDisplay(m)}</div>
                         <div class="mt-1">${stockBadge}</div>
                     </td>
-                    <td class="py-3 px-3">
-                        <div class="font-bold text-emerald-700">${AppUtils.formatVND(m.priceBox)} <span class="text-xs font-normal text-slate-500">/${m.packUnit || 'Hộp'}</span></div>
-                        ${m.priceSub > 0 ? `<div class="text-xs text-slate-600">${AppUtils.formatVND(m.priceSub)} /${m.subUnit}</div>` : ''}
-                        <div class="text-[11px] text-slate-400">${AppUtils.formatVND(m.priceBase)} /${m.baseUnit}</div>
+                    <td class="py-3.5 px-3">
+                        <div class="font-semibold text-emerald-800 text-[13px] tabular-nums">${AppUtils.formatVND(m.priceBox)} <span class="text-xs font-normal text-slate-600">/${m.packUnit || 'Hộp'}</span></div>
+                        ${m.priceSub > 0 ? `<div class="text-xs text-slate-700 tabular-nums">${AppUtils.formatVND(m.priceSub)} /${m.subUnit}</div>` : ''}
+                        <div class="text-xs text-slate-600 tabular-nums">${AppUtils.formatVND(m.priceBase)} /${m.baseUnit}</div>
                     </td>
                     ${costPriceCell}
-                    <td class="py-3 px-3">
-                        <div class="font-mono text-xs text-slate-700">${m.batchNo || '---'}</div>
+                    <td class="py-3.5 px-3">
+                        <div class="text-[13px] text-slate-900">${m.batchNo || '---'}</div>
                         <div class="mt-1">${expiryBadge}</div>
                     </td>
-                    <td class="py-3 px-3 text-center">
+                    <td class="py-3.5 px-3 text-center">
                         ${actionButtons}
                     </td>
                 </tr>
@@ -1122,7 +1116,7 @@ const InventoryModule = {
         const activeOrdersClass = ['bg-emerald-600', 'text-white', 'shadow-sm'];
         const inactiveOrdersClass = ['bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border', 'border-slate-200'];
 
-        const activeReturnsClass = ['bg-rose-600', 'text-white', 'shadow-sm'];
+        const activeReturnsClass = ['bg-teal-700', 'text-white', 'shadow-sm'];
         const inactiveReturnsClass = ['bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border', 'border-slate-200'];
 
         if (tab === 'orders') {
@@ -1175,7 +1169,7 @@ const InventoryModule = {
         const btnStockIn = document.getElementById('tab-btn-returns-stockin');
         const btnGeneral = document.getElementById('tab-btn-returns-general');
 
-        if (btnAll) btnAll.className = 'tab-filter-btn' + (type === 'all' ? ' active-rose' : '');
+        if (btnAll) btnAll.className = 'tab-filter-btn' + (type === 'all' ? ' active-teal' : '');
         if (btnStockIn) btnStockIn.className = 'tab-filter-btn' + (type === 'stockin' ? ' active-blue' : '');
         if (btnGeneral) btnGeneral.className = 'tab-filter-btn' + (type === 'general' ? ' active-amber' : '');
 
@@ -1308,39 +1302,39 @@ const InventoryModule = {
 
         html += `
             <button onclick="InventoryModule.goToReturnsPage(1)" ${cur <= 1 ? 'disabled' : ''} 
-                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 cursor-pointer'} transition" 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-700 cursor-pointer'} transition" 
                     title="Về trang đầu">«</button>
             <button onclick="InventoryModule.goToReturnsPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''} 
-                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 cursor-pointer'} transition" 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur <= 1 ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-700 cursor-pointer'} transition" 
                     title="Trang trước">‹</button>
         `;
 
         let startPage = Math.max(1, cur - 2);
         let endPage = Math.min(totalPages, cur + 2);
         if (startPage > 1) {
-            html += `<button onclick="InventoryModule.goToReturnsPage(1)" class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold bg-white text-slate-700 hover:bg-rose-50 cursor-pointer transition">1</button>`;
+            html += `<button onclick="InventoryModule.goToReturnsPage(1)" class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold bg-white text-slate-700 hover:bg-teal-50 cursor-pointer transition">1</button>`;
             if (startPage > 2) html += `<span class="px-1 text-slate-400 text-xs">...</span>`;
         }
 
         for (let p = startPage; p <= endPage; p++) {
             if (p === cur) {
-                html += `<button class="p-1 px-2.5 rounded border border-rose-600 bg-rose-600 text-white text-xs font-bold shadow-xs">${p}</button>`;
+                html += `<button class="p-1 px-2.5 rounded border border-teal-700 bg-teal-700 text-white text-xs font-bold shadow-xs">${p}</button>`;
             } else {
-                html += `<button onclick="InventoryModule.goToReturnsPage(${p})" class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold bg-white text-slate-700 hover:bg-rose-50 cursor-pointer transition">${p}</button>`;
+                html += `<button onclick="InventoryModule.goToReturnsPage(${p})" class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold bg-white text-slate-700 hover:bg-teal-50 cursor-pointer transition">${p}</button>`;
             }
         }
 
         if (endPage < totalPages) {
             if (endPage < totalPages - 1) html += `<span class="px-1 text-slate-400 text-xs">...</span>`;
-            html += `<button onclick="InventoryModule.goToReturnsPage(${totalPages})" class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold bg-white text-slate-700 hover:bg-rose-50 cursor-pointer transition">${totalPages}</button>`;
+            html += `<button onclick="InventoryModule.goToReturnsPage(${totalPages})" class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold bg-white text-slate-700 hover:bg-teal-50 cursor-pointer transition">${totalPages}</button>`;
         }
 
         html += `
             <button onclick="InventoryModule.goToReturnsPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''} 
-                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 cursor-pointer'} transition" 
+                    class="p-1 px-2.5 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-700 cursor-pointer'} transition" 
                     title="Trang kế">›</button>
             <button onclick="InventoryModule.goToReturnsPage(${totalPages})" ${cur >= totalPages ? 'disabled' : ''} 
-                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 cursor-pointer'} transition" 
+                    class="p-1 px-2 rounded border border-slate-200 text-xs font-bold ${cur >= totalPages ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50' : 'bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-700 cursor-pointer'} transition" 
                     title="Đến trang cuối">»</button>
         `;
 
@@ -1392,15 +1386,15 @@ const InventoryModule = {
             const isStockIn = (r.returnType === 'stockin_return' || r.stockInId);
             const typeBadge = isStockIn
                 ? `<button onclick="InventoryModule.openStockInDetailModal('${r.stockInId}')" class="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition cursor-pointer" title="Bấm để xem phiếu nhập gốc ${r.stockInId}"><i data-lucide="package" class="w-3 h-3"></i> Đơn ${r.stockInId}</button>`
-                : `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200"><i data-lucide="layers" class="w-3 h-3"></i> Trả tổng hợp</span>`;
+                : `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200"><i data-lucide="layers" class="w-3 h-3"></i> Trả tổng hợp</span>`;
 
             const itemCount = r.items ? r.items.length : 0;
             const itemsSummary = (r.items || []).map(i => `${i.medicineName} (${i.quantity} ${i.unit})`).join(', ');
 
             html += `
                 <tr class="border-b border-slate-100 hover:bg-slate-50 text-sm">
-                    <td class="py-3 px-3 font-mono font-bold text-rose-700">
-                        <span class="cursor-pointer hover:underline" onclick="InventoryModule.openPurchaseReturnDetailModal('${r.id}')">${r.id}</span>
+                    <td class="py-3 px-3 font-semibold text-slate-900 tabular-nums">
+                        <span class="cursor-pointer hover:text-teal-700 hover:underline" onclick="InventoryModule.openPurchaseReturnDetailModal('${r.id}')">${r.id}</span>
                     </td>
                     <td class="py-3 px-3">${typeBadge}</td>
                     <td class="py-3 px-3 text-slate-600 text-xs">${AppUtils.formatDateTime(r.createdAt)}</td>
@@ -1409,9 +1403,9 @@ const InventoryModule = {
                     <td class="py-3 px-3 text-xs text-slate-600 max-w-xs">
                         <span class="font-bold text-slate-700">${itemCount} loại thuốc:</span>
                         <span class="line-clamp-1 italic text-slate-500" title="${itemsSummary}">${itemsSummary}</span>
-                        ${r.reason ? `<div class="text-[11px] text-rose-700/80 mt-0.5 truncate" title="${r.reason}">Lý do: ${r.reason}</div>` : ''}
+                        ${r.reason ? `<div class="text-[11px] text-slate-500 mt-0.5 truncate" title="${r.reason}">Lý do: ${r.reason}</div>` : ''}
                     </td>
-                    <td class="py-3 px-3 text-right font-black font-mono text-rose-700">
+                    <td class="py-3 px-3 text-right font-semibold text-slate-900 tabular-nums">
                         ${AppUtils.formatVND(r.refundTotal || 0)}
                     </td>
                     <td class="py-3 px-3 text-center">
@@ -1420,7 +1414,7 @@ const InventoryModule = {
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                                 <span>Sửa</span>
                             </button>
-                            <button onclick="InventoryModule.printPurchaseReturn('${r.id}')" title="In phiếu xuất trả hàng" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                            <button onclick="InventoryModule.printPurchaseReturn('${r.id}')" title="In phiếu xuất trả hàng" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="printer" class="w-3.5 h-3.5"></i>
                                 <span>In</span>
                             </button>
@@ -1675,57 +1669,52 @@ const InventoryModule = {
             const isCash = (o.paymentMethod || 'cash') === 'cash';
 
             const methodBadge = isCash 
-                ? '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i data-lucide="banknote" class="w-3 h-3"></i> Tiền mặt</span>'
-                : '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"><i data-lucide="qr-code" class="w-3 h-3"></i> Chuyển khoản</span>';
+                ? '<span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60"><i data-lucide="banknote" class="w-3 h-3 text-amber-600"></i> Tiền mặt</span>'
+                : '<span class="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200/60"><i data-lucide="qr-code" class="w-3 h-3 text-sky-600"></i> Chuyển khoản</span>';
 
             let returnStatusBadge = '';
             if (o.returnStatus === 'fully_returned') {
-                returnStatusBadge = '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Đã trả hết</span>';
+                returnStatusBadge = '<span class="inline-flex items-center gap-1 text-[10px] font-medium text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-md border border-rose-200/60"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Đã trả hết</span>';
             } else if (o.returnStatus === 'partially_returned') {
-                returnStatusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" title="Đã nhận lại ${AppUtils.formatVND(o.totalRefunded || 0)}"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Trả 1 phần</span>`;
+                returnStatusBadge = `<span class="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200/60" title="Đã nhận lại ${AppUtils.formatVND(o.totalRefunded || 0)}"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Trả 1 phần</span>`;
             }
 
             html += `
-                <tr class="border-b border-slate-100 hover:bg-slate-50 text-sm">
-                    <td class="py-3 px-3 font-mono font-bold text-emerald-700">
-                        <span class="cursor-pointer hover:underline" onclick="InventoryModule.openStockInDetailModal('${o.id}')">${o.id}</span>
+                <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-[13px]">
+                    <td class="py-3.5 px-3">
+                        <span class="text-[13px] font-medium text-slate-900 hover:text-emerald-700 hover:underline cursor-pointer" onclick="InventoryModule.openStockInDetailModal('${o.id}')">${o.id}</span>
                         ${returnStatusBadge ? `<div class="mt-0.5">${returnStatusBadge}</div>` : ''}
                     </td>
-                    <td class="py-3 px-3 text-slate-600 text-xs">${AppUtils.formatDateTime(o.createdAt)}</td>
-                    <td class="py-3 px-3">${methodBadge}</td>
-                    <td class="py-3 px-3 font-medium text-slate-800">${o.supplierName || '---'}</td>
-                    <td class="py-3 px-3 text-xs text-slate-600 max-w-xs">
-                        <span class="font-bold text-slate-700">${itemCount} loại thuốc:</span> 
-                        <span class="line-clamp-1 italic text-slate-500" title="${itemsText}">${itemsText}</span>
+                    <td class="py-3.5 px-3 text-slate-800 text-[13px] tabular-nums">${AppUtils.formatDateTime(o.createdAt)}</td>
+                    <td class="py-3.5 px-3">${methodBadge}</td>
+                    <td class="py-3.5 px-3 font-medium text-slate-900 text-[13px]">${o.supplierName || '---'}</td>
+                    <td class="py-3.5 px-3 text-[13px] text-slate-700 max-w-xs">
+                        <span class="font-medium text-slate-900">${itemCount} loại thuốc:</span> 
+                        <span class="line-clamp-1 text-slate-600 mt-0.5" title="${itemsText}">${itemsText}</span>
                     </td>
-                    <td class="py-3 px-3 text-right">
-                        <div class="font-bold text-slate-800">${AppUtils.formatVND(o.totalAmount)}</div>
-                        ${(o.totalRefunded || 0) > 0 ? `<div class="text-[11px] text-rose-600 font-semibold" title="Đã hoàn tiền từ NCC">Hoàn: -${AppUtils.formatVND(o.totalRefunded)}</div>` : ''}
+                    <td class="py-3.5 px-3 text-right">
+                        <div class="font-semibold text-slate-900 text-[13px] tabular-nums">${AppUtils.formatVND(o.totalAmount)}</div>
+                        ${(o.totalRefunded || 0) > 0 ? `<div class="text-xs text-rose-600 font-medium tabular-nums" title="Đã hoàn tiền từ NCC">Hoàn: -${AppUtils.formatVND(o.totalRefunded)}</div>` : ''}
                     </td>
-                    <td class="py-3 px-3 text-center">
-                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                            <button onclick="BarcodePrinterModule.openForStockInOrder('${o.id}')" title="In tem mã vạch dán hộp (104x22mm)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
-                                <i data-lucide="scan" class="w-3.5 h-3.5"></i>
-                                <span>In Tem</span>
+                    <td class="py-3.5 px-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="BarcodePrinterModule.openForStockInOrder('${o.id}')" title="In tem mã vạch dán hộp" class="p-1.5 text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition ghost-btn cursor-pointer">
+                                <i data-lucide="scan" class="w-4 h-4"></i>
                             </button>
                             ${o.returnStatus === 'fully_returned' ? `
-                                <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Phiếu nhập đã xuất trả toàn bộ hàng cho NCC" class="text-xs bg-slate-100 text-slate-400 border border-slate-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
-                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                                    <span>Đã trả</span>
+                                <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Phiếu nhập đã xuất trả toàn bộ hàng" class="p-1.5 text-slate-300 cursor-not-allowed rounded-lg">
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                                 </button>
                             ` : `
-                                <button onclick="InventoryModule.openReturnStockInModal('${o.id}')" title="Xuất trả thuốc cho nhà cung cấp & nhận hoàn tiền" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
-                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                                    <span>Trả hàng</span>
+                                <button onclick="InventoryModule.openReturnStockInModal('${o.id}')" title="Xuất trả thuốc cho nhà cung cấp" class="p-1.5 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition ghost-btn cursor-pointer">
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                                 </button>
                             `}
-                            <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Xem chi tiết" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
-                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                <span>Chi tiết</span>
+                            <button onclick="InventoryModule.openStockInDetailModal('${o.id}')" title="Xem chi tiết phiếu nhập" class="p-1.5 text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition ghost-btn cursor-pointer">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="InventoryModule.openEditStockInModal('${o.id}')" title="Chỉnh sửa phiếu nhập kho" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
-                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
-                                <span>Sửa</span>
+                            <button onclick="InventoryModule.openEditStockInModal('${o.id}')" title="Chỉnh sửa phiếu nhập kho" class="p-1.5 text-slate-700 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition ghost-btn cursor-pointer">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
                             </button>
                         </div>
                     </td>
@@ -3390,23 +3379,23 @@ const InventoryModule = {
                 stockInHistory.forEach((h, idx) => {
                     const isCash = h.paymentMethod === 'cash';
                     html += `
-                        <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs">
-                            <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
+                        <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-[13px]">
+                            <td class="p-2.5 text-center text-slate-500 text-[13px] tabular-nums">${idx + 1}</td>
                             <td class="p-2.5">
                                 <button type="button" 
                                         onclick="InventoryModule.openStockInDetailModal('${h.orderId}')" 
-                                        class="font-mono font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer transition inline-flex items-center gap-1 group/btn text-left"
+                                        class="font-medium text-slate-900 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1 group/btn text-left text-[13px]"
                                         title="Bấm để xem toàn bộ chi tiết phiếu nhập kho ${h.orderId}">
                                     <span>${h.orderId}</span>
-                                    <i data-lucide="external-link" class="w-3 h-3 opacity-60 group-hover/btn:opacity-100"></i>
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100"></i>
                                 </button>
                             </td>
-                            <td class="p-2.5 text-slate-600">${AppUtils.formatDateTime(h.createdAt)}</td>
-                            <td class="p-2.5 font-medium text-slate-800">${h.supplierName}</td>
-                            <td class="p-2.5 font-mono text-slate-600">${h.batchNo} • HSD: ${AppUtils.formatDate(h.expiryDate)}</td>
-                            <td class="p-2.5 text-center font-bold text-slate-800">${h.quantity} ${h.unit}</td>
-                            <td class="p-2.5 text-right font-medium text-slate-700">${AppUtils.formatVND(h.costPrice)}</td>
-                            <td class="p-2.5 text-right font-bold text-emerald-700 font-mono">${AppUtils.formatVND(h.totalAmount)}</td>
+                            <td class="p-2.5 text-slate-800 text-[13px] tabular-nums">${AppUtils.formatDateTime(h.createdAt)}</td>
+                            <td class="p-2.5 font-medium text-slate-900 text-[13px]">${h.supplierName}</td>
+                            <td class="p-2.5 text-slate-700 text-xs">${h.batchNo} • HSD: ${AppUtils.formatDate(h.expiryDate)}</td>
+                            <td class="p-2.5 text-center font-medium text-slate-900 text-[13px] tabular-nums">${h.quantity} ${h.unit}</td>
+                            <td class="p-2.5 text-right font-normal text-slate-800 text-[13px] tabular-nums">${AppUtils.formatVND(h.costPrice)}</td>
+                            <td class="p-2.5 text-right font-semibold text-emerald-800 text-[13px] tabular-nums">${AppUtils.formatVND(h.totalAmount)}</td>
                         </tr>
                     `;
                 });
@@ -3423,31 +3412,31 @@ const InventoryModule = {
                 let html = '';
                 salesHistory.forEach((s, idx) => {
                     let statusBadge = '';
-                    if (s.isCancelled) statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">ĐÃ HỦY</span>';
-                    else if (s.returnStatus === 'fully_returned') statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">ĐÃ TRẢ HẾT</span>';
-                    else if (s.returnStatus === 'partially_returned') statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">TRẢ 1 PHẦN</span>';
-                    else statusBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Hoàn tất</span>';
+                    if (s.isCancelled) statusBadge = '<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500">ĐÃ HỦY</span>';
+                    else if (s.returnStatus === 'fully_returned') statusBadge = '<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60">ĐÃ TRẢ HẾT</span>';
+                    else if (s.returnStatus === 'partially_returned') statusBadge = '<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/60">TRẢ 1 PHẦN</span>';
+                    else statusBadge = '<span class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">Hoàn tất</span>';
 
                     html += `
-                        <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs ${s.isCancelled ? 'opacity-50 line-through' : ''}">
-                            <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
+                        <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-[13px] ${s.isCancelled ? 'opacity-50 line-through' : ''}">
+                            <td class="p-2.5 text-center text-slate-500 text-[13px] tabular-nums">${idx + 1}</td>
                             <td class="p-2.5">
                                 <button type="button" 
                                         onclick="OrdersModule.openOrderDetails('${s.orderId}')" 
-                                        class="font-mono font-bold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1 group/btn text-left"
+                                        class="font-medium text-slate-900 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1 group/btn text-left text-[13px]"
                                         title="Bấm để xem toàn bộ chi tiết hóa đơn ${s.orderId}">
                                     <span>${s.orderId}</span>
-                                    <i data-lucide="external-link" class="w-3 h-3 opacity-60 group-hover/btn:opacity-100"></i>
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-60 group-hover/btn:opacity-100"></i>
                                 </button>
                             </td>
-                            <td class="p-2.5 text-slate-600">${AppUtils.formatDateTime(s.createdAt)}</td>
-                            <td class="p-2.5 font-medium text-slate-800">${s.customerName}</td>
-                            <td class="p-2.5 text-center font-bold text-slate-800">
+                            <td class="p-2.5 text-slate-800 text-[13px] tabular-nums">${AppUtils.formatDateTime(s.createdAt)}</td>
+                            <td class="p-2.5 font-medium text-slate-900 text-[13px]">${s.customerName}</td>
+                            <td class="p-2.5 text-center font-medium text-slate-900 text-[13px] tabular-nums">
                                 ${s.quantity} ${s.unit}
-                                ${s.returnedQuantity > 0 ? `<div class="text-[10px] text-rose-600 font-bold">(Đã trả: ${s.returnedQuantity})</div>` : ''}
+                                ${s.returnedQuantity > 0 ? `<div class="text-xs text-rose-600 font-medium">(Đã trả: ${s.returnedQuantity})</div>` : ''}
                             </td>
-                            <td class="p-2.5 text-right font-medium text-slate-700">${AppUtils.formatVND(s.price)}</td>
-                            <td class="p-2.5 text-right font-bold text-slate-900 font-mono">${AppUtils.formatVND(s.totalAmount)}</td>
+                            <td class="p-2.5 text-right font-normal text-slate-800 text-[13px] tabular-nums">${AppUtils.formatVND(s.price)}</td>
+                            <td class="p-2.5 text-right font-semibold text-slate-900 text-[13px] tabular-nums">${AppUtils.formatVND(s.totalAmount)}</td>
                             <td class="p-2.5 text-center">${statusBadge}</td>
                         </tr>
                     `;

@@ -9,6 +9,9 @@ const App = {
     init() {
         console.log('🚀 Khởi động MedicaPharmacy...');
         
+        // Khởi tạo tông màu nền dịu mắt (Mặc định: Medical Mint)
+        this.initTheme();
+
         // Khởi tạo hệ thống Phân Quyền Admin & Staff
         if (window.AuthModule) {
             AuthModule.init();
@@ -146,6 +149,8 @@ const App = {
                 CustomersModule.renderCustomersTable();
             }
         } else if (tabId === 'settings') {
+            const curTheme = localStorage.getItem('medica_theme') || 'medical-mint';
+            this.setTheme(curTheme, false);
             if (window.AuditLogModule && typeof AuditLogModule.switchSettingsSubTab === 'function') {
                 AuditLogModule.switchSettingsSubTab(AuditLogModule.activeSubTab || 'store');
             } else {
@@ -423,6 +428,10 @@ const App = {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        if (window.Store && typeof Store.logAction === 'function') {
+            const staff = (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN';
+            Store.logAction('Sao lưu & Phục hồi', 'Xuất file sao lưu dữ liệu toàn bộ nhà thuốc (JSON)', staff, 'export');
+        }
         this.showToast('Đã xuất file sao lưu thành công!', 'success');
     },
 
@@ -668,6 +677,59 @@ const App = {
         } else {
             alert('Đang tải công cụ xuất file Excel...');
         }
+    },
+
+    // ========================================================
+    // QUẢN LÝ TÔNG MÀU NỀN DỊU MẮT (EYE-COMFORT THEMES)
+    // ========================================================
+    initTheme() {
+        const savedTheme = localStorage.getItem('medica_theme') || 'medical-mint';
+        this.setTheme(savedTheme, false);
+    },
+
+    setTheme(themeName, showToast = true) {
+        document.body.setAttribute('data-theme', themeName);
+        localStorage.setItem('medica_theme', themeName);
+
+        // Cập nhật giao diện lựa chọn trong Cài Đặt (cả subpanel theme và card quick store)
+        const themeCards = document.querySelectorAll('.theme-option-card');
+        themeCards.forEach(card => {
+            const t = card.getAttribute('data-theme-name');
+            const check = card.querySelector('.theme-check-icon');
+            const activeBadge = card.querySelector('.theme-active-badge');
+            if (t === themeName) {
+                card.classList.add('border-emerald-600', 'ring-2', 'ring-emerald-500/30', 'bg-emerald-50/50');
+                card.classList.remove('border-slate-200');
+                if (check) check.classList.remove('hidden');
+                if (activeBadge) activeBadge.classList.remove('hidden');
+            } else {
+                card.classList.remove('border-emerald-600', 'ring-2', 'ring-emerald-500/30', 'bg-emerald-50/50');
+                card.classList.add('border-slate-200');
+                if (check) check.classList.add('hidden');
+                if (activeBadge) activeBadge.classList.add('hidden');
+            }
+        });
+
+        if (showToast) {
+            const names = {
+                'medical-mint': '🌿 Xanh Thảo Dược (Mát dịu, bảo vệ mắt)',
+                'soft-slate': '🌫️ Xám Bạc Dịu Mắt (Hiện đại, trung tính)',
+                'warm-paper': '📜 Giấy Ấm (Khử ánh sáng xanh)',
+                'pure-white': '⚪ Trắng Sáng Truyền Thống'
+            };
+            this.showToast(`Đã áp dụng ${names[themeName] || themeName}`, 'success');
+        }
+    },
+
+    openThemeModal() {
+        this.switchTab('settings');
+        if (window.AuditLogModule && typeof AuditLogModule.switchSettingsSubTab === 'function') {
+            AuditLogModule.switchSettingsSubTab('theme');
+        }
+    },
+
+    closeThemeModal() {
+        // Modal replaced with Settings Tab
     },
 
     showToast(message, type = 'info') {

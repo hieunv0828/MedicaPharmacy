@@ -162,9 +162,9 @@ const VouchersModule = {
         if (elNet) {
             elNet.innerText = AppUtils.formatVND(summary.periodNet);
             if (summary.periodNet >= 0) {
-                elNet.className = 'text-base sm:text-lg font-black text-emerald-700 font-mono';
+                elNet.className = 'text-base sm:text-lg font-semibold text-emerald-700 tracking-tight tabular-nums';
             } else {
-                elNet.className = 'text-base sm:text-lg font-black text-rose-700 font-mono';
+                elNet.className = 'text-base sm:text-lg font-semibold text-rose-700 tracking-tight tabular-nums';
             }
         }
 
@@ -374,57 +374,57 @@ const VouchersModule = {
 
             let typeBadge = '';
             if (v.isCancelled) {
-                typeBadge = '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-600 border border-slate-300 line-through">ĐÃ HỦY</span>';
+                typeBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500 line-through">ĐÃ HỦY</span>';
             } else if (isReceipt) {
-                typeBadge = '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"><i data-lucide="arrow-down-left" class="w-3.5 h-3.5"></i> PHIẾU THU</span>';
+                typeBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/70"><i data-lucide="arrow-down-left" class="w-3 h-3"></i> Phiếu Thu</span>';
             } else {
-                typeBadge = '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300"><i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i> PHIẾU CHI</span>';
+                typeBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200/70"><i data-lucide="arrow-up-right" class="w-3 h-3"></i> Phiếu Chi</span>';
             }
 
             const methodBadge = isCash
-                ? '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i data-lucide="banknote" class="w-3 h-3"></i> Tiền mặt</span>'
-                : '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"><i data-lucide="qr-code" class="w-3 h-3"></i> Chuyển khoản</span>';
+                ? '<span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50/70 px-2 py-0.5 rounded border border-amber-200/60"><i data-lucide="banknote" class="w-3 h-3 text-amber-600"></i> Tiền mặt</span>'
+                : '<span class="inline-flex items-center gap-1 text-[11px] font-medium text-sky-800 bg-sky-50/70 px-2 py-0.5 rounded border border-sky-200/60"><i data-lucide="qr-code" class="w-3 h-3 text-sky-600"></i> Chuyển khoản</span>';
 
             const absAmt = Math.abs(Number(v.amount) || 0);
             const amountHtml = isReceipt
-                ? `<span class="font-extrabold text-emerald-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">+${AppUtils.formatVND(absAmt)}</span>`
-                : `<span class="font-extrabold text-rose-700 text-sm font-mono ${v.isCancelled ? 'line-through text-slate-400' : ''}">-${AppUtils.formatVND(absAmt)}</span>`;
+                ? `<span class="font-semibold text-emerald-800 text-[13px] tabular-nums ${v.isCancelled ? 'line-through text-slate-400' : ''}">+${AppUtils.formatVND(absAmt)}</span>`
+                : `<span class="font-semibold text-rose-700 text-[13px] tabular-nums ${v.isCancelled ? 'line-through text-slate-400' : ''}">-${AppUtils.formatVND(absAmt)}</span>`;
 
-            const refBadge = v.refId ? `<div class="text-[10px] font-mono text-emerald-700 font-semibold mt-0.5">Ref: ${v.refId}</div>` : '';
+            const refBadge = v.refId ? `<div class="text-xs text-emerald-700 font-medium mt-0.5">Ref: ${v.refId}</div>` : '';
 
             html += `
-                <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-xs ${v.isCancelled ? 'opacity-50' : ''}">
-                    <td class="py-3 px-3 text-center text-slate-400 font-mono">${startIdx + idx + 1}</td>
-                    <td class="py-3 px-3 font-mono font-bold text-slate-800">
-                        <span class="hover:text-emerald-700 cursor-pointer" onclick="VouchersModule.viewVoucherDetail('${v.id}')">${v.id}</span>
-                        <div class="text-[11px] text-slate-400 font-sans font-normal">${AppUtils.formatDateTime(v.createdAt)}</div>
+                <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-[13px] ${v.isCancelled ? 'opacity-50' : ''}">
+                    <td class="py-3.5 px-3 text-center text-slate-500 text-[13px] tabular-nums">${startIdx + idx + 1}</td>
+                    <td class="py-3.5 px-3">
+                        <span class="font-medium text-slate-900 text-[13px] hover:text-emerald-700 cursor-pointer" onclick="VouchersModule.viewVoucherDetail('${v.id}')">${v.id}</span>
+                        <div class="text-xs text-slate-600 mt-0.5">${AppUtils.formatDateTime(v.createdAt)}</div>
                         ${refBadge}
                     </td>
-                    <td class="py-3 px-3 text-center">${typeBadge}</td>
-                    <td class="py-3 px-3">${methodBadge}</td>
-                    <td class="py-3 px-3 font-semibold text-slate-800">
-                        ${v.category || '---'}
-                        ${v.note ? `<div class="text-[11px] text-slate-500 font-normal italic line-clamp-1" title="${v.note}">${v.note}</div>` : ''}
+                    <td class="py-3.5 px-3 text-center">${typeBadge}</td>
+                    <td class="py-3.5 px-3">${methodBadge}</td>
+                    <td class="py-3.5 px-3">
+                        <div class="font-medium text-slate-900 text-[13px]">${v.category || '---'}</div>
+                        ${v.note ? `<div class="text-xs text-slate-600 line-clamp-1 mt-0.5" title="${v.note}">${v.note}</div>` : ''}
                     </td>
-                    <td class="py-3 px-3">
-                        <div class="font-bold text-slate-800">${v.targetName || '---'}</div>
-                        <div class="text-[10px] text-slate-400 uppercase tracking-wider">${this.formatTargetType(v.targetType)}</div>
+                    <td class="py-3.5 px-3">
+                        <div class="font-medium text-slate-900 text-[13px]">${v.targetName || '---'}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">${this.formatTargetType(v.targetType)}</div>
                     </td>
-                    <td class="py-3 px-3 text-right">${amountHtml}</td>
-                    <td class="py-3 px-3 text-center">
+                    <td class="py-3.5 px-3 text-right">${amountHtml}</td>
+                    <td class="py-3.5 px-3 text-center">
                         ${v.isAccounting !== false ? 
-                            '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Được tính vào kết quả kinh doanh">Hạch toán KD</span>' : 
-                            '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500" title="Chi phí ngoài bảng">Ngoại bảng</span>'}
+                            '<span class="inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200/60" title="Được tính vào kết quả kinh doanh">Hạch toán KD</span>' : 
+                            '<span class="inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-600" title="Chi phí ngoài bảng">Ngoại bảng</span>'}
                     </td>
-                    <td class="py-3 px-3 text-center">
+                    <td class="py-3.5 px-3 text-center">
                         <div class="flex items-center justify-center gap-1">
-                            <button onclick="VouchersModule.openEditModal('${v.id}')" title="Chỉnh sửa phiếu" class="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition">
+                            <button onclick="VouchersModule.openEditModal('${v.id}')" title="Chỉnh sửa phiếu" class="p-1.5 text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="edit-3" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="VouchersModule.printVoucher('${v.id}')" title="In phiếu" class="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded transition">
+                            <button onclick="VouchersModule.printVoucher('${v.id}')" title="In phiếu" class="p-1.5 text-slate-700 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="printer" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="VouchersModule.deleteVoucherConfirm('${v.id}')" title="Xóa phiếu" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition">
+                            <button onclick="VouchersModule.deleteVoucherConfirm('${v.id}')" title="Xóa phiếu" class="p-1.5 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition ghost-btn cursor-pointer">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -952,11 +952,24 @@ const VouchersModule = {
             csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${v.targetName || ''}","${this.formatTargetType(v.targetType)}",${absAmt},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
         });
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `So_Quy_Thu_Chi_${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
+        const filename = `So_Quy_Thu_Chi_${new Date().toISOString().slice(0, 10)}.csv`;
+        if (window.ExportService && typeof ExportService.downloadCsv === 'function') {
+            const cleanCsv = csv.startsWith('\uFEFF') ? csv.slice(1) : csv;
+            ExportService.downloadCsv(cleanCsv, filename);
+        } else {
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            if (window.Store && typeof Store.logAction === 'function') {
+                const staff = (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN';
+                Store.logAction('Sổ quỹ', 'Xuất file Danh sách sổ quỹ', staff, 'export');
+            }
+        }
     }
 };
 

@@ -24,13 +24,31 @@ const ExportService = {
         // Tự động ghi nhật ký thao tác (Audit Log)
         if (window.Store && typeof Store.logAction === 'function') {
             let feat = 'Xuất file';
-            if (filename.includes('ChiTietHoaDon') || filename.includes('HoaDon')) feat = 'Hóa đơn';
-            else if (filename.includes('SoQuy') || filename.includes('ThuChi')) feat = 'Sổ quỹ';
-            else if (filename.includes('SanPham') || filename.includes('KhoThuoc') || filename.includes('TonKho')) feat = 'Danh mục hàng hóa';
-            else if (filename.includes('KhachHang')) feat = 'Khách hàng';
-            else if (filename.includes('DoanhSo') || filename.includes('BaoCao')) feat = 'Báo cáo';
-            else if (filename.includes('LichSuThaoTac')) feat = 'Lịch sử thao tác';
-            Store.logAction(feat, `Xuất file ${filename}`, (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN', 'export');
+            let detailText = `Xuất file ${filename}`;
+            const fLower = filename.toLowerCase();
+
+            if (fLower.includes('chitiethoadon') || fLower.includes('danh_sach_hoa_don') || fLower.includes('hoadon')) {
+                feat = 'Hóa đơn';
+                detailText = 'Xuất file Chi tiết danh sách hóa đơn';
+            } else if (fLower.includes('soquy') || fLower.includes('so_quy') || fLower.includes('thuchi') || fLower.includes('thu_chi')) {
+                feat = 'Sổ quỹ';
+                detailText = 'Xuất file Danh sách sổ quỹ';
+            } else if (fLower.includes('sanpham') || fLower.includes('khothuoc') || fLower.includes('kho_thuoc') || fLower.includes('tonkho') || fLower.includes('ton_kho')) {
+                feat = 'Danh mục hàng hóa';
+                detailText = 'Xuất file Danh sách hàng hóa';
+            } else if (fLower.includes('khachhang') || fLower.includes('khach_hang')) {
+                feat = 'Khách hàng';
+                detailText = 'Xuất file Danh sách khách hàng';
+            } else if (fLower.includes('doanhso') || fLower.includes('doanh_so') || fLower.includes('baocao') || fLower.includes('bao_cao')) {
+                feat = 'Báo cáo';
+                detailText = `Xuất file ${filename}`;
+            } else if (fLower.includes('lichsuthaotac') || fLower.includes('lich_su')) {
+                feat = 'Lịch sử thao tác';
+                detailText = 'Xuất file Lịch sử thao tác';
+            }
+
+            const staff = (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || 'ADMIN';
+            Store.logAction(feat, detailText, staff, 'export');
         }
     },
 

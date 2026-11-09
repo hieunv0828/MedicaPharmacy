@@ -917,6 +917,7 @@ namespace MedicaPharmacy
                 string suppliersJson = ReadRawJsonFile(Path.Combine(_dataDir, "suppliers.json"), "[]");
                 string customersJson = ReadRawJsonFile(Path.Combine(_dataDir, "customers.json"), "[]");
                 string historyJson = ReadRawJsonFile(Path.Combine(_dataDir, "settings_history.json"), "[]");
+                string auditLogJson = ReadRawJsonFile(Path.Combine(_dataDir, "audit_log.json"), "[]");
 
                 string ordersJson = ReadPartitionedListRaw("orders_*.json");
                 string stockinJson = ReadPartitionedListRaw("stockin_*.json");
@@ -931,6 +932,7 @@ namespace MedicaPharmacy
                   .Append(",\"suppliers\":").Append(suppliersJson)
                   .Append(",\"customers\":").Append(customersJson)
                   .Append(",\"settingsHistory\":").Append(historyJson)
+                  .Append(",\"auditLog\":").Append(auditLogJson)
                   .Append(",\"orders\":").Append(ordersJson)
                   .Append(",\"stockInOrders\":").Append(stockinJson)
                   .Append(",\"vouchers\":").Append(vouchersJson)
@@ -948,7 +950,7 @@ namespace MedicaPharmacy
             try
             {
                 string[] watched = new[] { "medicines.json", "orders_2026.json", "stockin_2026.json",
-                    "vouchers_2026.json", "returns_2026.json", "suppliers.json", "customers.json", "settings.json" };
+                    "vouchers_2026.json", "returns_2026.json", "suppliers.json", "customers.json", "settings.json", "settings_history.json", "audit_log.json" };
                 DateTime latest = DateTime.MinValue;
                 foreach (string f in watched)
                 {
@@ -1005,6 +1007,11 @@ namespace MedicaPharmacy
                 if (dict.ContainsKey("settingsHistory") && dict["settingsHistory"] != null)
                 {
                     WriteAtomicJson(Path.Combine(_dataDir, "settings_history.json"), serializer.Serialize(dict["settingsHistory"]));
+                }
+
+                if (dict.ContainsKey("auditLog") && dict["auditLog"] != null)
+                {
+                    WriteAtomicJson(Path.Combine(_dataDir, "audit_log.json"), serializer.Serialize(dict["auditLog"]));
                 }
 
                 string curYear = DateTime.Now.Year.ToString();

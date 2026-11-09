@@ -25,6 +25,9 @@ const AuditLogModule = {
             Store.on('audit_log:changed', () => {
                 this.renderTable();
             });
+            Store.on('all:changed', () => {
+                this.renderTable();
+            });
         }
 
         console.log('✅ Khởi tạo AuditLogModule thành công');
@@ -87,6 +90,11 @@ const AuditLogModule = {
         } else if (tabName === 'backup') {
             if (window.App && typeof App.renderSettingsHistory === 'function') {
                 App.renderSettingsHistory();
+            }
+        } else if (tabName === 'theme' || tabName === 'store') {
+            if (window.App && typeof App.setTheme === 'function') {
+                const cur = localStorage.getItem('medica_theme') || 'medical-mint';
+                App.setTheme(cur, false);
             }
         }
 
@@ -254,24 +262,24 @@ const AuditLogModule = {
             const safeDetails = AppUtils ? AppUtils.escapeHtml(item.details || '') : (item.details || '');
 
             html += `
-                <tr class="hover:bg-slate-50/80 transition-colors">
-                    <td class="py-3 px-4 font-bold text-slate-700 whitespace-nowrap">
-                        <span class="inline-flex items-center gap-1.5">
-                            <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-extrabold text-[10px] flex items-center justify-center border border-slate-200">
+                <tr class="hover:bg-slate-50/70 transition-colors text-[13px]">
+                    <td class="py-3 px-4 whitespace-nowrap">
+                        <span class="inline-flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-medium text-xs flex items-center justify-center border border-slate-200">
                                 ${(item.staff || 'AD').substring(0, 2).toUpperCase()}
                             </span>
-                            <span>${safeStaff}</span>
+                            <span class="font-medium text-slate-900 text-[13px]">${safeStaff}</span>
                         </span>
                     </td>
                     <td class="py-3 px-4 whitespace-nowrap">
-                        <span class="inline-block px-2.5 py-1 rounded-md text-[11px] font-bold ${badgeClass}">
+                        <span class="inline-block px-2 py-0.5 rounded-md text-xs font-medium ${badgeClass}">
                             ${safeFeat}
                         </span>
                     </td>
-                    <td class="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                    <td class="py-3 px-4 text-slate-800 text-[13px] whitespace-nowrap tabular-nums">
                         ${timeFormatted}
                     </td>
-                    <td class="py-3 px-4 text-slate-700 font-medium break-words leading-relaxed">
+                    <td class="py-3 px-4 text-slate-800 text-[13px] font-normal break-words leading-relaxed">
                         ${safeDetails}
                     </td>
                 </tr>
@@ -293,24 +301,25 @@ const AuditLogModule = {
     getFeatureBadgeClass(feat) {
         switch (feat) {
             case 'Hóa đơn':
-                return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                return 'bg-emerald-50 text-emerald-700 border border-emerald-200/60';
             case 'Phiếu thu':
-                return 'bg-sky-50 text-sky-700 border border-sky-200';
+                return 'bg-sky-50 text-sky-700 border border-sky-200/60';
             case 'Phiếu chi':
-                return 'bg-rose-50 text-rose-700 border border-rose-200';
+                return 'bg-rose-50 text-rose-700 border border-rose-200/60';
             case 'Danh mục hàng hóa':
-                return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+                return 'bg-indigo-50 text-indigo-700 border border-indigo-200/60';
             case 'Sổ quỹ':
-                return 'bg-amber-50 text-amber-800 border border-amber-200';
+                return 'bg-amber-50 text-amber-700 border border-amber-200/60';
             case 'Khách hàng':
-                return 'bg-purple-50 text-purple-700 border border-purple-200';
+                return 'bg-purple-50 text-purple-700 border border-purple-200/60';
             case 'Kho thuốc':
             case 'Nhập hàng':
-                return 'bg-teal-50 text-teal-700 border border-teal-200';
+                return 'bg-teal-50 text-teal-700 border border-teal-200/60';
             case 'Cài đặt':
-                return 'bg-slate-100 text-slate-700 border border-slate-300';
+            case 'Xuất file':
+                return 'bg-slate-100 text-slate-600 border border-slate-200/70';
             default:
-                return 'bg-slate-50 text-slate-600 border border-slate-200';
+                return 'bg-slate-50 text-slate-600 border border-slate-200/60';
         }
     },
 
