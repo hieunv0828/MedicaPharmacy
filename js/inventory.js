@@ -50,7 +50,28 @@ const InventoryModule = {
         items: []
     },
 
+    // Quản lý Xuất Hủy Thuốc (Quá hạn / Hư hỏng)
+    disposalTimeFilter: 'this_month',
+    disposalDateFrom: '',
+    disposalDateTo: '',
+    disposalSearchKeyword: '',
+    disposalCurrentPage: 1,
+    disposalPageSize: 25,
+    currentViewingDisposalId: null,
+    disposalDraft: {
+        reason: 'Hết hạn sử dụng (quá date)',
+        note: '',
+        items: []
+    },
+
     init() {
+        // Xóa sạch giá trị nếu trình duyệt tự động autofill 'admin' hoặc 'staff' vào ô tìm kiếm nhập kho
+        const stockInSearch = document.getElementById('stockin-search-input');
+        if (stockInSearch && (stockInSearch.value === 'admin' || stockInSearch.value === 'staff')) {
+            stockInSearch.value = '';
+        }
+        this.stockInSearchKeyword = '';
+
         this.renderCategoryFilter();
         this.renderMedicineTable();
         this.renderSuppliersDropdown();
@@ -59,9 +80,25 @@ const InventoryModule = {
         this.renderStockInSubTabs();
         this.renderReturnsHistory();
         this.renderReturnsSummaryCards();
+        this.renderDisposalHistory();
+        this.renderDisposalSummaryCards();
         this.bindEvents();
 
         // Lắng nghe sự kiện thay đổi dữ liệu từ Store
+        Store.on('all:changed', () => {
+            this.renderCategoryFilter();
+            this.renderMedicineTable();
+            this.updateInventoryStats();
+            this.renderStockInHistory();
+            this.renderStockInSummaryCards();
+            this.renderStockInSubTabs();
+            this.renderReturnsHistory();
+            this.renderReturnsSummaryCards();
+            this.renderDisposalHistory();
+            this.renderDisposalSummaryCards();
+            this.renderSuppliersDropdown();
+        });
+
         Store.on('medicines:changed', () => {
             this.renderCategoryFilter();
             this.renderMedicineTable();
@@ -74,11 +111,15 @@ const InventoryModule = {
             this.renderStockInSubTabs();
             this.renderReturnsHistory();
             this.renderReturnsSummaryCards();
+            this.renderDisposalHistory();
+            this.renderDisposalSummaryCards();
         });
 
         Store.on('returns:changed', () => {
             this.renderReturnsHistory();
             this.renderReturnsSummaryCards();
+            this.renderDisposalHistory();
+            this.renderDisposalSummaryCards();
             this.renderStockInSubTabs();
         });
 
@@ -127,10 +168,26 @@ const InventoryModule = {
         // --- Tìm kiếm & Lọc thời gian lịch sử Nhập Thuốc ---
         const stockInSearch = document.getElementById('stockin-search-input');
         if (stockInSearch) {
+            if (stockInSearch.value === 'admin' || stockInSearch.value === 'staff') {
+                stockInSearch.value = '';
+                this.stockInSearchKeyword = '';
+            }
+
             stockInSearch.addEventListener('input', (e) => {
-                this.stockInSearchKeyword = e.target.value.trim().toLowerCase();
+                const val = (e.target.value || '').trim();
+                // Ngăn chặn nếu trình duyệt tự động điền 'admin' hoặc 'staff'
+                if ((val.toLowerCase() === 'admin' || val.toLowerCase() === 'staff') && (!e.isTrusted || !e.data)) {
+                    e.target.value = '';
+                    this.stockInSearchKeyword = '';
+                    this.stockInCurrentPage = 1;
+                    this.renderStockInHistory();
+                    this.renderStockInSummaryCards();
+                    return;
+                }
+                this.stockInSearchKeyword = val.toLowerCase();
                 this.stockInCurrentPage = 1;
                 this.renderStockInHistory();
+                this.renderStockInSummaryCards();
             });
         }
 
@@ -213,6 +270,54 @@ const InventoryModule = {
                 this.renderReturnsHistory();
             });
         }
+
+        // --- Tìm kiếm & Lọc thời gian lịch sử Xuất Hủy Thuốc ---
+        const disposalSearch = document.getElementById('disposal-search-input');
+        if (disposalSearch) {
+            disposalSearch.addEventListener('input', (e) => {
+                this.disposalSearchKeyword = e.target.value.trim().toLowerCase();
+                this.disposalCurrentPage = 1;
+                this.renderDisposalHistory();
+            });
+        }
+
+        const disposalTimeSel = document.getElementById('disposal-time-filter');
+        if (disposalTimeSel) {
+            disposalTimeSel.addEventListener('change', (e) => {
+                this.disposalTimeFilter = e.target.value;
+                this.disposalCurrentPage = 1;
+                const customDiv = document.getElementById('disposal-custom-dates-wrapper');
+                if (customDiv) {
+                    if (e.target.value === 'custom') {
+                        customDiv.classList.remove('hidden');
+                    } else {
+                        customDiv.classList.add('hidden');
+                    }
+                }
+                this.renderDisposalHistory();
+                this.renderDisposalSummaryCards();
+            });
+        }
+
+        const dispDateFrom = document.getElementById('disposal-filter-date-from');
+        if (dispDateFrom) {
+            dispDateFrom.addEventListener('change', (e) => {
+                this.disposalDateFrom = e.target.value;
+                this.disposalCurrentPage = 1;
+                this.renderDisposalHistory();
+                this.renderDisposalSummaryCards();
+            });
+        }
+
+        const dispDateTo = document.getElementById('disposal-filter-date-to');
+        if (dispDateTo) {
+            dispDateTo.addEventListener('change', (e) => {
+                this.disposalDateTo = e.target.value;
+                this.disposalCurrentPage = 1;
+                this.renderDisposalHistory();
+                this.renderDisposalSummaryCards();
+            });
+        }
     },
 
     updateInventoryStats() {
@@ -230,10 +335,10 @@ const InventoryModule = {
             const expStatus = AppUtils.checkExpiryStatus(m.expiryDate);
             if (expStatus.status === 'warning' || expStatus.status === 'expired') nearExpiryCount++;
 
-            // Ước tính giá trị tồn kho theo giá vốn
-            const packRatio = m.packRatio || 1;
+            // Ước tính giá trị tồn kho theo giá vốn (giữ số lẻ thập phân, không làm tròn sớm từng dòng)
+            const packRatio = (m.packRatio && m.packRatio > 0) ? m.packRatio : 1;
             const costPerUnit = (m.costPrice || 0) / packRatio;
-            totalStockValue += Math.round(costPerUnit * stockUnits);
+            totalStockValue += (costPerUnit * stockUnits);
         });
 
         const elTotalItems = document.getElementById('stat-total-medicines');
@@ -244,7 +349,7 @@ const InventoryModule = {
         if (elTotalItems) elTotalItems.innerText = AppUtils.formatNumber(totalItems);
         if (elLowStock) elLowStock.innerText = AppUtils.formatNumber(lowStockCount);
         if (elNearExpiry) elNearExpiry.innerText = AppUtils.formatNumber(nearExpiryCount);
-        if (elTotalValue) elTotalValue.innerText = AppUtils.formatVND(totalStockValue);
+        if (elTotalValue) elTotalValue.innerText = AppUtils.formatVND(Math.round(totalStockValue));
     },
 
     renderCategoryFilter() {
@@ -978,7 +1083,7 @@ const InventoryModule = {
         }
 
         const med = Store.getMedicineById(medId);
-        const qty = parseInt(document.getElementById('stockin-qty').value) || 0;
+        const qty = parseFloat(document.getElementById('stockin-qty').value) || 0;
         const costPrice = parseFloat(document.getElementById('stockin-cost-price').value) || 0;
         const batchNo = document.getElementById('stockin-batch-no').value.trim();
         const expiryDate = document.getElementById('stockin-expiry-date').value;
@@ -989,16 +1094,39 @@ const InventoryModule = {
             return;
         }
 
-        this.stockInDraft.items.push({
-            medicineId: med.id,
-            medicineName: med.name,
-            unit: unit,
-            quantity: qty,
-            costPrice: costPrice,
-            batchNo: batchNo,
-            expiryDate: expiryDate,
-            total: qty * costPrice
-        });
+        const lineTotal = Math.round(qty * costPrice);
+
+        if (this.editingDraftStockInIndex != null && this.editingDraftStockInIndex >= 0) {
+            const item = this.stockInDraft.items[this.editingDraftStockInIndex];
+            if (item) {
+                item.medicineId = med.id;
+                item.medicineName = med.name;
+                item.unit = unit;
+                item.quantity = qty;
+                item.costPrice = costPrice;
+                item.batchNo = batchNo;
+                item.expiryDate = expiryDate;
+                item.total = lineTotal;
+            }
+            this.editingDraftStockInIndex = null;
+            const btnText = document.getElementById('stockin-btn-add-item-text');
+            if (btnText) btnText.innerText = 'Thêm';
+            const btn = document.getElementById('stockin-btn-add-item');
+            if (btn) {
+                btn.className = 'w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer';
+            }
+        } else {
+            this.stockInDraft.items.push({
+                medicineId: med.id,
+                medicineName: med.name,
+                unit: unit,
+                quantity: qty,
+                costPrice: costPrice,
+                batchNo: batchNo,
+                expiryDate: expiryDate,
+                total: lineTotal
+            });
+        }
 
         this.renderStockInDraftTable();
 
@@ -1011,7 +1139,74 @@ const InventoryModule = {
         sel.focus();
     },
 
+    updateDraftStockInItem(index, field, value) {
+        const item = this.stockInDraft.items[index];
+        if (!item) return;
+
+        if (field === 'quantity') {
+            const qty = parseFloat(value) || 0;
+            if (qty <= 0) {
+                alert('Số lượng nhập phải lớn hơn 0!');
+                this.renderStockInDraftTable();
+                return;
+            }
+            item.quantity = Math.round(qty * 1000) / 1000;
+            item.total = Math.round(item.quantity * item.costPrice);
+        } else if (field === 'costPrice') {
+            const price = parseFloat(value) || 0;
+            item.costPrice = Math.max(0, price);
+            item.total = Math.round(item.quantity * item.costPrice);
+        } else if (field === 'batchNo') {
+            item.batchNo = (value || '').trim();
+        } else if (field === 'expiryDate') {
+            item.expiryDate = value || '';
+        }
+
+        this.renderStockInDraftTable();
+    },
+
+    editDraftStockInItem(index) {
+        const item = this.stockInDraft.items[index];
+        if (!item) return;
+
+        this.editingDraftStockInIndex = index;
+
+        const sel = document.getElementById('stockin-medicine-select');
+        if (sel) {
+            sel.value = item.medicineId;
+            if (window.SearchableSelect) SearchableSelect.refresh('stockin-medicine-select');
+        }
+        const unitEl = document.getElementById('stockin-unit');
+        if (unitEl) unitEl.value = item.unit;
+        const qtyEl = document.getElementById('stockin-qty');
+        if (qtyEl) qtyEl.value = item.quantity;
+        const costEl = document.getElementById('stockin-cost-price');
+        if (costEl) costEl.value = item.costPrice;
+        const batchEl = document.getElementById('stockin-batch-no');
+        if (batchEl) batchEl.value = item.batchNo || '';
+        const expEl = document.getElementById('stockin-expiry-date');
+        if (expEl) expEl.value = item.expiryDate || '';
+
+        const btnText = document.getElementById('stockin-btn-add-item-text');
+        if (btnText) btnText.innerText = 'Cập Nhật';
+        const btn = document.getElementById('stockin-btn-add-item');
+        if (btn) {
+            btn.className = 'w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer shadow-sm';
+        }
+
+        if (qtyEl) qtyEl.focus();
+    },
+
     removeDraftStockInItem(index) {
+        if (this.editingDraftStockInIndex === index) {
+            this.editingDraftStockInIndex = null;
+            const btnText = document.getElementById('stockin-btn-add-item-text');
+            if (btnText) btnText.innerText = 'Thêm';
+            const btn = document.getElementById('stockin-btn-add-item');
+            if (btn) {
+                btn.className = 'w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer';
+            }
+        }
         this.stockInDraft.items.splice(index, 1);
         this.renderStockInDraftTable();
     },
@@ -1031,19 +1226,48 @@ const InventoryModule = {
         let html = '';
         this.stockInDraft.items.forEach((item, idx) => {
             totalAmount += item.total;
+            const isEditing = this.editingDraftStockInIndex === idx;
             html += `
-                <tr class="border-b border-slate-100 text-sm hover:bg-slate-50">
+                <tr class="border-b border-slate-100 text-xs transition ${isEditing ? 'bg-amber-50/70 border-amber-300' : 'hover:bg-slate-50'}">
                     <td class="py-2 px-2 text-center text-slate-400 text-xs">${idx + 1}</td>
-                    <td class="py-2 px-2 font-medium text-slate-800">${item.medicineName}</td>
-                    <td class="py-2 px-2 font-mono text-xs text-slate-600">${item.batchNo || '---'}</td>
-                    <td class="py-2 px-2 text-xs text-slate-600">${AppUtils.formatDate(item.expiryDate) || '---'}</td>
-                    <td class="py-2 px-2 text-center font-bold text-slate-700">${item.quantity} ${item.unit}</td>
-                    <td class="py-2 px-2 text-right font-medium text-slate-700">${AppUtils.formatVND(item.costPrice)}</td>
-                    <td class="py-2 px-2 text-right font-bold text-emerald-700">${AppUtils.formatVND(item.total)}</td>
+                    <td class="py-2 px-2 font-bold text-slate-800">
+                        ${item.medicineName}
+                        ${isEditing ? '<span class="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded text-[10px] font-bold">Đang sửa</span>' : ''}
+                    </td>
+                    <td class="py-2 px-1">
+                        <input type="text" value="${item.batchNo || ''}" 
+                               onchange="InventoryModule.updateDraftStockInItem(${idx}, 'batchNo', this.value)"
+                               placeholder="Lô SX..." 
+                               class="w-24 text-xs font-mono px-1.5 py-1 bg-white border border-slate-200 rounded focus:border-emerald-500 focus:outline-none" />
+                    </td>
+                    <td class="py-2 px-1">
+                        <input type="date" value="${item.expiryDate || ''}" 
+                               onchange="InventoryModule.updateDraftStockInItem(${idx}, 'expiryDate', this.value)"
+                               class="w-32 text-xs px-1.5 py-1 bg-white border border-slate-200 rounded focus:border-emerald-500 focus:outline-none font-mono" />
+                    </td>
+                    <td class="py-2 px-1 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <input type="number" min="0.001" step="any" value="${item.quantity}" 
+                                   onchange="InventoryModule.updateDraftStockInItem(${idx}, 'quantity', this.value)"
+                                   class="w-16 text-center font-bold text-xs px-1 py-1 bg-white border border-slate-200 rounded focus:border-emerald-500 focus:outline-none" />
+                            <span class="text-xs text-slate-600 font-semibold">${item.unit}</span>
+                        </div>
+                    </td>
+                    <td class="py-2 px-1 text-right">
+                        <input type="number" min="0" step="any" value="${item.costPrice}" 
+                               onchange="InventoryModule.updateDraftStockInItem(${idx}, 'costPrice', this.value)"
+                               class="w-24 text-right font-bold text-xs px-1.5 py-1 bg-white border border-slate-200 rounded focus:border-emerald-500 focus:outline-none font-mono" />
+                    </td>
+                    <td class="py-2 px-2 text-right font-black text-emerald-700 text-xs tabular-nums">${AppUtils.formatVND(item.total)}</td>
                     <td class="py-2 px-2 text-center">
-                        <button onclick="InventoryModule.removeDraftStockInItem(${idx})" class="text-rose-500 hover:text-rose-700 p-1">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
+                        <div class="flex items-center justify-center gap-1">
+                            <button type="button" onclick="InventoryModule.editDraftStockInItem(${idx})" title="Chỉnh sửa trên form" class="text-amber-600 hover:text-amber-800 p-1 hover:bg-amber-100/60 rounded transition cursor-pointer">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" onclick="InventoryModule.removeDraftStockInItem(${idx})" title="Xóa mặt hàng này" class="text-rose-500 hover:text-rose-700 p-1 hover:bg-rose-100/60 rounded transition cursor-pointer">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1051,6 +1275,7 @@ const InventoryModule = {
 
         tbody.innerHTML = html;
         if (elTotal) elTotal.innerText = AppUtils.formatVND(totalAmount);
+        if (window.lucide) lucide.createIcons();
         if (window.lucide) lucide.createIcons();
     },
 
@@ -1085,6 +1310,9 @@ const InventoryModule = {
             Store.updateStockInOrder(updatedRecord);
             AppUtils.playBeepSound('success');
             this.closeStockInModal();
+            this.stockInCurrentPage = 1;
+            this.renderStockInHistory();
+            this.renderStockInSummaryCards();
             App.showToast(`Đã cập nhật thành công phiếu nhập kho ${updatedRecord.id}! Tồn kho và Sổ Quỹ đã được điều chỉnh.`, 'success');
         } else {
             const stockInRecord = {
@@ -1097,9 +1325,17 @@ const InventoryModule = {
                 note: note
             };
 
+            // Đặt lại trang 1 và xóa ô tìm kiếm để người dùng thấy ngay phiếu vừa nhập
+            this.stockInCurrentPage = 1;
+            this.stockInSearchKeyword = '';
+            const searchInput = document.getElementById('stockin-search');
+            if (searchInput) searchInput.value = '';
+
             const saved = Store.addStockInOrder(stockInRecord);
             AppUtils.playBeepSound('success');
             this.closeStockInModal();
+            this.renderStockInHistory();
+            this.renderStockInSummaryCards();
             App.showToast(`Đã hoàn tất nhập kho phiếu ${saved.id} (${paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})! Tồn kho đã tự động cộng dồn.`, 'success');
 
             // Tự động hỏi / mở in tem mã vạch dán hộp cho các mặt hàng vừa nhập
@@ -1111,13 +1347,15 @@ const InventoryModule = {
         }
     },
 
-    // --- CHUYỂN ĐỔI SUB-TAB: PHIẾU NHẬP HÀNG VS QUẢN LÝ TRẢ HÀNG NCC (PHƯƠNG ÁN A) ---
+    // --- CHUYỂN ĐỔI SUB-TAB: 1. PHIẾU NHẬP HÀNG | 2. TRẢ HÀNG NCC | 3. XUẤT HỦY THUỐC ---
     switchStockInSubTab(tab) {
         this.stockInSubTab = tab;
         const viewOrders = document.getElementById('subtab-view-stockin-orders');
         const viewReturns = document.getElementById('subtab-view-stockin-returns');
+        const viewDisposals = document.getElementById('subtab-view-stockin-disposals');
         const btnOrders = document.getElementById('subtab-btn-stockin-orders');
         const btnReturns = document.getElementById('subtab-btn-stockin-returns');
+        const btnDisposals = document.getElementById('subtab-btn-stockin-disposals');
 
         const activeOrdersClass = ['bg-emerald-600', 'text-white', 'shadow-sm'];
         const inactiveOrdersClass = ['bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border', 'border-slate-200'];
@@ -1125,9 +1363,13 @@ const InventoryModule = {
         const activeReturnsClass = ['bg-teal-700', 'text-white', 'shadow-sm'];
         const inactiveReturnsClass = ['bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border', 'border-slate-200'];
 
+        const activeDisposalsClass = ['bg-rose-600', 'text-white', 'shadow-sm'];
+        const inactiveDisposalsClass = ['bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border', 'border-slate-200'];
+
         if (tab === 'orders') {
             viewOrders?.classList.remove('hidden');
             viewReturns?.classList.add('hidden');
+            viewDisposals?.classList.add('hidden');
 
             btnOrders?.classList.remove(...inactiveOrdersClass);
             btnOrders?.classList.add(...activeOrdersClass);
@@ -1135,11 +1377,15 @@ const InventoryModule = {
             btnReturns?.classList.remove(...activeReturnsClass);
             btnReturns?.classList.add(...inactiveReturnsClass);
 
+            btnDisposals?.classList.remove(...activeDisposalsClass);
+            btnDisposals?.classList.add(...inactiveDisposalsClass);
+
             this.renderStockInHistory();
             this.renderStockInSummaryCards();
-        } else {
+        } else if (tab === 'returns') {
             viewOrders?.classList.add('hidden');
             viewReturns?.classList.remove('hidden');
+            viewDisposals?.classList.add('hidden');
 
             btnOrders?.classList.remove(...activeOrdersClass);
             btnOrders?.classList.add(...inactiveOrdersClass);
@@ -1147,8 +1393,27 @@ const InventoryModule = {
             btnReturns?.classList.remove(...inactiveReturnsClass);
             btnReturns?.classList.add(...activeReturnsClass);
 
+            btnDisposals?.classList.remove(...activeDisposalsClass);
+            btnDisposals?.classList.add(...inactiveDisposalsClass);
+
             this.renderReturnsHistory();
             this.renderReturnsSummaryCards();
+        } else if (tab === 'disposals') {
+            viewOrders?.classList.add('hidden');
+            viewReturns?.classList.add('hidden');
+            viewDisposals?.classList.remove('hidden');
+
+            btnOrders?.classList.remove(...activeOrdersClass);
+            btnOrders?.classList.add(...inactiveOrdersClass);
+
+            btnReturns?.classList.remove(...activeReturnsClass);
+            btnReturns?.classList.add(...inactiveReturnsClass);
+
+            btnDisposals?.classList.remove(...inactiveDisposalsClass);
+            btnDisposals?.classList.add(...activeDisposalsClass);
+
+            this.renderDisposalHistory();
+            this.renderDisposalSummaryCards();
         }
 
         this.renderStockInSubTabs();
@@ -1158,12 +1423,16 @@ const InventoryModule = {
     renderStockInSubTabs() {
         const badgeOrders = document.getElementById('badge-subtab-stockin-orders');
         const badgeReturns = document.getElementById('badge-subtab-stockin-returns');
+        const badgeDisposals = document.getElementById('badge-subtab-stockin-disposals');
 
         const totalOrders = (Store.getStockInOrders() || []).length;
-        const totalReturns = (Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : []).length;
+        const allReturns = (Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : []);
+        const totalReturns = allReturns.filter(r => r.type !== 'disposal' && r.returnType !== 'disposal').length;
+        const totalDisposals = allReturns.filter(r => r.type === 'disposal' || r.returnType === 'disposal').length;
 
         if (badgeOrders) badgeOrders.innerText = totalOrders;
         if (badgeReturns) badgeReturns.innerText = totalReturns;
+        if (badgeDisposals) badgeDisposals.innerText = totalDisposals;
     },
 
     // --- QUẢN LÝ TRẢ HÀNG NHÀ CUNG CẤP (BẢNG, LỌC, PHÂN TRANG) ---
@@ -1184,6 +1453,8 @@ const InventoryModule = {
 
     getFilteredReturns() {
         let returns = Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : [];
+        // Lọc bỏ phiếu xuất hủy (được quản lý riêng ở subtab Xuất Hủy)
+        returns = returns.filter(r => r.type !== 'disposal' && r.returnType !== 'disposal');
 
         // 1. Phân loại: Theo đơn nhập kho (THN) vs Trả tổng hợp (PTH)
         if (this.returnsFilterType === 'stockin') {
@@ -1219,7 +1490,9 @@ const InventoryModule = {
     },
 
     renderReturnsSummaryCards() {
-        const allReturns = Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : [];
+        let allReturns = Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : [];
+        // Lọc bỏ phiếu xuất hủy (được quản lý riêng ở subtab Xuất Hủy)
+        allReturns = allReturns.filter(r => r.type !== 'disposal' && r.returnType !== 'disposal');
         
         // Lọc theo mốc thời gian đang chọn
         let periodReturns = allReturns.filter(r =>
@@ -1457,6 +1730,12 @@ const InventoryModule = {
     },
 
     renderStockInSummaryCards() {
+        const searchInput = document.getElementById('stockin-search-input');
+        if (searchInput && (searchInput.value === 'admin' || searchInput.value === 'staff')) {
+            searchInput.value = '';
+            this.stockInSearchKeyword = '';
+        }
+
         const allOrders = Store.getStockInOrders();
         
         let filtered = allOrders.filter(o =>
@@ -1509,6 +1788,12 @@ const InventoryModule = {
 
     // --- Lịch sử Phiếu Nhập Hàng & Tra cứu thời gian, tìm kiếm sản phẩm ---
     getFilteredStockInOrders() {
+        const searchInput = document.getElementById('stockin-search-input');
+        if (searchInput && (searchInput.value === 'admin' || searchInput.value === 'staff')) {
+            searchInput.value = '';
+            this.stockInSearchKeyword = '';
+        }
+
         let orders = Store.getStockInOrders();
 
         // 0. Lọc theo Tab phương thức thanh toán / Trả hàng
@@ -2551,10 +2836,10 @@ const InventoryModule = {
             defaultCost = med.costPrice || 0;
         } else if (selectedUnit === med.subUnit && (med.subRatio || 1) > 1) {
             maxInUnit = Math.floor((med.stockUnits || 0) / med.subRatio);
-            defaultCost = Math.round((med.costPrice || 0) * (med.subRatio / (med.packRatio || 1)));
+            defaultCost = Store.getMedicineUnitCost(med, selectedUnit);
         } else {
             maxInUnit = med.stockUnits || 0;
-            defaultCost = Math.round((med.costPrice || 0) / (med.packRatio || 1));
+            defaultCost = Store.getMedicineUnitCost(med, selectedUnit);
         }
 
         const hintEl = document.getElementById('gen-return-med-stock-hint');
@@ -3451,6 +3736,849 @@ const InventoryModule = {
             }
         }
 
+        if (window.lucide) lucide.createIcons();
+    },
+
+    // =========================================================
+    // --- QUẢN LÝ XUẤT HỦY THUỐC (QUÁ HẠN / HƯ HỎNG) ---
+    // =========================================================
+    openDisposalModal() {
+        this.disposalDraft = {
+            reason: 'Hết hạn sử dụng (quá date)',
+            note: '',
+            items: []
+        };
+
+        const reasonSelect = document.getElementById('disposal-reason-select');
+        const reasonCustom = document.getElementById('disposal-reason-custom');
+        const noteInput = document.getElementById('disposal-note');
+
+        if (reasonSelect) reasonSelect.value = 'Hết hạn sử dụng (quá date)';
+        if (reasonCustom) {
+            reasonCustom.value = '';
+            reasonCustom.classList.add('hidden');
+        }
+        if (noteInput) noteInput.value = '';
+
+        this.populateDisposalMedicineDropdown();
+        this.renderDisposalDraftTable();
+
+        document.getElementById('modal-disposal-create')?.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeDisposalModal() {
+        document.getElementById('modal-disposal-create')?.classList.add('hidden');
+    },
+
+    onDisposalReasonChange() {
+        const sel = document.getElementById('disposal-reason-select');
+        const customInput = document.getElementById('disposal-reason-custom');
+        if (!sel || !customInput) return;
+
+        if (sel.value === 'custom') {
+            customInput.classList.remove('hidden');
+            customInput.focus();
+        } else {
+            customInput.classList.add('hidden');
+            customInput.value = '';
+        }
+    },
+
+    populateDisposalMedicineDropdown() {
+        const medSelect = document.getElementById('disposal-medicine-select');
+        if (!medSelect) return;
+
+        const meds = (Store.getMedicines() || [])
+            .filter(m => (m.stockUnits || 0) > 0)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        let html = '<option value="">-- Chọn thuốc trong kho cần xuất hủy --</option>';
+        meds.forEach(m => {
+            html += `<option value="${m.id}">${m.name} (Tồn: ${m.stockUnits} ${m.baseUnit || ''})</option>`;
+        });
+
+        medSelect.innerHTML = html;
+        if (window.SearchableSelect) {
+            SearchableSelect.refresh('disposal-medicine-select');
+        }
+
+        this.onDisposalMedicineChange();
+    },
+
+    onDisposalMedicineChange() {
+        const medSelect = document.getElementById('disposal-medicine-select');
+        const unitSelect = document.getElementById('disposal-unit-select');
+        const qtyInput = document.getElementById('disposal-qty');
+        const priceInput = document.getElementById('disposal-cost-price');
+        const hintEl = document.getElementById('disposal-med-stock-hint');
+        const batchInput = document.getElementById('disposal-batch');
+        const expiryInput = document.getElementById('disposal-expiry');
+
+        if (!medSelect || !unitSelect) return;
+
+        const medId = medSelect.value;
+        if (!medId) {
+            unitSelect.innerHTML = '<option value="">ĐVT</option>';
+            if (hintEl) {
+                hintEl.innerText = 'Tồn kho khả dụng: ---';
+                hintEl.className = 'text-[11px] text-emerald-800 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200';
+            }
+            if (qtyInput) {
+                qtyInput.value = 1;
+                qtyInput.max = '';
+            }
+            if (priceInput) priceInput.value = 0;
+            if (batchInput) batchInput.value = '';
+            if (expiryInput) expiryInput.value = '';
+            return;
+        }
+
+        const med = Store.getMedicineById(medId);
+        if (!med) return;
+
+        // Điền số lô và hạn dùng từ dữ liệu thuốc nếu có
+        if (batchInput) batchInput.value = med.batchNo || '';
+        if (expiryInput) expiryInput.value = med.expiryDate || '';
+
+        // Đổ các đơn vị tính có sẵn
+        const units = [];
+        if (med.packUnit) units.push({ name: med.packUnit, type: 'pack' });
+        if (med.subUnit && med.subUnit !== med.packUnit && med.subUnit !== med.baseUnit) {
+            units.push({ name: med.subUnit, type: 'sub' });
+        }
+        if (med.baseUnit && med.baseUnit !== med.packUnit) {
+            units.push({ name: med.baseUnit, type: 'base' });
+        }
+
+        unitSelect.innerHTML = units.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+
+        this.onDisposalUnitChange();
+    },
+
+    onDisposalUnitChange() {
+        const medSelect = document.getElementById('disposal-medicine-select');
+        const unitSelect = document.getElementById('disposal-unit-select');
+        const qtyInput = document.getElementById('disposal-qty');
+        const priceInput = document.getElementById('disposal-cost-price');
+        const hintEl = document.getElementById('disposal-med-stock-hint');
+
+        if (!medSelect || !unitSelect || !medSelect.value) return;
+
+        const med = Store.getMedicineById(medSelect.value);
+        if (!med) return;
+
+        const unit = unitSelect.value || med.baseUnit;
+        const costPrice = Store.getMedicineUnitCost(med, unit);
+        if (priceInput) priceInput.value = costPrice;
+
+        // Tính tồn khả dụng theo đơn vị đã chọn (trừ đi số lượng cùng loại thuốc đã có trong draft)
+        const alreadyInDraftUnits = (this.disposalDraft.items || [])
+            .filter(i => i.medicineId === med.id)
+            .reduce((sum, i) => {
+                let u = parseFloat(i.quantity) || 0;
+                if (i.unit === med.packUnit && (med.packRatio || 1) > 1) u = u * med.packRatio;
+                else if (i.unit === med.subUnit && (med.subRatio || 1) > 1) u = u * med.subRatio;
+                return sum + u;
+            }, 0);
+
+        const availableUnits = Math.max(0, (med.stockUnits || 0) - alreadyInDraftUnits);
+        let maxInUnit = availableUnits;
+        if (unit === med.packUnit && (med.packRatio || 1) > 1) {
+            maxInUnit = availableUnits / med.packRatio;
+        } else if (unit === med.subUnit && (med.subRatio || 1) > 1) {
+            maxInUnit = availableUnits / med.subRatio;
+        }
+        maxInUnit = Math.round(maxInUnit * 1000) / 1000;
+
+        if (hintEl) {
+            hintEl.innerText = `Tồn kho khả dụng: ${AppUtils.formatNumber(maxInUnit)} ${unit} (${AppUtils.formatNumber(availableUnits)} ${med.baseUnit || 'đơn vị'})`;
+            hintEl.className = maxInUnit > 0 
+                ? 'text-[11px] text-emerald-800 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200'
+                : 'text-[11px] text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200';
+        }
+
+        if (qtyInput) {
+            qtyInput.max = maxInUnit;
+            if (parseFloat(qtyInput.value) > maxInUnit) {
+                qtyInput.value = maxInUnit > 0 ? maxInUnit : 0;
+            }
+        }
+
+        this.validateDisposalQtyInput();
+    },
+
+    validateDisposalQtyInput() {
+        const medSelect = document.getElementById('disposal-medicine-select');
+        const unitSelect = document.getElementById('disposal-unit-select');
+        const qtyInput = document.getElementById('disposal-qty');
+        const hintEl = document.getElementById('disposal-med-stock-hint');
+
+        if (!medSelect || !unitSelect || !qtyInput || !medSelect.value) return;
+
+        const med = Store.getMedicineById(medSelect.value);
+        if (!med) return;
+
+        const unit = unitSelect.value || med.baseUnit;
+        const qty = parseFloat(qtyInput.value) || 0;
+
+        const alreadyInDraftUnits = (this.disposalDraft.items || [])
+            .filter(i => i.medicineId === med.id)
+            .reduce((sum, i) => {
+                let u = parseFloat(i.quantity) || 0;
+                if (i.unit === med.packUnit && (med.packRatio || 1) > 1) u = u * med.packRatio;
+                else if (i.unit === med.subUnit && (med.subRatio || 1) > 1) u = u * med.subRatio;
+                return sum + u;
+            }, 0);
+
+        const availableUnits = Math.max(0, (med.stockUnits || 0) - alreadyInDraftUnits);
+        let maxInUnit = availableUnits;
+        if (unit === med.packUnit && (med.packRatio || 1) > 1) {
+            maxInUnit = availableUnits / med.packRatio;
+        } else if (unit === med.subUnit && (med.subRatio || 1) > 1) {
+            maxInUnit = availableUnits / med.subRatio;
+        }
+        maxInUnit = Math.round(maxInUnit * 1000) / 1000;
+
+        if (qty > maxInUnit) {
+            qtyInput.classList.add('border-rose-500', 'bg-rose-50', 'text-rose-700');
+            if (hintEl) {
+                hintEl.innerText = `⚠️ Vượt quá tồn kho! Tối đa chỉ xuất được ${AppUtils.formatNumber(maxInUnit)} ${unit}`;
+                hintEl.className = 'text-[11px] text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-300 animate-pulse';
+            }
+        } else {
+            qtyInput.classList.remove('border-rose-500', 'bg-rose-50', 'text-rose-700');
+            if (hintEl) {
+                hintEl.innerText = `Tồn kho khả dụng: ${AppUtils.formatNumber(maxInUnit)} ${unit} (${AppUtils.formatNumber(availableUnits)} ${med.baseUnit || 'đơn vị'})`;
+                hintEl.className = 'text-[11px] text-emerald-800 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200';
+            }
+        }
+    },
+
+    addItemToDisposalDraft() {
+        const medSelect = document.getElementById('disposal-medicine-select');
+        const unitSelect = document.getElementById('disposal-unit-select');
+        const qtyInput = document.getElementById('disposal-qty');
+        const priceInput = document.getElementById('disposal-cost-price');
+        const batchInput = document.getElementById('disposal-batch');
+        const expiryInput = document.getElementById('disposal-expiry');
+
+        if (!medSelect || !medSelect.value) {
+            alert('Vui lòng chọn thuốc trong kho cần xuất hủy!');
+            return;
+        }
+
+        const med = Store.getMedicineById(medSelect.value);
+        if (!med) {
+            alert('Không tìm thấy thông tin thuốc đã chọn!');
+            return;
+        }
+
+        const unit = unitSelect ? unitSelect.value : med.baseUnit;
+        const qty = parseFloat(qtyInput ? qtyInput.value : 0) || 0;
+        const costPrice = parseFloat(priceInput ? priceInput.value : 0) || 0;
+        const batch = batchInput ? batchInput.value.trim() : (med.batchNo || '');
+        const expiry = expiryInput ? expiryInput.value : (med.expiryDate || '');
+
+        if (qty <= 0) {
+            alert('Số lượng xuất hủy phải lớn hơn 0!');
+            return;
+        }
+
+        // Quy đổi ra đơn vị cơ bản (baseUnit) để kiểm tra tồn kho
+        let unitsToDeduct = qty;
+        if (unit === med.packUnit && (med.packRatio || 1) > 1) {
+            unitsToDeduct = qty * med.packRatio;
+        } else if (unit === med.subUnit && (med.subRatio || 1) > 1) {
+            unitsToDeduct = qty * med.subRatio;
+        }
+
+        const alreadyInDraftUnits = (this.disposalDraft.items || [])
+            .filter(i => i.medicineId === med.id)
+            .reduce((sum, i) => {
+                let u = parseFloat(i.quantity) || 0;
+                if (i.unit === med.packUnit && (med.packRatio || 1) > 1) u = u * med.packRatio;
+                else if (i.unit === med.subUnit && (med.subRatio || 1) > 1) u = u * med.subRatio;
+                return sum + u;
+            }, 0);
+
+        const currentStock = med.stockUnits || 0;
+        if (currentStock < (alreadyInDraftUnits + unitsToDeduct)) {
+            let maxInUnit = Math.max(0, currentStock - alreadyInDraftUnits);
+            if (unit === med.packUnit && (med.packRatio || 1) > 1) maxInUnit = maxInUnit / med.packRatio;
+            else if (unit === med.subUnit && (med.subRatio || 1) > 1) maxInUnit = maxInUnit / med.subRatio;
+            maxInUnit = Math.round(maxInUnit * 1000) / 1000;
+
+            alert(`Tồn kho không đủ! Thuốc [${med.name}] hiện chỉ còn ${currentStock} ${med.baseUnit}. Đã thêm vào phiếu ${alreadyInDraftUnits} ${med.baseUnit}.\n\nBạn chỉ có thể xuất thêm tối đa ${AppUtils.formatNumber(maxInUnit)} ${unit}.`);
+            return;
+        }
+
+        this.disposalDraft.items.push({
+            medicineId: med.id,
+            medicineName: med.name,
+            unit: unit,
+            quantity: qty,
+            costPrice: costPrice,
+            batchNo: batch,
+            expiryDate: expiry
+        });
+
+        this.renderDisposalDraftTable();
+
+        // Reset bộ chọn thuốc
+        if (medSelect) medSelect.value = '';
+        if (window.SearchableSelect) SearchableSelect.refresh('disposal-medicine-select');
+        const hintEl = document.getElementById('disposal-med-stock-hint');
+        if (hintEl) {
+            hintEl.innerText = 'Tồn kho khả dụng: ---';
+            hintEl.className = 'text-[11px] text-emerald-800 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200';
+        }
+        if (qtyInput) {
+            qtyInput.value = 1;
+            qtyInput.classList.remove('border-rose-500', 'bg-rose-50', 'text-rose-700');
+        }
+        if (priceInput) priceInput.value = 0;
+        if (batchInput) batchInput.value = '';
+        if (expiryInput) expiryInput.value = '';
+    },
+
+    removeDisposalDraftItem(idx) {
+        this.disposalDraft.items.splice(idx, 1);
+        this.renderDisposalDraftTable();
+        // Cập nhật lại tồn khả dụng nếu đang chọn chính thuốc đó ở selector
+        this.onDisposalUnitChange();
+    },
+
+    renderDisposalDraftTable() {
+        const tbody = document.getElementById('disposal-items-tbody');
+        if (!tbody) return;
+
+        const items = this.disposalDraft.items || [];
+        const countEl = document.getElementById('disposal-draft-count');
+        const summaryCountEl = document.getElementById('disposal-summary-items-count');
+        const summaryAmountEl = document.getElementById('disposal-summary-total-amount');
+
+        if (countEl) countEl.innerText = items.length;
+        if (summaryCountEl) summaryCountEl.innerText = items.length;
+
+        if (items.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-6 text-slate-400 italic">
+                        Chưa có mặt hàng nào. Hãy chọn thuốc ở trên và bấm "Thêm Thuốc".
+                    </td>
+                </tr>
+            `;
+            if (summaryAmountEl) summaryAmountEl.innerText = '0 đ';
+            return;
+        }
+
+        let totalDisposal = 0;
+        let html = '';
+        items.forEach((it, idx) => {
+            const lineTotal = Math.round(it.quantity * it.costPrice);
+            totalDisposal += lineTotal;
+
+            html += `
+                <tr class="hover:bg-slate-50 text-xs border-b border-slate-100">
+                    <td class="p-2 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="p-2 font-mono font-bold text-rose-700">${it.medicineId}</td>
+                    <td class="p-2 font-bold text-slate-800">${it.medicineName}</td>
+                    <td class="p-2 text-slate-600 font-mono text-[11px]">
+                        ${it.batchNo || '---'} • ${AppUtils.formatDate(it.expiryDate) || '---'}
+                    </td>
+                    <td class="p-2 text-center font-bold text-slate-800">
+                        ${AppUtils.formatNumber(it.quantity)} ${it.unit}
+                    </td>
+                    <td class="p-2 text-right font-medium text-slate-700 font-mono">
+                        ${AppUtils.formatVND(it.costPrice)}
+                    </td>
+                    <td class="p-2 text-right font-bold text-rose-700 font-mono">
+                        ${AppUtils.formatVND(lineTotal)}
+                    </td>
+                    <td class="p-2 text-center">
+                        <button type="button" onclick="InventoryModule.removeDisposalDraftItem(${idx})" class="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer" title="Xóa mặt hàng này">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+        if (summaryAmountEl) summaryAmountEl.innerText = AppUtils.formatVND(totalDisposal);
+        if (window.lucide) lucide.createIcons();
+    },
+
+    confirmDisposalOrder() {
+        const items = this.disposalDraft.items || [];
+        if (items.length === 0) {
+            alert('Vui lòng thêm ít nhất một mặt hàng thuốc vào phiếu xuất hủy!');
+            return;
+        }
+
+        const reasonSelect = document.getElementById('disposal-reason-select');
+        const reasonCustom = document.getElementById('disposal-reason-custom');
+        const noteInput = document.getElementById('disposal-note');
+
+        let reason = reasonSelect ? reasonSelect.value : 'Hết hạn sử dụng (quá date)';
+        if (reason === 'custom') {
+            reason = reasonCustom ? reasonCustom.value.trim() : '';
+            if (!reason) {
+                alert('Vui lòng nhập lý do xuất hủy thuốc cụ thể!');
+                reasonCustom?.focus();
+                return;
+            }
+        }
+
+        const note = noteInput ? noteInput.value.trim() : '';
+        const totalAmount = items.reduce((sum, it) => sum + Math.round(it.quantity * it.costPrice), 0);
+
+        if (!confirm(`XÁC NHẬN XUẤT HỦY THUỐC:\n\n- Số lượng mặt hàng: ${items.length} loại thuốc\n- Tổng giá trị vốn hủy: ${AppUtils.formatVND(totalAmount)}\n- Lý do: ${reason}\n\nHệ thống sẽ tự động trừ số lượng tồn kho và ghi nhận khoản chi phí xuất hủy này vào Sổ Quỹ Thu Chi & Báo Cáo Tài Chính. Bạn có chắc chắn muốn tiến hành?`)) {
+            return;
+        }
+
+        const res = Store.createDisposalOrder({
+            items: items,
+            reason: reason,
+            note: note,
+            paymentMethod: 'cash'
+        });
+
+        if (!res.success) {
+            alert('Lỗi xuất hủy: ' + (res.message || 'Không thể tạo phiếu xuất hủy'));
+            return;
+        }
+
+        this.closeDisposalModal();
+        alert(`Tạo phiếu xuất hủy thành công: ${res.disposalRecord.id}\nĐã tự động trừ tồn kho và hạch toán vào Sổ Quỹ.`);
+
+        // Chuyển tab sang Quản Lý Xuất Hủy
+        this.switchStockInSubTab('disposals');
+        this.renderMedicineTable();
+
+        // Mở in phiếu xuất hủy
+        setTimeout(() => {
+            this.printDisposalOrder(res.disposalRecord.id);
+        }, 300);
+    },
+
+    getFilteredDisposalOrders() {
+        let records = Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : [];
+        records = records.filter(r => r.type === 'disposal' || r.returnType === 'disposal');
+
+        // Lọc thời gian
+        records = records.filter(r =>
+            AppUtils.matchesTimeFilter(r.createdAt, this.disposalTimeFilter, this.disposalDateFrom, this.disposalDateTo)
+        );
+
+        // Tìm kiếm
+        if (this.disposalSearchKeyword) {
+            const q = this.disposalSearchKeyword;
+            records = records.filter(r => {
+                const matchHeader = (r.id && r.id.toLowerCase().includes(q)) ||
+                                    (r.reason && r.reason.toLowerCase().includes(q)) ||
+                                    (r.note && r.note.toLowerCase().includes(q)) ||
+                                    (r.pharmacist && r.pharmacist.toLowerCase().includes(q));
+                if (matchHeader) return true;
+
+                return (r.items || []).some(item =>
+                    (item.medicineName && item.medicineName.toLowerCase().includes(q)) ||
+                    (item.medicineId && item.medicineId.toLowerCase().includes(q)) ||
+                    (item.batchNo && item.batchNo.toLowerCase().includes(q))
+                );
+            });
+        }
+
+        records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        return records;
+    },
+
+    renderDisposalSummaryCards() {
+        const allReturns = Store.getAllPurchaseReturns ? Store.getAllPurchaseReturns() : [];
+        let records = allReturns.filter(r => r.type === 'disposal' || r.returnType === 'disposal');
+
+        // Lọc theo mốc thời gian đang chọn
+        let periodRecords = records.filter(r =>
+            AppUtils.matchesTimeFilter(r.createdAt, this.disposalTimeFilter, this.disposalDateFrom, this.disposalDateTo)
+        );
+
+        if (this.disposalSearchKeyword) {
+            const q = this.disposalSearchKeyword;
+            periodRecords = periodRecords.filter(r => {
+                const matchHeader = (r.id && r.id.toLowerCase().includes(q)) ||
+                                    (r.reason && r.reason.toLowerCase().includes(q)) ||
+                                    (r.note && r.note.toLowerCase().includes(q)) ||
+                                    (r.pharmacist && r.pharmacist.toLowerCase().includes(q));
+                if (matchHeader) return true;
+
+                return (r.items || []).some(item =>
+                    (item.medicineName && item.medicineName.toLowerCase().includes(q)) ||
+                    (item.medicineId && item.medicineId.toLowerCase().includes(q)) ||
+                    (item.batchNo && item.batchNo.toLowerCase().includes(q))
+                );
+            });
+        }
+
+        const totalAmount = periodRecords.reduce((sum, r) => sum + (r.totalAmount || r.refundTotal || 0), 0);
+        const totalSlips = periodRecords.length;
+        const distinctMeds = new Set();
+        periodRecords.forEach(r => {
+            (r.items || []).forEach(it => distinctMeds.add(it.medicineId || it.medicineName));
+        });
+
+        const cardAmount = document.getElementById('card-disposal-total-amount');
+        const cardSlips = document.getElementById('card-disposal-total-slips');
+        const cardItems = document.getElementById('card-disposal-total-items');
+
+        if (cardAmount) cardAmount.innerText = AppUtils.formatVND(totalAmount);
+        if (cardSlips) cardSlips.innerText = AppUtils.formatNumber(totalSlips);
+        if (cardItems) cardItems.innerText = `${distinctMeds.size} loại`;
+
+        this.renderStockInSubTabs();
+    },
+
+    changeDisposalPageSize(newSize) {
+        this.disposalPageSize = (newSize === 'all') ? 'all' : parseInt(newSize, 10);
+        this.disposalCurrentPage = 1;
+        this.renderDisposalHistory();
+    },
+
+    goToDisposalPage(page) {
+        this.disposalCurrentPage = page;
+        this.renderDisposalHistory();
+    },
+
+    renderDisposalHistory() {
+        const tbody = document.getElementById('disposal-history-tbody');
+        if (!tbody) return;
+
+        const records = this.getFilteredDisposalOrders();
+        const total = records.length;
+
+        const pageInfoEl = document.getElementById('disposal-page-info');
+        const btnsEl = document.getElementById('disposal-pagination-buttons');
+
+        if (total === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-10 text-slate-400">
+                        <i data-lucide="trash-2" class="w-8 h-8 mx-auto mb-2 opacity-30 text-rose-500"></i>
+                        <p class="font-medium text-xs">Không tìm thấy phiếu xuất hủy thuốc nào trong khoảng thời gian này</p>
+                    </td>
+                </tr>
+            `;
+            if (pageInfoEl) pageInfoEl.innerText = '0 - 0';
+            if (btnsEl) btnsEl.innerHTML = '';
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        let pagedRecords = records;
+        let startIdx = 0;
+        let totalPages = 1;
+
+        if (this.disposalPageSize !== 'all') {
+            const pageSize = this.disposalPageSize || 25;
+            totalPages = Math.ceil(total / pageSize);
+            if (this.disposalCurrentPage > totalPages) this.disposalCurrentPage = totalPages;
+            if (this.disposalCurrentPage < 1) this.disposalCurrentPage = 1;
+
+            startIdx = (this.disposalCurrentPage - 1) * pageSize;
+            pagedRecords = records.slice(startIdx, startIdx + pageSize);
+        }
+
+        const endIdx = startIdx + pagedRecords.length;
+        if (pageInfoEl) pageInfoEl.innerText = `${startIdx + 1} - ${endIdx} / ${total}`;
+
+        if (btnsEl) {
+            if (totalPages <= 1) {
+                btnsEl.innerHTML = '';
+            } else {
+                let pBtns = '';
+                pBtns += `
+                    <button onclick="InventoryModule.goToDisposalPage(${this.disposalCurrentPage - 1})"
+                            ${this.disposalCurrentPage === 1 ? 'disabled' : ''}
+                            class="px-2 py-1 rounded border border-slate-200 text-xs ${this.disposalCurrentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100 cursor-pointer'}">
+                        Trước
+                    </button>
+                `;
+
+                for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= this.disposalCurrentPage - 1 && i <= this.disposalCurrentPage + 1)) {
+                        pBtns += `
+                            <button onclick="InventoryModule.goToDisposalPage(${i})"
+                                    class="px-2.5 py-1 rounded text-xs font-bold ${i === this.disposalCurrentPage ? 'bg-rose-600 text-white' : 'border border-slate-200 hover:bg-slate-100 cursor-pointer'}">
+                                ${i}
+                            </button>
+                        `;
+                    } else if (i === this.disposalCurrentPage - 2 || i === this.disposalCurrentPage + 2) {
+                        pBtns += '<span class="px-1 text-slate-400">...</span>';
+                    }
+                }
+
+                pBtns += `
+                    <button onclick="InventoryModule.goToDisposalPage(${this.disposalCurrentPage + 1})"
+                            ${this.disposalCurrentPage === totalPages ? 'disabled' : ''}
+                            class="px-2 py-1 rounded border border-slate-200 text-xs ${this.disposalCurrentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100 cursor-pointer'}">
+                        Sau
+                    </button>
+                `;
+                btnsEl.innerHTML = pBtns;
+            }
+        }
+
+        let html = '';
+        pagedRecords.forEach((r, idx) => {
+            const rowNum = startIdx + idx + 1;
+            const itemsCount = (r.items || []).length;
+            const totalAmount = r.totalAmount || r.refundTotal || 0;
+
+            html += `
+                <tr class="hover:bg-rose-50/30 transition-colors text-xs">
+                    <td class="p-3 text-center text-slate-400 font-mono">${rowNum}</td>
+                    <td class="p-3">
+                        <span class="font-mono font-bold text-rose-700">${r.id}</span>
+                    </td>
+                    <td class="p-3 text-slate-700 font-mono">${AppUtils.formatDateTime(r.createdAt)}</td>
+                    <td class="p-3 font-medium text-slate-800">${r.pharmacist || '---'}</td>
+                    <td class="p-3">
+                        <span class="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/60 max-w-[220px] truncate" title="${r.reason || ''}">
+                            ${r.reason || 'Hết hạn sử dụng'}
+                        </span>
+                    </td>
+                    <td class="p-3 text-center font-bold text-slate-800">${itemsCount} loại</td>
+                    <td class="p-3 text-right font-black text-rose-700 font-mono tabular-nums">${AppUtils.formatVND(totalAmount)}</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">ĐÃ XUẤT HỦY</span>
+                    </td>
+                    <td class="p-3 text-center">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="InventoryModule.printDisposalOrder('${r.id}')" title="In biên bản xuất hủy" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                                <span>In</span>
+                            </button>
+                            <button onclick="InventoryModule.openDisposalDetailModal('${r.id}')" title="Xem chi tiết phiếu hủy" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-semibold px-2 py-1 rounded-lg transition inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                <span>Xem</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+        if (window.lucide) lucide.createIcons();
+    },
+
+    openDisposalDetailModal(disposalId) {
+        const r = Store.getPurchaseReturnById ? Store.getPurchaseReturnById(disposalId) : null;
+        if (!r) {
+            alert('Không tìm thấy thông tin phiếu xuất hủy này!');
+            return;
+        }
+
+        this.currentViewingDisposalId = disposalId;
+
+        const idEl = document.getElementById('disposal-detail-id');
+        const timeEl = document.getElementById('disposal-detail-time');
+        const pharmEl = document.getElementById('disposal-detail-pharmacist');
+        const reasonEl = document.getElementById('disposal-detail-reason');
+        const noteEl = document.getElementById('disposal-detail-note');
+        const totalEl = document.getElementById('disposal-detail-total-amount');
+        const tbody = document.getElementById('disposal-detail-items-tbody');
+
+        if (idEl) idEl.innerText = r.id;
+        if (timeEl) timeEl.innerText = AppUtils.formatDateTime(r.createdAt);
+        if (pharmEl) pharmEl.innerText = r.pharmacist || '---';
+        if (reasonEl) reasonEl.innerText = r.reason || '---';
+        if (noteEl) noteEl.innerText = r.note || '(Không có ghi chú)';
+        if (totalEl) totalEl.innerText = AppUtils.formatVND(r.totalAmount || r.refundTotal || 0);
+
+        if (tbody) {
+            let html = '';
+            (r.items || []).forEach((it, idx) => {
+                const lineTotal = it.lineTotal || it.totalRefund || Math.round((parseFloat(it.quantity) || 0) * (parseFloat(it.costPrice) || 0));
+                html += `
+                    <tr class="hover:bg-slate-50 text-xs border-b border-slate-100">
+                        <td class="p-2.5 text-center text-slate-400 font-mono">${idx + 1}</td>
+                        <td class="p-2.5 font-mono font-bold text-slate-700">${it.medicineId || '---'}</td>
+                        <td class="p-2.5 font-bold text-slate-900">${it.medicineName}</td>
+                        <td class="p-2.5 text-slate-600 font-mono text-[11px]">${it.batchNo || '---'} • ${AppUtils.formatDate(it.expiryDate) || '---'}</td>
+                        <td class="p-2.5 text-center font-bold text-slate-800">${AppUtils.formatNumber(it.quantity)} ${it.unit}</td>
+                        <td class="p-2.5 text-right font-medium text-slate-700 font-mono">${AppUtils.formatVND(it.costPrice)}</td>
+                        <td class="p-2.5 text-right font-bold text-rose-700 font-mono">${AppUtils.formatVND(lineTotal)}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        document.getElementById('modal-disposal-detail')?.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    },
+
+    closeDisposalDetailModal() {
+        document.getElementById('modal-disposal-detail')?.classList.add('hidden');
+    },
+
+    deleteCurrentDisposalOrder() {
+        if (!this.currentViewingDisposalId) return;
+        const disposalId = this.currentViewingDisposalId;
+
+        if (!confirm(`XÁC NHẬN HỦY/XÓA PHIẾU XUẤT HỦY [${disposalId}]:\n\n1. Số lượng thuốc trong phiếu sẽ được HOÀN LẠI VÀO TỒN KHO.\n2. Phiếu chi tương ứng trong Sổ Quỹ Thu Chi sẽ được HỦY BỎ.\n\nBạn có chắc chắn muốn xóa?`)) {
+            return;
+        }
+
+        const res = Store.deleteDisposalOrder(disposalId);
+        if (!res.success) {
+            alert('Lỗi xóa phiếu: ' + (res.message || 'Không thể xóa'));
+            return;
+        }
+
+        this.closeDisposalDetailModal();
+        alert(`Đã xóa thành công phiếu xuất hủy ${disposalId}. Tồn kho đã được khôi phục.`);
+        this.renderDisposalHistory();
+        this.renderDisposalSummaryCards();
+        this.renderMedicineTable();
+    },
+
+    printCurrentDisposalOrder() {
+        if (!this.currentViewingDisposalId) return;
+        const id = this.currentViewingDisposalId;
+        this.closeDisposalDetailModal();
+        this.printDisposalOrder(id);
+    },
+
+    printDisposalOrder(disposalId) {
+        const r = Store.getPurchaseReturnById ? Store.getPurchaseReturnById(disposalId) : null;
+        if (!r) {
+            alert('Không tìm thấy thông tin phiếu xuất hủy này!');
+            return;
+        }
+
+        const modal = document.getElementById('modal-print-purchase-return');
+        const container = document.getElementById('purchase-return-print-content');
+        if (!modal || !container) return;
+
+        const settings = Store.getSettings();
+        const totalAmount = r.totalAmount || r.refundTotal || 0;
+
+        let rowsHtml = '';
+        (r.items || []).forEach((it, idx) => {
+            const lineTotal = it.lineTotal || it.totalRefund || Math.round((parseFloat(it.quantity) || 0) * (parseFloat(it.costPrice) || 0));
+            rowsHtml += `
+                <tr class="border-b border-slate-200 text-xs">
+                    <td class="p-2 text-center text-slate-500 font-mono">${idx + 1}</td>
+                    <td class="p-2 font-mono font-bold text-slate-700">${it.medicineId || '---'}</td>
+                    <td class="p-2 font-bold text-slate-900">${it.medicineName}</td>
+                    <td class="p-2 text-slate-600 font-mono text-[11px]">${it.batchNo || '---'}</td>
+                    <td class="p-2 text-slate-600 font-mono text-[11px]">${AppUtils.formatDate(it.expiryDate) || '---'}</td>
+                    <td class="p-2 text-center font-semibold text-slate-700">${it.unit}</td>
+                    <td class="p-2 text-center font-bold text-slate-900">${AppUtils.formatNumber(it.quantity)}</td>
+                    <td class="p-2 text-right font-medium text-slate-700">${AppUtils.formatVND(it.costPrice)}</td>
+                    <td class="p-2 text-right font-bold text-rose-700 font-mono">${AppUtils.formatVND(lineTotal)}</td>
+                </tr>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="receipt-paper bg-white text-slate-900 mx-auto p-4 sm:p-6 shadow-sm font-sans text-xs space-y-4">
+                <!-- Header Thông tin Nhà Thuốc -->
+                <div class="flex items-start justify-between pb-3 border-b-2 border-slate-800">
+                    <div>
+                        <h2 class="font-black text-base sm:text-lg uppercase text-slate-900 tracking-tight">${settings.pharmacyName || 'MEDICA PHARMACY'}</h2>
+                        <p class="text-[11px] text-slate-600">${settings.address || 'Địa chỉ: 123 Đường Y Dược, Hà Nội'}</p>
+                        <p class="text-[11px] text-slate-600">Hotline: <b>${settings.phone || '0988.000.xxx'}</b></p>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-300 rounded font-bold text-[11px]">
+                            BIÊN BẢN XUẤT HỦY KHO
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Tiêu đề Phiếu -->
+                <div class="text-center my-2 space-y-1">
+                    <h1 class="font-black text-lg uppercase text-slate-900 tracking-wide text-rose-800">BIÊN BẢN XUẤT HỦY DƯỢC PHẨM & VẬT TƯ Y TẾ</h1>
+                    <div class="text-xs font-mono font-bold text-slate-700">Mã phiếu: <span class="text-rose-700">${r.id}</span></div>
+                    <div class="text-[11px] text-slate-500">Thời gian lập: ${AppUtils.formatDateTime(r.createdAt)}</div>
+                </div>
+
+                <!-- Thông tin biên bản hủy -->
+                <div class="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                        <span class="text-slate-500">Đơn vị lập biên bản:</span>
+                        <div class="font-bold text-slate-900">${settings.pharmacyName || 'Nhà Thuốc Medica'}</div>
+                    </div>
+                    <div>
+                        <span class="text-slate-500">Dược sĩ phụ trách kiểm hủy:</span>
+                        <div class="font-bold text-slate-800">${r.pharmacist || 'DS. Nguyễn Thanh Dung'}</div>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-slate-500">Lý do xuất hủy thuốc:</span>
+                        <div class="font-bold text-rose-700">${r.reason || 'Hết hạn sử dụng (quá date)'}</div>
+                    </div>
+                    ${r.note ? `
+                    <div class="col-span-2">
+                        <span class="text-slate-500">Ghi chú / Quyết định hủy:</span>
+                        <div class="text-slate-700 font-medium">${r.note}</div>
+                    </div>` : ''}
+                </div>
+
+                <!-- Bảng danh sách thuốc xuất hủy -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 font-bold text-slate-700 border-b border-slate-200 uppercase text-[10px]">
+                            <tr>
+                                <th class="p-2 text-center w-8">#</th>
+                                <th class="p-2 w-16">Mã Thuốc</th>
+                                <th class="p-2">Tên Thuốc</th>
+                                <th class="p-2 w-20">Số Lô</th>
+                                <th class="p-2 w-20">Hạn Dùng</th>
+                                <th class="p-2 text-center w-12">ĐVT</th>
+                                <th class="p-2 text-center w-14">SL Hủy</th>
+                                <th class="p-2 text-right w-20">Giá Vốn</th>
+                                <th class="p-2 text-right w-24">Thành Tiền Vốn</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tổng kết tiền xuất hủy -->
+                <div class="p-3 bg-rose-50/50 rounded-xl border border-rose-200 space-y-1">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="font-bold text-slate-800 uppercase">TỔNG GIÁ TRỊ VỐN THUỐC XUẤT HỦY:</span>
+                        <span class="text-base font-black text-rose-700 font-mono">${AppUtils.formatVND(totalAmount)}</span>
+                    </div>
+                    <div class="text-[11px] text-slate-600 italic">
+                        * Toàn bộ số lượng thuốc trên đã được xuất trừ khỏi kho và hạch toán vào khoản chi phí phát sinh trong kỳ theo Sổ Quỹ Thu Chi & Báo Cáo Tài Chính.
+                    </div>
+                </div>
+
+                <!-- Chữ ký hội đồng kiểm hủy -->
+                <div class="grid grid-cols-2 text-center text-xs text-slate-700 pt-4">
+                    <div>
+                        <p class="font-bold uppercase">Người Kiểm Soát / Phụ Trách Kho</p>
+                        <p class="italic text-[10px] text-slate-400">(Ký, ghi rõ họ tên)</p>
+                        <div class="h-16"></div>
+                        <p class="font-semibold text-slate-800">${settings.pharmacist || 'Hội Đồng Hủy'}</p>
+                    </div>
+                    <div>
+                        <p class="font-bold uppercase">Dược Sĩ Lập Phiếu</p>
+                        <p class="italic text-[10px] text-slate-400">(Ký, ghi rõ họ tên)</p>
+                        <div class="h-16"></div>
+                        <p class="font-semibold text-slate-800">${r.pharmacist || 'DS. Nguyễn Thanh Dung'}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     }
 };

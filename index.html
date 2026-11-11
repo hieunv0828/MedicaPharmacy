@@ -40,7 +40,7 @@
     <!-- QRCode generator for offline VietQR fallback -->
     <script src="vendor/qrcode.min.js"></script>
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/app.css?v=20261109_v12">
+    <link rel="stylesheet" href="css/app.css?v=20261111_v3">
     <link rel="stylesheet" href="css/print.css?v=20261107_v3">
 </head>
 <body class="bg-[#b8d9cb] text-slate-800 min-h-screen flex flex-col font-sans select-none" data-theme="medical-mint">
@@ -637,7 +637,14 @@
                 <div class="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
                     <div class="relative flex-1 min-w-[200px]">
                         <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
-                        <input id="inventory-search" type="text" placeholder="Tìm theo mã thuốc, tên thuốc, hoạt chất, số lô, mã vạch..."
+                        <input id="inventory-search"
+                               type="search"
+                               name="inventory_search_keyword"
+                               autocomplete="off"
+                               autocorrect="off"
+                               autocapitalize="off"
+                               spellcheck="false"
+                               placeholder="Tìm theo mã thuốc, tên thuốc, hoạt chất, số lô, mã vạch..."
                                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                     </div>
 
@@ -734,6 +741,10 @@
                         <i data-lucide="user-plus" class="w-4 h-4 text-emerald-600"></i>
                         <span>+ Thêm NCC Mới</span>
                     </button>
+                    <button onclick="InventoryModule.openDisposalModal()" class="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition cursor-pointer">
+                        <i data-lucide="trash-2" class="w-4 h-4 text-rose-600"></i>
+                        <span>Xuất Hủy Thuốc</span>
+                    </button>
                     <button onclick="InventoryModule.openGeneralPurchaseReturnModal()" class="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition cursor-pointer">
                         <i data-lucide="rotate-ccw" class="w-4 h-4 text-teal-700"></i>
                         <span>Tạo Phiếu Trả Hàng</span>
@@ -745,7 +756,7 @@
                 </div>
             </div>
 
-            <!-- Thanh Sub-Tabs: 1. Phiếu Nhập Hàng | 2. Quản Lý Trả Hàng NCC -->
+            <!-- Thanh Sub-Tabs: 1. Phiếu Nhập Hàng | 2. Quản Lý Trả Hàng NCC | 3. Quản Lý Xuất Hủy -->
             <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
                 <button id="subtab-btn-stockin-orders" onclick="InventoryModule.switchStockInSubTab('orders')"
                         class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition bg-emerald-600 text-white shadow-sm cursor-pointer">
@@ -758,6 +769,12 @@
                     <i data-lucide="rotate-ccw" class="w-4 h-4 text-teal-700"></i>
                     <span>Quản Lý Trả Hàng NCC</span>
                     <span id="badge-subtab-stockin-returns" class="px-2 py-0.5 rounded-full text-[11px] bg-teal-100 text-teal-800 font-mono">0</span>
+                </button>
+                <button id="subtab-btn-stockin-disposals" onclick="InventoryModule.switchStockInSubTab('disposals')"
+                        class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer">
+                    <i data-lucide="trash-2" class="w-4 h-4 text-rose-600"></i>
+                    <span>Quản Lý Xuất Hủy</span>
+                    <span id="badge-subtab-stockin-disposals" class="px-2 py-0.5 rounded-full text-[11px] bg-rose-100 text-rose-800 font-mono">0</span>
                 </button>
             </div>
 
@@ -831,7 +848,13 @@
                         <!-- Tìm kiếm -->
                         <div class="relative flex-1 sm:w-64 min-w-[200px]">
                             <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
-                            <input id="stockin-search-input" type="text"
+                            <input id="stockin-search-input"
+                                   type="search"
+                                   name="stockin_search_keyword"
+                                   autocomplete="off"
+                                   autocorrect="off"
+                                   autocapitalize="off"
+                                   spellcheck="false"
                                    placeholder="Tìm mã phiếu, mã hàng, tên thuốc, số lô, NCC..."
                                    class="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                         </div>
@@ -962,7 +985,13 @@
                             <!-- Tìm kiếm -->
                             <div class="relative flex-1 sm:w-64 min-w-[200px]">
                                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
-                                <input id="returns-search-input" type="text"
+                                <input id="returns-search-input"
+                                       type="search"
+                                       name="returns_search_keyword"
+                                       autocomplete="off"
+                                       autocorrect="off"
+                                       autocapitalize="off"
+                                       spellcheck="false"
                                        placeholder="Tìm mã phiếu, NCC, tên thuốc, lý do trả..."
                                        class="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-rose-500" />
                             </div>
@@ -1029,6 +1058,132 @@
                     </div>
                 </div>
             </div> <!-- Kết thúc subtab-view-stockin-returns -->
+
+            <!-- VIEW 3: QUẢN LÝ XUẤT HỦY THUỐC (QUÁ HẠN / HƯ HỎNG) -->
+            <div id="subtab-view-stockin-disposals" class="hidden space-y-4">
+                <!-- 3 Thẻ thống kê: Tổng tiền vốn xuất hủy / Số phiếu hủy / Số loại thuốc hủy -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-rose-200/80 flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center font-bold shrink-0">
+                            <i data-lucide="trash-2" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-bold uppercase text-rose-800">Tổng Giá Trị Vốn Xuất Hủy</div>
+                            <div id="card-disposal-total-amount" class="text-lg font-black text-rose-900 font-mono mt-0.5">0 đ</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-amber-200/80 flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                            <i data-lucide="file-minus" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-bold uppercase text-amber-700">Tổng Số Phiếu Xuất Hủy</div>
+                            <div id="card-disposal-total-slips" class="text-lg font-black text-amber-900 font-mono mt-0.5">0</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-purple-200/80 flex items-center gap-3">
+                        <div class="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold shrink-0">
+                            <i data-lucide="package-x" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-bold uppercase text-purple-700">Mặt Hàng Thuốc Đã Hủy</div>
+                            <div id="card-disposal-total-items" class="text-lg font-black text-purple-900 font-mono mt-0.5">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng Danh Sách Các Phiếu Xuất Hủy -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 bg-slate-50/60 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                        <div class="flex items-center gap-4 flex-wrap">
+                            <div class="font-bold text-xs uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                                <i data-lucide="trash-2" class="w-4 h-4 text-rose-600"></i>
+                                <span>Lịch Sử Xuất Hủy Hàng Quá Hạn & Hư Hỏng</span>
+                            </div>
+                        </div>
+
+                        <!-- Bộ lọc thời gian & tìm kiếm -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Tìm kiếm -->
+                            <div class="relative flex-1 sm:w-64 min-w-[200px]">
+                                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                                <input id="disposal-search-input"
+                                       type="search"
+                                       name="disposal_search_keyword"
+                                       autocomplete="off"
+                                       autocorrect="off"
+                                       autocapitalize="off"
+                                       spellcheck="false"
+                                       placeholder="Tìm mã phiếu, tên thuốc, lý do hủy..."
+                                       class="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-rose-500" />
+                            </div>
+
+                            <!-- Lọc thời gian -->
+                            <select id="disposal-time-filter" class="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-500">
+                                <option value="all">Toàn bộ thời gian</option>
+                                <option value="today">Hôm nay</option>
+                                <option value="yesterday">Hôm qua</option>
+                                <option value="last_7_days">7 ngày qua</option>
+                                <option value="this_month" selected>Tháng này</option>
+                                <option value="custom">Khoảng ngày tùy chọn...</option>
+                            </select>
+
+                            <div id="disposal-custom-dates-wrapper" class="hidden flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-1 rounded-lg">
+                                <input id="disposal-filter-date-from" type="date" class="text-xs text-slate-700 focus:outline-none" />
+                                <span class="text-xs text-slate-400">-</span>
+                                <input id="disposal-filter-date-to" type="date" class="text-xs text-slate-700 focus:outline-none" />
+                            </div>
+
+                            <button onclick="InventoryModule.openDisposalModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>+ Lập Phiếu Hủy Mới</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bảng dữ liệu phiếu xuất hủy -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th class="py-3 px-3 w-32">Mã Phiếu Hủy</th>
+                                    <th class="py-3 px-3 w-36">Thời Gian Hủy</th>
+                                    <th class="py-3 px-3 w-48">Lý Do Xuất Hủy</th>
+                                    <th class="py-3 px-3">Chi Tiết Mặt Hàng Hủy</th>
+                                    <th class="py-3 px-3 w-32">Dược Sĩ Lập</th>
+                                    <th class="py-3 px-3 text-right w-32">Tổng Giá Trị Vốn</th>
+                                    <th class="py-3 px-3 text-center w-24">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="disposal-history-tbody" class="divide-y divide-slate-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Phân trang -->
+                    <div class="p-3 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+                        <div class="flex items-center gap-2">
+                            <span>Hiển thị: <b id="disposal-page-info">0</b> phiếu xuất hủy</span>
+                            <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                                <span class="text-slate-400">Mỗi trang:</span>
+                                <select id="disposal-pagesize-select" onchange="InventoryModule.changeDisposalPageSize(this.value)" class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500 cursor-pointer">
+                                    <option value="25" selected>25 phiếu</option>
+                                    <option value="50">50 phiếu</option>
+                                    <option value="100">100 phiếu</option>
+                                    <option value="all">Tất cả</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-1" id="disposal-pagination-buttons">
+                            <!-- Nút phân trang render động -->
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- Kết thúc subtab-view-stockin-disposals -->
 
         </section>
 
@@ -1143,7 +1298,14 @@
 
                     <div class="relative">
                         <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
-                        <input id="orders-search-input" type="text" placeholder="Tìm mã đơn, tên khách, SĐT..."
+                        <input id="orders-search-input"
+                               type="search"
+                               name="orders_search_keyword"
+                               autocomplete="off"
+                               autocorrect="off"
+                               autocapitalize="off"
+                               spellcheck="false"
+                               placeholder="Tìm mã đơn, tên khách, SĐT..."
                                class="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 w-44 sm:w-56" />
                     </div>
 
@@ -1259,7 +1421,14 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <div class="relative w-64 sm:w-80">
                         <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
-                        <input id="customers-search-input" type="text" placeholder="Tìm theo tên, SĐT, mã KH..."
+                        <input id="customers-search-input"
+                               type="search"
+                               name="customers_search_keyword"
+                               autocomplete="off"
+                               autocorrect="off"
+                               autocapitalize="off"
+                               spellcheck="false"
+                               placeholder="Tìm theo tên, SĐT, mã KH..."
                                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                     </div>
 
@@ -1467,7 +1636,13 @@
                         <!-- Ô tìm kiếm -->
                         <div class="relative flex-1 sm:w-56 min-w-[180px]">
                             <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i>
-                            <input id="vouchers-search-input" type="text"
+                            <input id="vouchers-search-input"
+                                   type="search"
+                                   name="vouchers_search_keyword"
+                                   autocomplete="off"
+                                   autocorrect="off"
+                                   autocapitalize="off"
+                                   spellcheck="false"
                                    placeholder="Tìm mã phiếu, người nộp/nhận, lý do..."
                                    class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                         </div>
@@ -2678,7 +2853,7 @@
                                     </div>
                                     <div>
                                         <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Admin</label>
-                                        <input id="settings-admin-new-pass" type="password" placeholder="Nhập mật khẩu Admin mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono" />
+                                        <input id="settings-admin-new-pass" type="password" autocomplete="new-password" placeholder="Nhập mật khẩu Admin mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono" />
                                     </div>
                                     <button type="button" onclick="App.handleUpdateAdminPassword()" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
                                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
@@ -2696,7 +2871,7 @@
                                     </div>
                                     <div>
                                         <label class="block text-[11px] font-semibold text-slate-600 mb-1">Mật khẩu mới cho Staff</label>
-                                        <input id="settings-staff-new-pass" type="password" placeholder="Nhập mật khẩu Staff mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
+                                        <input id="settings-staff-new-pass" type="password" autocomplete="new-password" placeholder="Nhập mật khẩu Staff mới..." class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
                                     </div>
                                     <button type="button" onclick="App.handleUpdateStaffPassword()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer">
                                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
@@ -3041,16 +3216,16 @@
                         </div>
                         <div class="sm:col-span-1">
                             <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Số lượng</label>
-                            <input id="stockin-qty" type="number" min="1" value="10" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-bold" />
+                            <input id="stockin-qty" type="number" min="0.001" step="any" value="10" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-bold" />
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Giá vốn nhập (đ)</label>
-                            <input id="stockin-cost-price" type="number" min="0" value="0" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-semibold" />
+                            <input id="stockin-cost-price" type="number" min="0" step="any" value="0" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-semibold" />
                         </div>
                         <div class="sm:col-span-2 flex items-end">
-                            <button type="button" onclick="InventoryModule.addItemToStockInDraft()" class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1">
+                            <button type="button" id="stockin-btn-add-item" onclick="InventoryModule.addItemToStockInDraft()" class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 cursor-pointer">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                                <span>Thêm</span>
+                                <span id="stockin-btn-add-item-text">Thêm</span>
                             </button>
                         </div>
                     </div>
@@ -3074,12 +3249,12 @@
                             <tr>
                                 <th class="py-2 px-2 text-center w-8">#</th>
                                 <th class="py-2 px-2">Tên Thuốc</th>
-                                <th class="py-2 px-2 w-24">Số Lô</th>
-                                <th class="py-2 px-2 w-28">Hạn Dùng</th>
-                                <th class="py-2 px-2 text-center w-20">SL</th>
-                                <th class="py-2 px-2 text-right w-24">Đơn Giá Nhập</th>
+                                <th class="py-2 px-2 w-28">Số Lô</th>
+                                <th class="py-2 px-2 w-32">Hạn Dùng</th>
+                                <th class="py-2 px-2 text-center w-28">SL</th>
+                                <th class="py-2 px-2 text-right w-28">Đơn Giá Nhập</th>
                                 <th class="py-2 px-2 text-right w-28">Thành Tiền</th>
-                                <th class="py-2 px-2 text-center w-8"></th>
+                                <th class="py-2 px-2 text-center w-16">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="stockin-draft-tbody" class="divide-y divide-slate-100">
@@ -4308,12 +4483,12 @@
                 </button>
             </div>
 
-            <form onsubmit="AuthModule.handleFormSubmit(event)" class="space-y-3.5">
+            <form onsubmit="AuthModule.handleFormSubmit(event)" class="space-y-3.5" autocomplete="on">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Tài khoản</label>
                     <div class="relative">
                         <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
-                        <input id="auth-input-username" type="text" required placeholder="admin hoặc staff" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        <input id="auth-input-username" type="text" name="username" autocomplete="username" required placeholder="admin hoặc staff" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                     </div>
                 </div>
 
@@ -4324,7 +4499,7 @@
                     </div>
                     <div class="relative">
                         <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
-                        <input id="auth-input-password" type="password" required placeholder="Nhập mật khẩu..." class="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        <input id="auth-input-password" type="password" name="password" autocomplete="current-password" required placeholder="Nhập mật khẩu..." class="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                         <button type="button" onclick="AuthModule.togglePassword()" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 p-0.5">
                             <i id="auth-password-toggle-icon" data-lucide="eye" class="w-4 h-4"></i>
                         </button>
@@ -5126,6 +5301,245 @@
     </div>
 
     <!-- ======================================================= -->
+    <!-- MODAL 18E: LẬP PHIẾU XUẤT HỦY THUỐC (QUÁ HẠN / HƯ HỎNG)  -->
+    <!-- ======================================================= -->
+    <div id="modal-disposal-create" class="hidden fixed inset-0 z-[85] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[95vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2.5 text-rose-800">
+                    <div class="p-2 bg-rose-50 text-rose-700 rounded-xl">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-base sm:text-lg text-slate-800">Lập Phiếu Xuất Hủy Thuốc (Quá Hạn Sử Dụng / Hư Hỏng)</h3>
+                        <p class="text-xs text-slate-500">
+                            Xuất hủy hàng tồn kho, tự động trừ tồn kho và ghi nhận chi phí xuất hủy vào Sổ Quỹ & Báo Cáo Tài Chính
+                        </p>
+                    </div>
+                </div>
+                <button type="button" onclick="InventoryModule.closeDisposalModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="flex-1 overflow-y-auto my-3 space-y-4 pr-1 text-xs">
+                <!-- Card Cấu hình: Lý do hủy, Ghi chú -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-rose-50/40 p-3.5 rounded-xl border border-rose-100">
+                    <div class="md:col-span-6">
+                        <label class="block font-bold text-slate-700 mb-1">Lý Do Xuất Hủy Hàng *</label>
+                        <select id="disposal-reason-select" onchange="InventoryModule.onDisposalReasonChange()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500">
+                            <option value="Hết hạn sử dụng (quá date)">Hết hạn sử dụng (quá date)</option>
+                            <option value="Bao bì rách, móp méo, vỡ hỏng trong bảo quản">Bao bì rách, móp méo, vỡ hỏng trong bảo quản</option>
+                            <option value="Biến đổi phẩm chất, ẩm mốc, đổi màu">Biến đổi phẩm chất, ẩm mốc, đổi màu</option>
+                            <option value="Thu hồi theo công văn của Cục Quản Lý Dược">Thu hồi theo công văn của Cục Quản Lý Dược</option>
+                            <option value="Hao hụt / sai lệch kiểm kê kho">Hao hụt / sai lệch kiểm kê kho</option>
+                            <option value="custom">Lý do khác (tự nhập)...</option>
+                        </select>
+                        <input id="disposal-reason-custom" type="text" placeholder="Nhập lý do xuất hủy cụ thể..." class="hidden mt-2 w-full px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-500" />
+                    </div>
+
+                    <div class="md:col-span-6">
+                        <label class="block font-bold text-slate-700 mb-1">Ghi Chú / Biên Bản Hủy</label>
+                        <input id="disposal-note" type="text" placeholder="Số quyết định, biên bản hủy, hội đồng kiểm kê..."
+                               class="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-500" />
+                    </div>
+                </div>
+
+                <!-- Box thêm thuốc vào phiếu xuất hủy -->
+                <div class="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200/60 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-amber-900 uppercase tracking-wider block">Chọn Thuốc Trong Kho Để Xuất Hủy:</span>
+                        <span id="disposal-med-stock-hint" class="text-[11px] text-emerald-800 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200">Tồn kho khả dụng: ---</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                        <div class="sm:col-span-5">
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Tìm & Chọn Thuốc Trong Kho *</label>
+                            <select id="disposal-medicine-select" onchange="InventoryModule.onDisposalMedicineChange()"
+                                    class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-semibold">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Đơn vị hủy</label>
+                            <select id="disposal-unit-select" onchange="InventoryModule.onDisposalUnitChange()" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-bold">
+                                <!-- Options dynamically updated -->
+                            </select>
+                        </div>
+                        <div class="sm:col-span-1">
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Số lượng</label>
+                            <input id="disposal-qty" type="number" min="0.001" step="any" value="1" oninput="InventoryModule.validateDisposalQtyInput()" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-bold text-center" />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Đơn giá vốn (đ)</label>
+                            <input id="disposal-cost-price" type="number" min="0" step="any" value="0" class="w-full text-xs px-2 py-1.5 bg-white border border-slate-200 rounded font-mono font-bold text-right" />
+                        </div>
+                        <div class="sm:col-span-2 flex items-end">
+                            <button type="button" onclick="InventoryModule.addItemToDisposalDraft()" class="w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1 shadow-sm cursor-pointer">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>Thêm Thuốc</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-200/50 text-[11px]">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 font-semibold">Số Lô:</span>
+                            <input id="disposal-batch" type="text" placeholder="Lô sản xuất..." class="px-2 py-1 bg-white border border-slate-200 rounded text-xs flex-1 font-mono" />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-500 font-semibold">Hạn Dùng:</span>
+                            <input id="disposal-expiry" type="date" class="px-2 py-1 bg-white border border-slate-200 rounded text-xs flex-1 font-mono" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng danh sách các mặt hàng xuất hủy -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="bg-slate-100 px-3.5 py-2.5 flex items-center justify-between">
+                        <div class="font-bold text-slate-800 text-xs flex items-center gap-1.5 uppercase">
+                            <i data-lucide="list" class="w-4 h-4 text-slate-500"></i>
+                            <span>Danh Sách Thuốc Cần Xuất Hủy Trong Phiếu Này</span>
+                        </div>
+                        <div class="text-[11px] text-slate-500">
+                            Số mặt hàng: <b id="disposal-draft-count" class="text-rose-700">0</b>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto max-h-56">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 sticky top-0">
+                                <tr>
+                                    <th class="p-2 text-center w-10">STT</th>
+                                    <th class="p-2 w-24">Mã Thuốc</th>
+                                    <th class="p-2">Tên Thuốc</th>
+                                    <th class="p-2 w-32">Số Lô & HSD</th>
+                                    <th class="p-2 text-center w-28">Đơn Vị & SL</th>
+                                    <th class="p-2 text-right w-28">Đơn Giá Vốn</th>
+                                    <th class="p-2 text-right w-28">Thành Tiền Vốn</th>
+                                    <th class="p-2 text-center w-12">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="disposal-items-tbody" class="divide-y divide-slate-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer: Tổng tiền vốn & Nút xác nhận -->
+            <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="text-xs text-slate-500">
+                        Tổng cộng: <b id="disposal-summary-items-count" class="text-slate-800">0</b> loại thuốc
+                    </div>
+                    <div class="text-base sm:text-lg font-bold text-rose-700 tabular-nums">
+                        Tổng giá trị vốn hủy: <span id="disposal-summary-total-amount">0 đ</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button type="button" onclick="InventoryModule.closeDisposalModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
+                        Hủy Bỏ
+                    </button>
+                    <button type="button" onclick="InventoryModule.confirmDisposalOrder()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span>Xác Nhận Xuất Hủy & Ghi Sổ Chi</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 18F: CHI TIẾT PHIẾU XUẤT HỦY THUỐC                 -->
+    <!-- ======================================================= -->
+    <div id="modal-disposal-detail" class="hidden fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-5 sm:p-6 my-6 animate-fadeIn max-h-[92vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-rose-50 text-rose-700 rounded-xl">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="disposal-detail-id" class="font-black text-base sm:text-lg text-slate-800 font-mono">PXH---</h3>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">Xuất Hủy Thuốc</span>
+                        </div>
+                        <p class="text-xs text-slate-500">Biên bản ghi nhận hủy thuốc hết hạn / hư hỏng & chứng từ hạch toán chi phí</p>
+                    </div>
+                </div>
+                <button type="button" onclick="InventoryModule.closeDisposalDetailModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto my-4 space-y-4 pr-1 text-xs">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div>
+                        <span class="text-slate-400 block text-[11px]">Thời gian lập:</span>
+                        <span id="disposal-detail-time" class="font-semibold text-slate-800">---</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[11px]">Dược sĩ phụ trách:</span>
+                        <span id="disposal-detail-pharmacist" class="font-semibold text-slate-800">---</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[11px]">Lý do xuất hủy:</span>
+                        <span id="disposal-detail-reason" class="font-semibold text-rose-700">---</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[11px]">Ghi chú:</span>
+                        <span id="disposal-detail-note" class="font-semibold text-slate-800">---</span>
+                    </div>
+                </div>
+
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 text-[11px] font-bold text-slate-600 uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 text-center w-10">STT</th>
+                                <th class="p-2.5">Tên Thuốc</th>
+                                <th class="p-2.5 w-32">Số Lô & HSD</th>
+                                <th class="p-2.5 text-center w-24">SL Hủy</th>
+                                <th class="p-2.5 text-right w-28">Đơn Giá Vốn</th>
+                                <th class="p-2.5 text-right w-28">Thành Tiền Vốn</th>
+                            </tr>
+                        </thead>
+                        <tbody id="disposal-detail-items-tbody" class="divide-y divide-slate-100">
+                            <!-- Populated -->
+                        </tbody>
+                        <tfoot class="bg-rose-50/50 font-bold border-t border-slate-200">
+                            <tr>
+                                <td colspan="5" class="p-3 text-right text-slate-800 uppercase">Tổng Giá Trị Vốn Xuất Hủy:</td>
+                                <td id="disposal-detail-total-amount" class="p-3 text-right text-rose-700 font-mono text-sm">0 đ</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+                <button type="button" onclick="InventoryModule.deleteCurrentDisposalOrder()" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span>Xóa Phiếu Hủy Này (Hoàn Lại Kho)</span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="InventoryModule.printCurrentDisposalOrder()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>In Biên Bản Hủy</span>
+                    </button>
+                    <button type="button" onclick="InventoryModule.closeDisposalDetailModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition cursor-pointer">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
     <!-- MODAL 19: LỊCH SỬ CÁC HÓA ĐƠN MUA HÀNG CỦA KHÁCH HÀNG   -->
     <!-- ======================================================= -->
     <div id="modal-customer-orders-history" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
@@ -5280,21 +5694,21 @@
 
     <!-- Application JavaScript Bundles -->
     <script src="vendor/JsBarcode.all.min.js"></script>
-    <script src="js/vietqr.js?v=20261109_v13"></script>
-    <script src="js/sample-data.js?v=20261109_v13"></script>
-    <script src="js/store.js?v=20261110_v16"></script>
-    <script src="js/auth.js?v=20261109_v13"></script>
-    <script src="js/export-excel.js?v=20261109_v13"></script>
-    <script src="js/barcode-printer.js?v=20261109_v13"></script>
-    <script src="js/searchable-select.js?v=20261109_v13"></script>
-    <script src="js/vouchers.js?v=20261109_v13"></script>
-    <script src="js/inventory.js?v=20261109_v13"></script>
-    <script src="js/pos.js?v=20261109_v13"></script>
-    <script src="js/orders.js?v=20261110_v16"></script>
-    <script src="js/customers.js?v=20261109_v13"></script>
-    <script src="js/reports.js?v=20261110_v16"></script>
-    <script src="js/audit-log.js?v=20261109_v13"></script>
-    <script src="js/app.js?v=20261109_v13"></script>
+    <script src="js/vietqr.js?v=20261112_v1"></script>
+    <script src="js/sample-data.js?v=20261112_v1"></script>
+    <script src="js/store.js?v=20261112_v1"></script>
+    <script src="js/auth.js?v=20261112_v1"></script>
+    <script src="js/export-excel.js?v=20261112_v1"></script>
+    <script src="js/barcode-printer.js?v=20261112_v1"></script>
+    <script src="js/searchable-select.js?v=20261112_v1"></script>
+    <script src="js/vouchers.js?v=20261112_v1"></script>
+    <script src="js/inventory.js?v=20261112_v1"></script>
+    <script src="js/pos.js?v=20261112_v1"></script>
+    <script src="js/orders.js?v=20261112_v1"></script>
+    <script src="js/customers.js?v=20261112_v1"></script>
+    <script src="js/reports.js?v=20261112_v1"></script>
+    <script src="js/audit-log.js?v=20261112_v1"></script>
+    <script src="js/app.js?v=20261112_v1"></script>
 
     <!-- Đồng hồ thời gian thực ở Header -->
     <script>

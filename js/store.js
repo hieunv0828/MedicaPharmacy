@@ -23,6 +23,9 @@ class DataStore {
         this.listeners = {};
         this.isServerMode = window.location.protocol.startsWith('http');
         this.syncInProgress = false;
+        this.isSaving = false;
+        this.lastDatabaseVersion = 1;
+        this.lastDatabaseTimestamp = null;
         this.lastServerSyncTime = null;
         this._cachedMedicines = null;
         this._medicineMap = null;
@@ -68,6 +71,8 @@ class DataStore {
             const res = await fetch('/api/database', { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
+                if (data.version) this.lastDatabaseVersion = data.version;
+                if (data.lastUpdated) this.lastDatabaseTimestamp = data.lastUpdated;
                 
                 // Nếu server chưa có dữ liệu (file mới tinh), nạp dữ liệu mẫu lên server
                 if (!data.medicines || data.medicines.length === 0) {
@@ -103,34 +108,57 @@ class DataStore {
     }
 
     async backgroundCheckServerSync() {
-        if (!this.isServerMode || this.syncInProgress) return;
+        // TUYỆT ĐỐI KHÔNG sync ngầm khi:
+        // 1. Đang có sync khác chạy
+        // 2. Đang có thao tác lưu lên server (this.isSaving)
+        // 3. Đang có timer chờ lưu debounce (this._persistTimer) -> để tránh ghi đè dữ liệu người dùng vừa tạo
+        if (!this.isServerMode || this.syncInProgress || this.isSaving || this._persistTimer) return;
         try {
             // Bước 1: Kiểm tra trạng thái siêu nhẹ qua endpoint /api/database/status (chỉ ~70 bytes thay vì 17MB)
+            let serverNeedsSync = false;
             try {
                 const statusRes = await fetch('/api/database/status', { cache: 'no-store' });
                 if (statusRes.ok) {
                     const statusData = await statusRes.json();
                     this.updateServerStatusBadge(true);
-                    // Nếu thời gian thay đổi trên server trùng khớp với dữ liệu máy đang giữ -> Dừng ngay, không cần tải lại 17MB!
-                    if (statusData && statusData.lastUpdated && this.lastDatabaseTimestamp && statusData.lastUpdated === this.lastDatabaseTimestamp) {
+                    // Nếu version của server trùng khớp với phiên bản máy đang giữ -> Không có gì mới, DỪNG NGAY!
+                    if (statusData && statusData.version && this.lastDatabaseVersion && statusData.version === this.lastDatabaseVersion) {
                         return; // Tiết kiệm 99.9% lưu lượng và giải phóng CPU!
                     }
+                    // Hoặc nếu mốc thời gian hoàn toàn trùng khớp -> DỪNG NGAY!
+                    if (statusData && statusData.lastUpdated && this.lastDatabaseTimestamp && statusData.lastUpdated === this.lastDatabaseTimestamp) {
+                        return;
+                    }
+                    serverNeedsSync = true;
                 }
-            } catch(eStatus) {}
+            } catch(eStatus) {
+                return;
+            }
 
-            // Bước 2: Chỉ khi phát hiện mốc thời gian thay đổi, mới tải lại database
+            if (!serverNeedsSync) return;
+            // Kiểm tra lại lần nữa: nếu người dùng vừa bấm thao tác gì đó trong khi fetch status
+            if (this.isSaving || this._persistTimer) return;
+
+            // Bước 2: Chỉ khi phát hiện mốc phiên bản/thời gian thay đổi, mới tải lại database
             const res = await fetch('/api/database', { cache: 'no-store' });
             if (res.ok) {
+                if (this.isSaving || this._persistTimer) return;
                 const serverData = await res.json();
                 if (serverData && serverData.medicines) {
+                    if (serverData.version) this.lastDatabaseVersion = serverData.version;
+                    if (serverData.lastUpdated) this.lastDatabaseTimestamp = serverData.lastUpdated;
+
                     const localOrders = this.getOrders();
-                    // Nếu số lượng đơn hoặc thuốc có sự khác biệt (do máy khác thao tác)
-                    if (serverData.orders && serverData.orders.length !== localOrders.length) {
+                    const localStockIns = this.getStockInOrders();
+                    const ordersDiff = serverData.orders && serverData.orders.length !== localOrders.length;
+                    const stockDiff = serverData.stockInOrders && serverData.stockInOrders.length !== localStockIns.length;
+                    const medDiff = serverData.medicines && serverData.medicines.length !== (this._cachedMedicines ? this._cachedMedicines.length : 0);
+
+                    // Nếu có sự khác biệt từ máy khác hoặc dữ liệu mới
+                    if (ordersDiff || stockDiff || medDiff) {
                         console.log('⚡ Phát hiện dữ liệu mới từ máy khác, đang cập nhật...');
                         this.saveToLocalCache(serverData);
                         this.emit('all:changed');
-                    } else {
-                        if (serverData.lastUpdated) this.lastDatabaseTimestamp = serverData.lastUpdated;
                     }
                 }
                 this.updateServerStatusBadge(true);
@@ -142,17 +170,34 @@ class DataStore {
 
     async uploadDatabaseToServer(fullDb) {
         if (!this.isServerMode) return;
+        this.isSaving = true;
         try {
             const res = await fetch('/api/database', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fullDb)
             });
-            if (res.ok && fullDb && fullDb.lastUpdated) {
-                this.lastDatabaseTimestamp = fullDb.lastUpdated;
+            if (res.ok) {
+                try {
+                    const resData = await res.json();
+                    if (resData && resData.version) {
+                        this.lastDatabaseVersion = resData.version;
+                    }
+                    if (resData && resData.lastUpdated) {
+                        this.lastDatabaseTimestamp = resData.lastUpdated;
+                    } else if (fullDb && fullDb.lastUpdated) {
+                        this.lastDatabaseTimestamp = fullDb.lastUpdated;
+                    }
+                } catch(eJson) {
+                    if (fullDb && fullDb.lastUpdated) {
+                        this.lastDatabaseTimestamp = fullDb.lastUpdated;
+                    }
+                }
             }
         } catch (e) {
             console.error('Lỗi khi lưu dữ liệu lên máy chủ:', e);
+        } finally {
+            this.isSaving = false;
         }
     }
 
@@ -171,10 +216,34 @@ class DataStore {
                 try { localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers)); } catch(e){}
             }
             if (db.orders) {
+                // Bảo vệ các đơn bán mới tạo trên máy cục bộ trong 5 phút gần nhất không bị ghi đè
+                if (this._cachedOrders && Array.isArray(this._cachedOrders)) {
+                    const serverIds = new Set(db.orders.map(o => o.id));
+                    const pendingOrders = this._cachedOrders.filter(o => {
+                        if (serverIds.has(o.id)) return false;
+                        const ageMs = Date.now() - new Date(o.createdAt || o.date || 0).getTime();
+                        return ageMs < 300000;
+                    });
+                    if (pendingOrders.length > 0) {
+                        db.orders = [...pendingOrders, ...db.orders];
+                    }
+                }
                 this._cachedOrders = db.orders;
                 try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders)); } catch(e){}
             }
             if (db.stockInOrders) {
+                // Bảo vệ các phiếu nhập mới tạo trên máy cục bộ trong 5 phút gần nhất không bị ghi đè
+                if (this._cachedStockIns && Array.isArray(this._cachedStockIns)) {
+                    const serverIds = new Set(db.stockInOrders.map(s => s.id));
+                    const pendingStockIns = this._cachedStockIns.filter(s => {
+                        if (serverIds.has(s.id)) return false;
+                        const ageMs = Date.now() - new Date(s.createdAt || s.date || 0).getTime();
+                        return ageMs < 300000;
+                    });
+                    if (pendingStockIns.length > 0) {
+                        db.stockInOrders = [...pendingStockIns, ...db.stockInOrders];
+                    }
+                }
                 this._cachedStockIns = db.stockInOrders;
                 try { localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders)); } catch(e){}
             }
@@ -186,6 +255,18 @@ class DataStore {
                 try { localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory)); } catch(e){}
             }
             if (db.vouchers) {
+                // Bảo vệ các phiếu chi/thu mới tạo trong 5 phút gần nhất
+                if (this._cachedVouchers && Array.isArray(this._cachedVouchers)) {
+                    const serverIds = new Set(db.vouchers.map(v => v.id));
+                    const pendingVouchers = this._cachedVouchers.filter(v => {
+                        if (serverIds.has(v.id)) return false;
+                        const ageMs = Date.now() - new Date(v.createdAt || v.date || 0).getTime();
+                        return ageMs < 300000;
+                    });
+                    if (pendingVouchers.length > 0) {
+                        db.vouchers = [...pendingVouchers, ...db.vouchers];
+                    }
+                }
                 this._cachedVouchers = db.vouchers;
                 try { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers)); } catch(e){}
             }
@@ -196,6 +277,9 @@ class DataStore {
             if (db.auditLog && Array.isArray(db.auditLog)) {
                 this._cachedAuditLog = db.auditLog;
                 try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(db.auditLog)); } catch(e){}
+            }
+            if (db.version) {
+                this.lastDatabaseVersion = db.version;
             }
             if (db.lastUpdated) {
                 this.lastDatabaseTimestamp = db.lastUpdated;
@@ -396,7 +480,8 @@ class DataStore {
         if (!med) return 0;
         const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
         const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
-        const baseCost = (med.costPrice || 0) / packRatio;
+        const costPrice = (typeof med.costPrice === 'number') ? med.costPrice : (parseFloat(med.costPrice) || 0);
+        const baseCost = costPrice / packRatio;
 
         const u = (unit || '').trim().toLowerCase();
         const pack = (med.packUnit || '').trim().toLowerCase();
@@ -404,15 +489,15 @@ class DataStore {
         const base = (med.baseUnit || '').trim().toLowerCase();
 
         if (u && pack && u === pack) {
-            return med.costPrice || 0;
+            return costPrice;
         }
         if (u && sub && u === sub && sub !== pack) {
-            return Math.round(baseCost * subRatio);
+            return Math.round(baseCost * subRatio * 10000) / 10000;
         }
         if (u && base && u === base) {
-            return Math.round(baseCost);
+            return Math.round(baseCost * 10000) / 10000;
         }
-        return Math.round(baseCost);
+        return Math.round(baseCost * 10000) / 10000;
     }
 
     formatLocalISO(d = new Date()) {
@@ -457,7 +542,7 @@ class DataStore {
         const medicines = this.getMedicines();
         const med = this.getMedicineById(medicineId);
         if (med) {
-            med.stockUnits = Math.max(0, (med.stockUnits || 0) + unitsDelta);
+            med.stockUnits = Math.max(0, Math.round(((med.stockUnits || 0) + unitsDelta) * 1000) / 1000);
             try {
                 localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(medicines));
             } catch(e) {}
@@ -572,16 +657,16 @@ class DataStore {
                         const prevCostPack = med.costPrice || 0;
 
                         if (prevStockUnits <= 0 || prevCostPack <= 0) {
-                            med.costPrice = Math.round(inCostPack);
+                            med.costPrice = Math.round(inCostPack * 100) / 100;
                         } else {
                             const prevPackStock = prevStockUnits / packRatio;
                             const inPackQty = addedUnits / packRatio;
                             const avgCost = ((prevPackStock * prevCostPack) + (inPackQty * inCostPack)) / (prevPackStock + inPackQty);
-                            med.costPrice = Math.round(avgCost);
+                            med.costPrice = Math.round(avgCost * 100) / 100;
                         }
                     }
 
-                    med.stockUnits = (med.stockUnits || 0) + addedUnits;
+                    med.stockUnits = Math.round(((med.stockUnits || 0) + addedUnits) * 1000) / 1000;
                     this.saveMedicine(med);
                 }
             });
@@ -627,7 +712,7 @@ class DataStore {
                     } else if (oldItem.unit === med.subUnit && med.subRatio > 1) {
                         unitsToDeduct = oldItem.quantity * med.subRatio;
                     }
-                    med.stockUnits = Math.max(0, (med.stockUnits || 0) - unitsToDeduct);
+                    med.stockUnits = Math.max(0, Math.round(((med.stockUnits || 0) - unitsToDeduct) * 1000) / 1000);
                     this.saveMedicine(med);
                 }
             });
@@ -663,16 +748,16 @@ class DataStore {
                         const prevCostPack = med.costPrice || 0;
 
                         if (prevStockUnits <= 0 || prevCostPack <= 0) {
-                            med.costPrice = Math.round(inCostPack);
+                            med.costPrice = Math.round(inCostPack * 100) / 100;
                         } else {
                             const prevPackStock = prevStockUnits / packRatio;
                             const inPackQty = unitsToAdd / packRatio;
                             const avgCost = ((prevPackStock * prevCostPack) + (inPackQty * inCostPack)) / (prevPackStock + inPackQty);
-                            med.costPrice = Math.round(avgCost);
+                            med.costPrice = Math.round(avgCost * 100) / 100;
                         }
                     }
 
-                    med.stockUnits = (med.stockUnits || 0) + unitsToAdd;
+                    med.stockUnits = Math.round(((med.stockUnits || 0) + unitsToAdd) * 1000) / 1000;
                     this.saveMedicine(med);
                 }
             });
@@ -1119,6 +1204,177 @@ class DataStore {
         });
 
         return { success: true, returnRecord };
+    }
+
+    // --- Lập Phiếu Xuất Hủy Thuốc (Quá Hạn / Hư Hỏng) ---
+    createDisposalOrder({ items = [], reason = '', note = '', paymentMethod = 'cash' }) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { success: false, message: 'Vui lòng chọn ít nhất một mặt hàng thuốc để xuất hủy!' };
+        }
+
+        // 1. Kiểm tra tồn kho thực tế của từng thuốc - KHÔNG CHO PHÉP XUẤT ÂM!
+        for (const item of items) {
+            const qtyToDispose = parseFloat(item.quantity) || 0;
+            if (qtyToDispose <= 0) {
+                return { success: false, message: `Số lượng xuất hủy của [${item.medicineName}] phải lớn hơn 0!` };
+            }
+
+            const med = this.getMedicineById(item.medicineId);
+            if (!med) {
+                return { success: false, message: `Không tìm thấy thuốc [${item.medicineName}] trong hệ thống kho!` };
+            }
+
+            let unitsToDeduct = qtyToDispose;
+            if (item.unit === med.packUnit && med.packRatio > 1) {
+                unitsToDeduct = qtyToDispose * med.packRatio;
+            } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                unitsToDeduct = qtyToDispose * med.subRatio;
+            }
+
+            const availableUnits = med.stockUnits || 0;
+            if (availableUnits < unitsToDeduct) {
+                let maxInUnit = availableUnits;
+                if (item.unit === med.packUnit && med.packRatio > 1) maxInUnit = availableUnits / med.packRatio;
+                else if (item.unit === med.subUnit && med.subRatio > 1) maxInUnit = availableUnits / med.subRatio;
+                return {
+                    success: false,
+                    message: `Thuốc [${med.name}] hiện trong kho chỉ còn ${AppUtils.formatNumber(maxInUnit)} ${item.unit} (${availableUnits} ${med.baseUnit || 'đơn vị'}). Không thể xuất hủy vượt quá số lượng tồn kho!`
+                };
+            }
+        }
+
+        let totalDisposalAmount = 0;
+
+        // 2. Trừ kho thuốc tương ứng
+        items.forEach(item => {
+            const qtyToDispose = parseFloat(item.quantity) || 0;
+            if (qtyToDispose <= 0) return;
+
+            const costPrice = parseFloat(item.costPrice) || 0;
+            const lineTotal = Math.round(qtyToDispose * costPrice);
+            totalDisposalAmount += lineTotal;
+
+            const med = this.getMedicineById(item.medicineId);
+            if (med) {
+                let unitsToDeduct = qtyToDispose;
+                if (item.unit === med.packUnit && med.packRatio > 1) {
+                    unitsToDeduct = qtyToDispose * med.packRatio;
+                } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                    unitsToDeduct = qtyToDispose * med.subRatio;
+                }
+
+                med.stockUnits = Math.max(0, Math.round(((med.stockUnits || 0) - unitsToDeduct) * 1000) / 1000);
+                this.saveMedicine(med);
+            }
+        });
+
+        if (totalDisposalAmount <= 0) {
+            return { success: false, message: 'Tổng giá trị hàng xuất hủy phải lớn hơn 0!' };
+        }
+
+        // 3. Tạo mã phiếu xuất hủy PXHyymmdd-xxx
+        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+        const allReturns = this.getAllPurchaseReturns();
+        const countToday = allReturns.filter(r => r.id && r.id.startsWith('PXH' + dateStr)).length + 1;
+        const disposalId = `PXH${dateStr}-${String(countToday).padStart(3, '0')}`;
+        const settings = this.getSettings();
+
+        const disposalRecord = {
+            id: disposalId,
+            type: 'disposal',
+            returnType: 'disposal',
+            supplierId: '',
+            supplierName: 'Xuất Hủy Kho Nội Bộ',
+            reason: reason || 'Hết hạn sử dụng (quá date)',
+            note: note || '',
+            createdAt: new Date().toISOString(),
+            date: new Date().toISOString(),
+            paymentMethod: paymentMethod || 'cash',
+            items: items.map(i => {
+                const q = parseFloat(i.quantity) || 0;
+                const c = parseFloat(i.costPrice) || 0;
+                return {
+                    medicineId: i.medicineId,
+                    medicineName: i.medicineName,
+                    unit: i.unit,
+                    quantity: q,
+                    costPrice: c,
+                    batchNo: i.batchNo || '',
+                    expiryDate: i.expiryDate || '',
+                    totalRefund: Math.round(q * c),
+                    lineTotal: Math.round(q * c)
+                };
+            }),
+            totalItems: items.length,
+            totalQuantity: items.reduce((sum, it) => sum + (parseFloat(it.quantity) || 0), 0),
+            totalAmount: totalDisposalAmount,
+            refundTotal: totalDisposalAmount,
+            pharmacist: settings.pharmacist || 'DS. Nguyễn Thanh Dung'
+        };
+
+        this.addPurchaseReturn(disposalRecord);
+
+        // 4. Tự động sinh Phiếu Chi trong Sổ Quỹ Thu Chi để hạch toán chi phí phát sinh
+        this.addVoucher({
+            type: 'payment',
+            paymentMethod: paymentMethod || 'cash',
+            category: 'Chi phí xuất hủy hàng hư hỏng, quá hạn',
+            targetType: 'other',
+            targetName: 'Hủy hàng quá hạn / hư hỏng',
+            amount: totalDisposalAmount,
+            note: `Chi phí xuất hủy ${items.length} loại thuốc quá hạn/hư hỏng theo phiếu ${disposalRecord.id} - Lý do: ${disposalRecord.reason}`,
+            isAccounting: true,
+            refId: disposalRecord.id,
+            pharmacist: disposalRecord.pharmacist,
+            createdAt: disposalRecord.createdAt
+        });
+
+        this.logAction('Kho Hàng & Xuất Hủy', `Lập phiếu xuất hủy: ${disposalRecord.id}, tổng vốn hủy: ${AppUtils.formatVND(totalDisposalAmount)}, lý do: ${disposalRecord.reason}`, disposalRecord.pharmacist, 'create');
+
+        return { success: true, disposalRecord };
+    }
+
+    // --- Xóa phiếu xuất hủy (Hoàn lại kho và hủy phiếu chi tương ứng) ---
+    deleteDisposalOrder(disposalId) {
+        const returns = this.getPurchaseReturns();
+        const idx = returns.findIndex(r => r.id === disposalId);
+        if (idx === -1) {
+            return { success: false, message: 'Không tìm thấy phiếu xuất hủy này!' };
+        }
+
+        const record = returns[idx];
+
+        // 1. Hoàn lại số lượng tồn kho cho các thuốc trong phiếu
+        (record.items || []).forEach(item => {
+            const med = this.getMedicineById(item.medicineId);
+            if (med) {
+                const qty = parseFloat(item.quantity) || 0;
+                let unitsToRestore = qty;
+                if (item.unit === med.packUnit && med.packRatio > 1) {
+                    unitsToRestore = qty * med.packRatio;
+                } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                    unitsToRestore = qty * med.subRatio;
+                }
+                med.stockUnits = Math.round(((med.stockUnits || 0) + unitsToRestore) * 1000) / 1000;
+                this.saveMedicine(med);
+            }
+        });
+
+        // 2. Hủy phiếu chi tương ứng trong Sổ Quỹ
+        const vouchers = this.getVouchers();
+        const vIdx = vouchers.findIndex(v => v.refId === disposalId);
+        if (vIdx !== -1) {
+            vouchers.splice(vIdx, 1);
+            this.saveVouchers(vouchers);
+        }
+
+        // 3. Xóa phiếu xuất hủy khỏi danh sách
+        returns.splice(idx, 1);
+        this.savePurchaseReturns(returns);
+
+        this.logAction('Kho Hàng & Xuất Hủy', `Xóa phiếu xuất hủy: ${record.id}, đã hoàn lại tồn kho và hủy phiếu chi`, this.getSettings().pharmacist || 'ADMIN', 'delete');
+
+        return { success: true };
     }
 
     // --- Orders (Hóa đơn bán thuốc) ---
@@ -2407,12 +2663,14 @@ window.AppUtils = {
 
     formatVND(amount) {
         if (isNaN(amount) || amount === null || amount === undefined) return '0 đ';
-        return Number(amount).toLocaleString('vi-VN') + ' đ';
+        const num = Number(amount);
+        return num.toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + ' đ';
     },
 
     formatNumber(val) {
         if (isNaN(val) || val === null || val === undefined) return '0';
-        return Number(val).toLocaleString('vi-VN');
+        const num = Number(val);
+        return num.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
     },
 
     formatDate(dateStr) {

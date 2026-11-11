@@ -136,7 +136,15 @@ const App = {
             InventoryModule.renderMedicineTable();
             InventoryModule.updateInventoryStats();
         } else if (tabId === 'stockin') {
+            const stockInSearch = document.getElementById('stockin-search-input');
+            if (stockInSearch && (stockInSearch.value === 'admin' || stockInSearch.value === 'staff')) {
+                stockInSearch.value = '';
+                if (window.InventoryModule) {
+                    InventoryModule.stockInSearchKeyword = '';
+                }
+            }
             InventoryModule.renderStockInHistory();
+            InventoryModule.renderStockInSummaryCards();
         } else if (tabId === 'vouchers') {
             if (window.VouchersModule) {
                 VouchersModule.renderSummaryCards();

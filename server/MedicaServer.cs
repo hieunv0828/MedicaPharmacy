@@ -20,7 +20,6 @@ namespace MedicaPharmacy
         [STAThread]
         static void Main(string[] args)
         {
-            try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Main started: otherCount check...\r\n"); } catch { }
             AppDomain.CurrentDomain.UnhandledException += (s, e) => {
                 try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_err.txt"), e.ExceptionObject.ToString()); } catch { }
             };
@@ -34,10 +33,8 @@ namespace MedicaPharmacy
             {
                 if (p.Id != currentId) otherCount++;
             }
-            try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - otherCount=" + otherCount + "\r\n"); } catch { }
             if (otherCount > 0)
             {
-                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Exiting because otherCount > 0\r\n"); } catch { }
                 // Đã có máy chủ chạy rồi -> chỉ cần mở trình duyệt tới web
                 OpenBrowser("http://medica.com");
                 return;
@@ -45,15 +42,12 @@ namespace MedicaPharmacy
 
             try
             {
-                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Starting Application.Run...\r\n"); } catch { }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new MedicaTrayApplicationContext(args));
-                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Application.Run EXITED NORMALLY\r\n"); } catch { }
             }
             catch (Exception ex)
             {
-                try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - Application.Run EXCEPTION: " + ex + "\r\n"); } catch { }
                 try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_err.txt"), ex.ToString()); } catch { }
             }
         }
@@ -101,6 +95,8 @@ namespace MedicaPharmacy
         private byte[] _dbCacheBytes = null;
         private DateTime _dbCacheTime = DateTime.MinValue;
         private static readonly TimeSpan _dbCacheTtl = TimeSpan.FromSeconds(2);
+        private static long _dbVersion = 1;
+        private static string _dbLastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
 
         public MedicaTrayApplicationContext(string[] args = null)
         {
@@ -159,7 +155,6 @@ namespace MedicaPharmacy
             try { InitTrayIcon(); } catch { }
 
             string openUrl = (_activePort == 80) ? "http://medica.com" : ("http://localhost:" + _activePort);
-            try { File.AppendAllText("f:\\MedicaPharmacy\\server_trace.log", DateTime.Now + " - MedicaTrayApplicationContext ctor finished, activePort=" + _activePort + "\r\n"); } catch { }
             Program.OpenBrowser(openUrl);
         }
 
@@ -277,12 +272,15 @@ namespace MedicaPharmacy
             try
             {
                 _tcpListener = new TcpListener(IPAddress.Any, port);
-                _tcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 _tcpListener.ExclusiveAddressUse = false;
+                _tcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 _tcpListener.Start();
                 _activePort = port;
 
-                ThreadPool.QueueUserWorkItem(ListenLoop);
+                Thread listenerThread = new Thread(ListenLoop);
+                listenerThread.IsBackground = false;
+                listenerThread.Name = "MedicaServerHttpListener";
+                listenerThread.Start();
                 return true;
             }
             catch
@@ -514,12 +512,12 @@ namespace MedicaPharmacy
                 try
                 {
                     client.NoDelay = true;
-                    client.ReceiveTimeout = 10000;
-                    client.SendTimeout = 10000;
+                    client.ReceiveTimeout = 60000;
+                    client.SendTimeout = 60000;
 
                     using (NetworkStream stream = client.GetStream())
                     {
-                        byte[] buffer = new byte[8192];
+                        byte[] buffer = new byte[65536];
                         int bytesRead = stream.Read(buffer, 0, buffer.Length);
                         if (bytesRead <= 0) return;
 
@@ -566,9 +564,17 @@ namespace MedicaPharmacy
 
                             while (ms.Length < contentLength)
                             {
-                                int read = stream.Read(buffer, 0, Math.Min(buffer.Length, contentLength - (int)ms.Length));
+                                int toRead = Math.Min(buffer.Length, contentLength - (int)ms.Length);
+                                int read = stream.Read(buffer, 0, toRead);
                                 if (read <= 0) break;
                                 ms.Write(buffer, 0, read);
+                            }
+
+                            if (contentLength > 0 && ms.Length < contentLength)
+                            {
+                                SendResponse(stream, 400, "application/json; charset=utf-8", 
+                                    Encoding.UTF8.GetBytes("{\"success\":false,\"message\":\"Dữ liệu gửi lên không trọn vẹn (truncated payload)\"}"));
+                                return;
                             }
 
                             body = Encoding.UTF8.GetString(ms.ToArray());
@@ -609,8 +615,7 @@ namespace MedicaPharmacy
                                 SendResponse(stream, 403, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(forbid));
                                 return;
                             }
-                            string lastUpdated = GetDataDirLastWrite().ToString("yyyy-MM-ddTHH:mm:ssZ");
-                            string statusJson = string.Format("{{\"status\":\"online\",\"lastUpdated\":\"{0}\"}}", lastUpdated);
+                            string statusJson = string.Format("{{\"status\":\"online\",\"version\":{0},\"lastUpdated\":\"{1}\"}}", _dbVersion, _dbLastUpdated);
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(statusJson));
                             return;
                         }
@@ -694,10 +699,15 @@ namespace MedicaPharmacy
                                 bool saved = SaveFullDatabase(body);
                                 if (saved)
                                 {
-                                    // Invalidate cache on save
-                                    _dbCache = null;
-                                    _dbCacheBytes = null;
-                                    string ok = "{\"success\":true,\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}";
+                                    // Invalidate cache on save & increment DB version
+                                    lock (_dbLock)
+                                    {
+                                        _dbVersion++;
+                                        _dbLastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                                        _dbCache = null;
+                                        _dbCacheBytes = null;
+                                    }
+                                    string ok = string.Format("{{\"success\":true,\"version\":{0},\"lastUpdated\":\"{1}\",\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}}", _dbVersion, _dbLastUpdated);
                                     SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(ok));
                                 }
                                 else
@@ -942,8 +952,6 @@ namespace MedicaPharmacy
                 string vouchersJson = ReadPartitionedListRaw("vouchers_*.json");
                 string returnsJson = ReadPartitionedListRaw("returns_*.json");
 
-                string lastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
-
                 var sb = new StringBuilder(medicinesJson.Length + 4096);
                 sb.Append("{\"settings\":").Append(settingsJson)
                   .Append(",\"medicines\":").Append(medicinesJson)
@@ -955,7 +963,8 @@ namespace MedicaPharmacy
                   .Append(",\"stockInOrders\":").Append(stockinJson)
                   .Append(",\"vouchers\":").Append(vouchersJson)
                   .Append(",\"purchaseReturns\":").Append(returnsJson)
-                  .Append(",\"lastUpdated\":\"").Append(lastUpdated).Append("\"}");
+                  .Append(",\"version\":").Append(_dbVersion)
+                  .Append(",\"lastUpdated\":\"").Append(_dbLastUpdated).Append("\"}");
 
                 _dbCache = sb.ToString();
                 _dbCacheTime = DateTime.UtcNow;
@@ -1150,7 +1159,11 @@ namespace MedicaPharmacy
             }
             catch (Exception ex)
             {
-                try { File.AppendAllText(Path.Combine(_webRoot, "save_err.txt"), ex.ToString()); } catch { }
+                try {
+                    string msg = string.Format("[{0}] Lỗi lưu DB: {1}\r\nStack: {2}\r\n", 
+                        DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), ex.Message, ex.StackTrace);
+                    File.AppendAllText(Path.Combine(_webRoot, "save_err.txt"), msg);
+                } catch { }
                 return false;
             }
         }
@@ -1159,8 +1172,19 @@ namespace MedicaPharmacy
         {
             string temp = path + ".tmp";
             File.WriteAllText(temp, json, Encoding.UTF8);
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            for (int retry = 0; retry < 3; retry++)
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                    File.Move(temp, path);
+                    break;
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(50);
+                }
+            }
         }
 
         private object ReadJsonFile(string path, object defaultVal)

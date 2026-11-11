@@ -319,6 +319,43 @@ const POSModule = {
         });
     },
 
+    // Tính số lượng tồn kho khả dụng tối đa theo đơn vị đang chọn (đã trừ đi các dòng khác của cùng thuốc này trong giỏ)
+    getMaxAvailableQuantity(medicineId, unit, excludeCartIndex = -1) {
+        const med = Store.getMedicineById(medicineId);
+        if (!med) return 0;
+
+        const totalStockUnits = parseFloat(med.stockUnits) || 0;
+        if (totalStockUnits <= 0) return 0;
+
+        // Tính tổng số đơn vị cơ bản (baseUnit) đã được sử dụng ở các dòng khác trong giỏ hàng
+        let usedBaseUnitsInCart = 0;
+        (this.cart || []).forEach((item, idx) => {
+            if (item.medicineId === medicineId && idx !== excludeCartIndex) {
+                let ratio = 1;
+                if (item.unit === med.packUnit && (med.packRatio || 1) > 1) {
+                    ratio = med.packRatio;
+                } else if (item.unit === med.subUnit && (med.subRatio || 1) > 1) {
+                    ratio = med.subRatio;
+                }
+                usedBaseUnitsInCart += (parseFloat(item.quantity) || 0) * ratio;
+            }
+        });
+
+        const remainingBaseUnits = Math.max(0, Math.round((totalStockUnits - usedBaseUnitsInCart) * 1000) / 1000);
+        if (remainingBaseUnits <= 0) return 0;
+
+        // Quy đổi ra đơn vị mục tiêu (unit)
+        let targetRatio = 1;
+        if (unit === med.packUnit && (med.packRatio || 1) > 1) {
+            targetRatio = med.packRatio;
+        } else if (unit === med.subUnit && (med.subRatio || 1) > 1) {
+            targetRatio = med.subRatio;
+        }
+
+        const maxInUnit = remainingBaseUnits / targetRatio;
+        return Math.round(maxInUnit * 1000) / 1000;
+    },
+
     // Thêm thuốc vào giỏ hàng
     addToCart(medicineId, defaultUnit = null) {
         const med = Store.getMedicineById(medicineId);
@@ -344,9 +381,31 @@ const POSModule = {
 
         // Kiểm tra xem mặt hàng cùng ID và cùng đơn vị đã có trong giỏ chưa
         const existingIndex = this.cart.findIndex(i => i.medicineId === medicineId && i.unit === selectedUnit);
+        const maxQty = this.getMaxAvailableQuantity(medicineId, selectedUnit, existingIndex >= 0 ? existingIndex : -1);
+
+        if (maxQty <= 0) {
+            alert(`Thuốc [${med.name}] hiện đã hết hàng trong kho (Tồn: 0 ${selectedUnit})! Không thể thêm vào đơn bán.`);
+            if (window.App && App.showToast) App.showToast(`Thuốc [${med.name}] đã hết hàng!`, 'error');
+            if (window.AppUtils && AppUtils.playBeepSound) AppUtils.playBeepSound('error');
+            return;
+        }
+
         if (existingIndex >= 0) {
-            this.cart[existingIndex].quantity += 1;
+            const currentQty = this.cart[existingIndex].quantity;
+            if (currentQty + 1 > maxQty) {
+                if (currentQty >= maxQty) {
+                    alert(`Thuốc [${med.name}] hiện chỉ còn tồn tối đa ${maxQty} ${selectedUnit} trong kho! Không thể thêm tiếp.`);
+                    if (window.App && App.showToast) App.showToast(`Đã đạt giới hạn tồn kho tối đa: ${maxQty} ${selectedUnit}`, 'warning');
+                    if (window.AppUtils && AppUtils.playBeepSound) AppUtils.playBeepSound('error');
+                    return;
+                }
+                this.cart[existingIndex].quantity = maxQty;
+                if (window.App && App.showToast) App.showToast(`Đã điều chỉnh thuốc [${med.name}] lên tối đa ${maxQty} ${selectedUnit}.`, 'info');
+            } else {
+                this.cart[existingIndex].quantity = Math.round((currentQty + 1) * 1000) / 1000;
+            }
         } else {
+            const addQty = Math.min(1, maxQty);
             this.cart.push({
                 medicineId: med.id,
                 medicineName: med.name,
@@ -357,7 +416,7 @@ const POSModule = {
                 subUnit: med.subUnit,
                 subRatio: med.subRatio || 1,
                 unit: selectedUnit,
-                quantity: 1,
+                quantity: addQty,
                 price: unitPrice,
                 costPrice: unitCostPrice,
                 usage: med.usageDefault || 'Uống sau ăn theo hướng dẫn của dược sĩ.',
@@ -385,6 +444,14 @@ const POSModule = {
         }
         item.costPrice = Store.getMedicineUnitCost(med, newUnit);
 
+        // Kiểm tra lại tồn kho tối đa sau khi đổi đơn vị
+        const maxQty = this.getMaxAvailableQuantity(item.medicineId, newUnit, index);
+        if (item.quantity > maxQty) {
+            item.quantity = Math.max(0.001, maxQty);
+            alert(`Thuốc [${med.name}] khi đổi sang ${newUnit} chỉ còn tồn tối đa ${maxQty} ${newUnit}. Số lượng đã được điều chỉnh về ${maxQty} ${newUnit}.`);
+            if (window.App && App.showToast) App.showToast(`Thuốc [${med.name}] điều chỉnh về tối đa ${maxQty} ${newUnit}.`, 'warning');
+        }
+
         this.renderCart();
     },
 
@@ -393,24 +460,54 @@ const POSModule = {
         const item = this.cart[index];
         if (!item) return;
 
-        const newQty = item.quantity + delta;
-        if (newQty <= 0) {
-            this.removeItem(index);
-            return;
+        const maxQty = this.getMaxAvailableQuantity(item.medicineId, item.unit, index);
+
+        if (delta > 0) {
+            const nextQty = Math.round((item.quantity + delta) * 1000) / 1000;
+            if (nextQty > maxQty) {
+                item.quantity = maxQty;
+                alert(`Thuốc [${item.medicineName}] hiện chỉ còn tồn tối đa ${maxQty} ${item.unit} trong kho! Không thể tăng thêm.`);
+                if (window.App && App.showToast) App.showToast(`Đã đạt giới hạn tồn kho: ${maxQty} ${item.unit}`, 'warning');
+                if (window.AppUtils && AppUtils.playBeepSound) AppUtils.playBeepSound('error');
+                this.renderCart();
+                return;
+            }
+            item.quantity = nextQty;
+        } else {
+            const nextQty = Math.round((item.quantity + delta) * 1000) / 1000;
+            if (nextQty <= 0) {
+                this.removeItem(index);
+                return;
+            }
+            item.quantity = nextQty;
         }
 
-        item.quantity = newQty;
         this.renderCart();
     },
 
-    // Nhập trực tiếp số lượng
+    // Nhập trực tiếp số lượng (hỗ trợ cả số lẻ như 0.5 vỉ, 0.4 hộp...)
     setItemQty(index, val) {
         const item = this.cart[index];
         if (!item) return;
 
-        let qty = parseInt(val) || 1;
-        if (qty <= 0) qty = 1;
-        item.quantity = qty;
+        let qty = parseFloat(val);
+        if (isNaN(qty) || qty <= 0) {
+            qty = 1;
+        }
+
+        const maxQty = this.getMaxAvailableQuantity(item.medicineId, item.unit, index);
+        if (maxQty <= 0) {
+            alert(`Thuốc [${item.medicineName}] đã hết hàng trong kho!`);
+            this.removeItem(index);
+            return;
+        }
+
+        if (qty > maxQty) {
+            alert(`Tồn kho không đủ!\n\nThuốc [${item.medicineName}] hiện chỉ còn tồn ${maxQty} ${item.unit} trong kho.\n\nSố lượng bán đã được tự động giới hạn về tối đa ${maxQty} ${item.unit}.`);
+            qty = maxQty;
+        }
+
+        item.quantity = Math.round(qty * 1000) / 1000;
         this.renderCart();
     },
 
@@ -574,8 +671,12 @@ const POSModule = {
         let html = '';
 
         this.cart.forEach((item, idx) => {
-            const lineTotal = item.quantity * item.price;
             const med = Store.getMedicineById(item.medicineId);
+            const maxQty = this.getMaxAvailableQuantity(item.medicineId, item.unit, idx);
+            if (item.quantity > maxQty) {
+                item.quantity = maxQty > 0 ? maxQty : 0.001;
+            }
+            const lineTotal = item.quantity * item.price;
 
             // Tùy chọn các đơn vị tính khả dụng
             let unitOptions = '';
@@ -606,14 +707,17 @@ const POSModule = {
                                 class="text-xs font-semibold bg-slate-100 border border-slate-300 rounded px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500">
                             ${unitOptions || `<option>${item.unit}</option>`}
                         </select>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Tồn: <span class="font-bold text-slate-600">${maxQty}</span> ${item.unit}</div>
                     </td>
                     <td class="py-2.5 px-2">
-                        <div class="flex items-center justify-center border border-slate-200 rounded-lg overflow-hidden w-24">
-                            <button onclick="POSModule.changeItemQty(${idx}, -1)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">-</button>
-                            <input type="number" min="1" value="${item.quantity}" 
+                        <div class="flex items-center justify-center border border-slate-200 rounded-lg overflow-hidden w-24 bg-white">
+                            <button onclick="POSModule.changeItemQty(${idx}, -1)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer">-</button>
+                            <input type="number" min="0.001" max="${maxQty}" step="any" value="${item.quantity}" 
                                    onchange="POSModule.setItemQty(${idx}, this.value)" 
-                                   class="w-10 text-center font-bold text-slate-800 text-sm focus:outline-none py-1" />
-                            <button onclick="POSModule.changeItemQty(${idx}, 1)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">+</button>
+                                   class="w-12 text-center font-bold text-slate-800 text-sm focus:outline-none py-1" />
+                            <button onclick="POSModule.changeItemQty(${idx}, 1)" 
+                                    ${item.quantity >= maxQty ? 'disabled title="Đã đạt giới hạn tồn kho tối đa" class="px-2 py-1 bg-slate-100 text-slate-300 font-bold cursor-not-allowed"' : 'class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer"'} 
+                                    >+</button>
                         </div>
                     </td>
                     <td class="py-2.5 px-2 text-right">
@@ -1142,6 +1246,18 @@ const POSModule = {
         if (this.cart.length === 0) {
             alert('Giỏ hàng đang trống! Vui lòng chọn ít nhất một loại thuốc để thanh toán.');
             return;
+        }
+
+        // Kiểm tra tồn kho thực tế của toàn bộ giỏ hàng - KHÔNG CHO PHÉP BÁN ÂM TỒN KHO
+        for (let i = 0; i < this.cart.length; i++) {
+            const item = this.cart[i];
+            const maxQty = this.getMaxAvailableQuantity(item.medicineId, item.unit, i);
+            if (item.quantity > maxQty) {
+                alert(`KHÔNG THỂ THANH TOÁN!\n\nThuốc [${item.medicineName}] hiện chỉ còn tồn ${maxQty} ${item.unit} trong kho, nhưng giỏ hàng đang chọn ${item.quantity} ${item.unit}.\n\nSố lượng bán đã được tự động điều chỉnh về ${maxQty} ${item.unit}. Vui lòng kiểm tra lại trước khi thanh toán.`);
+                item.quantity = maxQty > 0 ? maxQty : 0.001;
+                this.renderCart();
+                return;
+            }
         }
 
         const totalAmount = this.calculateTotalAmount();

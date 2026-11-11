@@ -464,6 +464,18 @@ table td span.font-mono {
     color: #6b21a8 !important;
 }
 
+/* Ngăn chặn Chrome/Edge autofill đổi màu nền hoặc tự điền vào các ô tìm kiếm */
+input[type="search"]:-webkit-autofill,
+input[type="search"]:-webkit-autofill:hover,
+input[type="search"]:-webkit-autofill:focus,
+input[type="search"]:-webkit-autofill:active,
+#stockin-search-input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px white inset !important;
+    box-shadow: 0 0 0 1000px white inset !important;
+    -webkit-text-fill-color: #1e293b !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
 
 
 
