@@ -91,6 +91,15 @@ namespace MedicaPharmacy
         private string _machineCode = "";
         private System.Threading.Timer _autoBackupTimer = null;
 
+        // --- Bảo vệ chống ghi đè làm giảm dữ liệu (guard phía máy chủ) ---
+        private string _countsFile = null;
+        private bool _knownCountsLoaded = false;
+        private long _knownMedicines = 0;
+        private long _knownOrders = 0;
+        private long _knownVouchers = 0;
+        private long _knownStockIns = 0;
+        private long _knownCustomers = 0;
+
         // In-memory database cache (string + encoded bytes)
         private string _dbCache = null;
         private byte[] _dbCacheBytes = null;
@@ -129,6 +138,7 @@ namespace MedicaPharmacy
             _dataDir = Path.Combine(_webRoot, "data");
             if (!Directory.Exists(_dataDir)) Directory.CreateDirectory(_dataDir);
             _dbFile = Path.Combine(_dataDir, "database.json");
+            _countsFile = Path.Combine(_dataDir, "db_counts.json");
 
             // Tải cấu hình tên miền remote ngrok nếu có
             string domainConfigFile = Path.Combine(_dataDir, "remote_domain.txt");
@@ -151,6 +161,8 @@ namespace MedicaPharmacy
             CheckLicenseStatus();
 
             InitDatabaseIfEmpty();
+            // Nạp sẵn số bản ghi đã biết ở nền để guard chống ghi đè hoạt động ngay từ đơn đầu tiên
+            ThreadPool.QueueUserWorkItem((s) => { try { EnsureKnownCounts(); } catch { } });
             StartServer();
             StartAutoBackupEngine();
             StartNgrokTunnel();
@@ -679,7 +691,9 @@ namespace MedicaPharmacy
                             }
                             else if (method == "POST")
                             {
-                                bool saved = SaveFullDatabase(body);
+                                bool forceShrink = rawHeader.IndexOf("X-Force-Shrink: true", StringComparison.OrdinalIgnoreCase) >= 0;
+                                string blockError;
+                                bool saved = SaveFullDatabase(body, forceShrink, out blockError);
                                 if (saved)
                                 {
                                     // Invalidate cache on save & increment DB version
@@ -692,6 +706,11 @@ namespace MedicaPharmacy
                                     }
                                     string ok = string.Format("{{\"success\":true,\"version\":{0},\"lastUpdated\":\"{1}\",\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}}", _dbVersion, _dbLastUpdated);
                                     SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(ok));
+                                }
+                                else if (!string.IsNullOrEmpty(blockError))
+                                {
+                                    // Bị guard chặn: trả 409 để client biết phải tải lại dữ liệu
+                                    SendResponse(stream, 409, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(blockError));
                                 }
                                 else
                                 {
@@ -1004,13 +1023,185 @@ namespace MedicaPharmacy
             catch { return DateTime.UtcNow; }
         }
 
-        private bool SaveFullDatabase(string body)
+        private bool SaveFullDatabase(string body, bool forceShrink, out string blockError)
         {
+            blockError = null;
             if (string.IsNullOrEmpty(body) || !body.Trim().StartsWith("{")) return false;
+            var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+            Dictionary<string, object> dict = null;
+            try { dict = serializer.Deserialize<Dictionary<string, object>>(body); }
+            catch { }
             lock (_dbLock)
             {
-                return SaveFullDatabaseInternal(body);
+                if (!forceShrink)
+                {
+                    string guardError = CheckCountGuard(dict);
+                    if (guardError != null)
+                    {
+                        blockError = guardError;
+                        AppendLimitedErrorLog("save_err.txt", "GUARD chặn ghi đè: " + guardError);
+                        return false;
+                    }
+                }
+                bool ok = SaveFullDatabaseInternal(dict);
+                if (ok) UpdateKnownCountsFromDict(dict);
+                return ok;
             }
+        }
+
+        // ===== Guard chống ghi đè làm giảm dữ liệu =====
+        private void EnsureKnownCounts()
+        {
+            lock (_dbLock)
+            {
+                if (_knownCountsLoaded) return;
+                if (File.Exists(_countsFile))
+                {
+                    try
+                    {
+                        var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                        var d = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(_countsFile, Encoding.UTF8));
+                        if (d != null)
+                        {
+                            _knownMedicines = ToLong(d, "medicines");
+                            _knownOrders = ToLong(d, "orders");
+                            _knownVouchers = ToLong(d, "vouchers");
+                            _knownStockIns = ToLong(d, "stockIns");
+                            _knownCustomers = ToLong(d, "customers");
+                            _knownCountsLoaded = true;
+                            return;
+                        }
+                    }
+                    catch { }
+                }
+
+                // File đếm chưa có: đếm trực tiếp từ dữ liệu hiện tại (chỉ chạy 1 lần)
+                _knownMedicines = CountJsonArray(Path.Combine(_dataDir, "medicines.json"));
+                _knownCustomers = CountJsonArray(Path.Combine(_dataDir, "customers.json"));
+                _knownOrders = CountJsonArrayByPattern("orders_*.json");
+                _knownVouchers = CountJsonArrayByPattern("vouchers_*.json");
+                _knownStockIns = CountJsonArrayByPattern("stockin_*.json");
+                _knownCountsLoaded = true;
+                PersistKnownCounts();
+            }
+        }
+
+        private static long ToLong(Dictionary<string, object> d, string key)
+        {
+            if (d == null || !d.ContainsKey(key) || d[key] == null) return 0;
+            long v;
+            if (long.TryParse(Convert.ToString(d[key]), out v)) return v;
+            return 0;
+        }
+
+        private long CountJsonArray(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return 0;
+                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                var arr = serializer.Deserialize<ArrayList>(File.ReadAllText(path, Encoding.UTF8));
+                return arr == null ? 0 : arr.Count;
+            }
+            catch { return 0; }
+        }
+
+        private long CountJsonArrayByPattern(string pattern)
+        {
+            long total = 0;
+            try
+            {
+                foreach (string f in Directory.GetFiles(_dataDir, pattern))
+                {
+                    total += CountJsonArray(f);
+                }
+            }
+            catch { }
+            return total;
+        }
+
+        private void PersistKnownCounts()
+        {
+            try
+            {
+                string json = string.Format(
+                    "{{\"medicines\":{0},\"orders\":{1},\"vouchers\":{2},\"stockIns\":{3},\"customers\":{4},\"updatedAt\":\"{5}\"}}",
+                    _knownMedicines, _knownOrders, _knownVouchers, _knownStockIns, _knownCustomers,
+                    DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+                WriteAtomicJson(_countsFile, json);
+            }
+            catch { }
+        }
+
+        // Trả về null nếu hợp lệ, ngược lại trả về JSON lỗi để client hiểu và tải lại
+        private string CheckCountGuard(Dictionary<string, object> dict)
+        {
+            try
+            {
+                EnsureKnownCounts();
+                if (dict == null) return null;
+
+                long inMedicines = ReadArrayCount(dict, "medicines", -1);
+                long inOrders = ReadArrayCount(dict, "orders", -1);
+                long inVouchers = ReadArrayCount(dict, "vouchers", -1);
+                long inStockIns = ReadArrayCount(dict, "stockInOrders", -1);
+                long inCustomers = ReadArrayCount(dict, "customers", -1);
+
+                string field = null;
+                long known = 0, incoming = 0;
+
+                // Chỉ kiểm tra các collection CÓ trong payload (payload thiếu key = không thay đổi)
+                if (_knownMedicines > 0 && inMedicines >= 0 && IsAbnormalDrop(_knownMedicines, inMedicines)) { field = "medicines"; known = _knownMedicines; incoming = inMedicines; }
+                else if (_knownOrders > 0 && inOrders >= 0 && IsAbnormalDrop(_knownOrders, inOrders)) { field = "orders"; known = _knownOrders; incoming = inOrders; }
+                else if (_knownVouchers > 0 && inVouchers >= 0 && IsAbnormalDrop(_knownVouchers, inVouchers)) { field = "vouchers"; known = _knownVouchers; incoming = inVouchers; }
+                else if (_knownStockIns > 0 && inStockIns >= 0 && IsAbnormalDrop(_knownStockIns, inStockIns)) { field = "stockIns"; known = _knownStockIns; incoming = inStockIns; }
+                else if (_knownCustomers > 0 && inCustomers >= 0 && IsAbnormalDrop(_knownCustomers, inCustomers)) { field = "customers"; known = _knownCustomers; incoming = inCustomers; }
+
+                if (field == null) return null;
+
+                return string.Format(
+                    "{{\"success\":false,\"error\":\"data_shrink_blocked\",\"field\":\"{0}\",\"known\":{1},\"incoming\":{2},\"message\":\"Máy chủ từ chối ghi đè vì số bản ghi {0} giảm bất thường ({1} → {2}). Hãy tải lại dữ liệu từ máy chủ.\"}}",
+                    field, known, incoming);
+            }
+            catch (Exception ex)
+            {
+                AppendLimitedErrorLog("save_err.txt", "Lỗi CheckCountGuard: " + ex.Message);
+                return null; // fail-open: không chặn khi bản thân guard lỗi
+            }
+        }
+
+        private static long ReadArrayCount(Dictionary<string, object> dict, string key, long fallback)
+        {
+            if (dict == null || !dict.ContainsKey(key)) return fallback;
+            var arr = dict[key] as ArrayList;
+            return arr == null ? fallback : arr.Count;
+        }
+
+        // Giảm > 20% VÀ mất > 20 bản ghi mới coi là bất thường
+        private static bool IsAbnormalDrop(long known, long incoming)
+        {
+            if (known <= 0) return false;
+            if (incoming >= known) return false;
+            long dropped = known - incoming;
+            return dropped > 20 && incoming < (long)(known * 0.8);
+        }
+
+        private void UpdateKnownCountsFromDict(Dictionary<string, object> dict)
+        {
+            try
+            {
+                if (dict == null) return;
+
+                long v;
+                v = ReadArrayCount(dict, "medicines", -1); if (v >= 0) _knownMedicines = v;
+                v = ReadArrayCount(dict, "orders", -1); if (v >= 0) _knownOrders = v;
+                v = ReadArrayCount(dict, "vouchers", -1); if (v >= 0) _knownVouchers = v;
+                v = ReadArrayCount(dict, "stockInOrders", -1); if (v >= 0) _knownStockIns = v;
+                v = ReadArrayCount(dict, "customers", -1); if (v >= 0) _knownCustomers = v;
+                _knownCountsLoaded = true;
+                PersistKnownCounts();
+            }
+            catch { }
         }
 
         private bool SaveFullDatabaseInternal(string body)
@@ -1018,7 +1209,16 @@ namespace MedicaPharmacy
             try
             {
                 var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
-                Dictionary<string, object> dict = serializer.Deserialize<Dictionary<string, object>>(body);
+                return SaveFullDatabaseInternal(serializer.Deserialize<Dictionary<string, object>>(body));
+            }
+            catch { return false; }
+        }
+
+        private bool SaveFullDatabaseInternal(Dictionary<string, object> dict)
+        {
+            try
+            {
+                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
                 if (dict == null) return false;
 
                 // 1. Danh mục & cài đặt thường trực

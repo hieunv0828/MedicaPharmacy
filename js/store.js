@@ -36,30 +36,95 @@ class DataStore {
         this._cachedStockIns = null;
         this._cachedReturns = null;
         this._cachedAuditLog = null;
-        this.init();
+
+        // --- Cờ an toàn: chỉ cho phép ghi lên server sau khi đã nạp xong dữ liệu máy chủ ---
+        this.ready = false;
+        this._loadedFromServer = false;   // đã từng GET /api/database thành công chưa
+        this._serverCounts = null;        // số bản ghi của snapshot máy chủ gần nhất (để chặn ghi đè làm giảm dữ liệu)
+        this._shrinkWarned = false;
+
+        this.initPromise = this.init();
     }
 
     async init() {
-        if (this.isServerMode) {
-            console.log('🌐 Đang chạy ở chế độ MÁY CHỦ DÙNG CHUNG (http://medica.com)');
-            await this.syncWithServer();
-            // Tự động kiểm tra đồng bộ dữ liệu mới từ máy khác mỗi 8 giây (qua endpoint siêu nhẹ)
-            setInterval(() => this.backgroundCheckServerSync(), 8000);
+        try {
+            if (this.isServerMode) {
+                console.log('🌐 Đang chạy ở chế độ MÁY CHỦ DÙNG CHUNG (http://medica.com)');
+                await this.syncWithServer();
+                // Tự động kiểm tra đồng bộ dữ liệu mới từ máy khác mỗi 8 giây (qua endpoint siêu nhẹ)
+                setInterval(() => this.backgroundCheckServerSync(), 8000);
 
-            // Đảm bảo khi đóng tab thì lưu dứt điểm dữ liệu chưa kịp hết hạn debounce
-            window.addEventListener('beforeunload', () => {
-                if (this._persistTimer) {
-                    this.persistImmediately();
+                // Đảm bảo khi đóng tab thì lưu dứt điểm dữ liệu chưa kịp hết hạn debounce
+                window.addEventListener('beforeunload', () => {
+                    if (this._persistTimer) {
+                        this.persistImmediately();
+                    }
+                });
+            } else {
+                console.log('💻 Đang chạy ở chế độ CỤC BỘ TRỰC TIẾP (file://)');
+                if (!localStorage.getItem(STORAGE_KEYS.MEDICINES)) {
+                    this.loadInitialSampleData();
                 }
-            });
-        } else {
-            console.log('💻 Đang chạy ở chế độ CỤC BỘ TRỰC TIẾP (file://)');
-            if (!localStorage.getItem(STORAGE_KEYS.MEDICINES)) {
-                this.loadInitialSampleData();
+            }
+            this.syncOrdersAndStockInsToVouchers();
+            this.syncCustomerOrdersStats();
+        } catch (e) {
+            console.error('Lỗi khởi tạo dữ liệu:', e);
+        } finally {
+            // Kể cả khi lỗi, đánh dấu ready để không khoá cứng thao tác của người dùng.
+            // Việc chống ghi đè vẫn do guard số bản ghi đảm nhiệm.
+            this.ready = true;
+        }
+    }
+
+    // Chờ dữ liệu máy chủ nạp xong (tối đa ~15s) trước khi ghi để tránh ghi đè bản rút gọn
+    async _ensureReadyForWrite() {
+        if (this.ready || !this.isServerMode) return true;
+        if (this.initPromise) {
+            try {
+                await Promise.race([
+                    this.initPromise,
+                    new Promise(resolve => setTimeout(resolve, 15000))
+                ]);
+            } catch (e) { /* bỏ qua, sẽ kiểm tra guard bên dưới */ }
+        }
+        return this.ready || !this.isServerMode;
+    }
+
+    _countSnapshot(db) {
+        if (!db) return null;
+        const len = (v) => (Array.isArray(v) ? v.length : 0);
+        return {
+            medicines: len(db.medicines),
+            orders: len(db.orders),
+            vouchers: len(db.vouchers),
+            stockIns: len(db.stockInOrders),
+            customers: len(db.customers)
+        };
+    }
+
+    // Trả về mô tả collection bị giảm bất thường, hoặc null nếu hợp lệ
+    _findAbnormalShrink(fullDb) {
+        if (!fullDb) return null;
+        const known = this._serverCounts;
+        if (!known) return null;
+        const checks = [
+            ['medicines', known.medicines, fullDb.medicines],
+            ['orders', known.orders, fullDb.orders],
+            ['vouchers', known.vouchers, fullDb.vouchers],
+            ['stockIns', known.stockIns, fullDb.stockInOrders],
+            ['customers', known.customers, fullDb.customers]
+        ];
+        for (const [field, knownCount, arr] of checks) {
+            if (!knownCount || knownCount <= 0 || !Array.isArray(arr)) continue;
+            const incoming = arr.length;
+            if (incoming >= knownCount) continue;
+            const dropped = knownCount - incoming;
+            if (dropped > 20 && incoming < knownCount * 0.8) {
+                return { field, known: knownCount, incoming };
             }
         }
-        this.syncOrdersAndStockInsToVouchers();
-        this.syncCustomerOrdersStats();
+        return null;
     }
 
     // --- Đồng bộ với Máy Chủ Server API ---
@@ -73,7 +138,11 @@ class DataStore {
                 const data = await res.json();
                 if (data.version) this.lastDatabaseVersion = data.version;
                 if (data.lastUpdated) this.lastDatabaseTimestamp = data.lastUpdated;
-                
+
+                // Ghi nhận snapshot máy chủ (kể cả khi rỗng) để guard chống ghi đè có mốc so sánh
+                this._loadedFromServer = true;
+                this._serverCounts = this._countSnapshot(data);
+
                 // Chỉ nạp vào Local Cache khi server có dữ liệu hợp lệ
                 // TUYỆT ĐỐI KHÔNG tự ý tải SampleData lên ghi đè máy chủ nếu server trả về mảng rỗng!
                 if (data.medicines && Array.isArray(data.medicines) && data.medicines.length > 0) {
@@ -108,14 +177,17 @@ class DataStore {
                 if (statusRes.ok) {
                     const statusData = await statusRes.json();
                     this.updateServerStatusBadge(true);
-                    // Nếu version của server trùng khớp với phiên bản máy đang giữ -> Không có gì mới, DỪNG NGAY!
-                    if (statusData && statusData.version && this.lastDatabaseVersion && statusData.version === this.lastDatabaseVersion) {
-                        return; // Tiết kiệm 99.9% lưu lượng và giải phóng CPU!
+                    if (this._loadedFromServer) {
+                        // Nếu version của server trùng khớp với phiên bản máy đang giữ -> Không có gì mới, DỪNG NGAY!
+                        if (statusData && statusData.version && this.lastDatabaseVersion && statusData.version === this.lastDatabaseVersion) {
+                            return; // Tiết kiệm 99.9% lưu lượng và giải phóng CPU!
+                        }
+                        // Hoặc nếu mốc thời gian hoàn toàn trùng khớp -> DỪNG NGAY!
+                        if (statusData && statusData.lastUpdated && this.lastDatabaseTimestamp && statusData.lastUpdated === this.lastDatabaseTimestamp) {
+                            return;
+                        }
                     }
-                    // Hoặc nếu mốc thời gian hoàn toàn trùng khớp -> DỪNG NGAY!
-                    if (statusData && statusData.lastUpdated && this.lastDatabaseTimestamp && statusData.lastUpdated === this.lastDatabaseTimestamp) {
-                        return;
-                    }
+                    // Chưa từng nạp được dữ liệu (server vừa bật lại, version reset về 1) -> buộc tải lại
                     serverNeedsSync = true;
                 }
             } catch(eStatus) {
@@ -127,26 +199,29 @@ class DataStore {
             if (this.isSaving || this._persistTimer) return;
 
             // Bước 2: Chỉ khi phát hiện mốc phiên bản/thời gian thay đổi, mới tải lại database
+            const versionBeforeFetch = this.lastDatabaseVersion;
             const res = await fetch('/api/database', { cache: 'no-store' });
             if (res.ok) {
                 if (this.isSaving || this._persistTimer) return;
                 const serverData = await res.json();
                 if (serverData && serverData.medicines) {
-                    if (serverData.version) this.lastDatabaseVersion = serverData.version;
-                    if (serverData.lastUpdated) this.lastDatabaseTimestamp = serverData.lastUpdated;
+                    // Áp dụng dữ liệu mới khi VERSION khác với bản đang giữ
+                    // (trước đây chỉ áp dụng khi độ dài mảng đổi -> sửa giá/tồn/huỷ đơn không lan sang máy khác)
+                    const changed = serverData.version
+                        ? serverData.version !== versionBeforeFetch
+                        : true;
 
-                    const localOrders = this.getOrders();
-                    const localStockIns = this.getStockInOrders();
-                    const ordersDiff = serverData.orders && serverData.orders.length !== localOrders.length;
-                    const stockDiff = serverData.stockInOrders && serverData.stockInOrders.length !== localStockIns.length;
-                    const medDiff = serverData.medicines && serverData.medicines.length !== (this._cachedMedicines ? this._cachedMedicines.length : 0);
+                    this._loadedFromServer = true;
+                    this._serverCounts = this._countSnapshot(serverData);
 
-                    // Nếu có sự khác biệt từ máy khác hoặc dữ liệu mới
-                    if (ordersDiff || stockDiff || medDiff) {
-                        console.log('⚡ Phát hiện dữ liệu mới từ máy khác, đang cập nhật...');
+                    if (changed) {
+                        console.log('⚡ Phát hiện dữ liệu mới từ máy khác (version ' + versionBeforeFetch + ' → ' + serverData.version + '), đang cập nhật...');
                         this.saveToLocalCache(serverData);
                         this.emit('all:changed');
                     }
+
+                    if (serverData.version) this.lastDatabaseVersion = serverData.version;
+                    if (serverData.lastUpdated) this.lastDatabaseTimestamp = serverData.lastUpdated;
                 }
                 this.updateServerStatusBadge(true);
             }
@@ -160,6 +235,25 @@ class DataStore {
         // BẢO VỆ TUYỆT ĐỐI: Không bao giờ cho phép gửi danh mục rỗng đè lên máy chủ
         if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
             console.warn('⚠️ Chặn thao tác lưu: Danh mục thuốc rỗng, từ chối ghi đè lên máy chủ để bảo vệ dữ liệu!');
+            return;
+        }
+        // BẢO VỆ 2: Chưa từng nạp được dữ liệu máy chủ -> tuyệt đối không ghi
+        if (!this._loadedFromServer) {
+            console.warn('⚠️ Chặn thao tác lưu: chưa nạp được dữ liệu từ máy chủ, không ghi đè để tránh mất dữ liệu.');
+            this.updateServerStatusBadge(false);
+            return;
+        }
+        // BẢO VỆ 3: Số bản ghi giảm bất thường (localStorage bị cắt, cache rút gọn...) -> chặn
+        const shrink = this._findAbnormalShrink(fullDb);
+        if (shrink) {
+            console.error(`⛔ Chặn ghi đè: ${shrink.field} giảm bất thường ${shrink.known} → ${shrink.incoming}`);
+            if (!this._shrinkWarned) {
+                this._shrinkWarned = true;
+                if (window.App && typeof App.showToast === 'function') {
+                    App.showToast(`Đã chặn ghi đè dữ liệu (${shrink.field}: ${shrink.known} → ${shrink.incoming}). Đang tải lại từ máy chủ...`, 'error');
+                }
+            }
+            this.syncWithServer();
             return;
         }
         this.isSaving = true;
@@ -180,11 +274,28 @@ class DataStore {
                     } else if (fullDb && fullDb.lastUpdated) {
                         this.lastDatabaseTimestamp = fullDb.lastUpdated;
                     }
+                    // Cập nhật lại mốc đếm sau khi ghi thành công
+                    this._serverCounts = this._countSnapshot(fullDb);
+                    this._shrinkWarned = false;
                 } catch(eJson) {
                     if (fullDb && fullDb.lastUpdated) {
                         this.lastDatabaseTimestamp = fullDb.lastUpdated;
                     }
                 }
+            } else if (res.status === 409) {
+                // Máy chủ từ chối vì số bản ghi giảm bất thường -> tải lại dữ liệu chuẩn
+                let msg = 'Máy chủ từ chối ghi đè dữ liệu không hợp lệ. Đang tải lại...';
+                try {
+                    const errData = await res.json();
+                    if (errData && errData.message) msg = errData.message;
+                    console.warn('Server guard 409:', errData);
+                } catch (e) { }
+                if (window.App && typeof App.showToast === 'function') {
+                    App.showToast(msg, 'error');
+                } else {
+                    alert(msg);
+                }
+                this.syncWithServer();
             }
         } catch (e) {
             console.error('Lỗi khi lưu dữ liệu lên máy chủ:', e);
@@ -319,13 +430,18 @@ class DataStore {
         }
         this._persistTimer = setTimeout(() => {
             this._persistTimer = null;
-            const fullDb = this.getCurrentFullDatabase();
-            if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
-                console.warn('⚠️ Chặn persist: Dữ liệu thuốc rỗng, không lưu lên server.');
-                return;
-            }
-            this.uploadDatabaseToServer(fullDb);
+            this._persistNow();
         }, delayMs);
+    }
+
+    async _persistNow() {
+        await this._ensureReadyForWrite();
+        const fullDb = this.getCurrentFullDatabase();
+        if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
+            console.warn('⚠️ Chặn persist: Dữ liệu thuốc rỗng, không lưu lên server.');
+            return;
+        }
+        return await this.uploadDatabaseToServer(fullDb);
     }
 
     // Lưu ngay lập tức (không chờ debounce), dùng khi thanh toán xong hóa đơn hoặc đóng tab
@@ -335,6 +451,7 @@ class DataStore {
             this._persistTimer = null;
         }
         if (this.isServerMode) {
+            await this._ensureReadyForWrite();
             const fullDb = this.getCurrentFullDatabase();
             if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
                 return;
@@ -1616,6 +1733,7 @@ class DataStore {
         if (!Array.isArray(returnedItems) || returnedItems.length === 0) return null;
 
         let totalRefund = 0;
+        let totalReturnCost = 0;
 
         // 1. Hoàn lại số lượng từng loại thuốc vào tồn kho
         returnedItems.forEach(item => {
@@ -1634,6 +1752,10 @@ class DataStore {
                     unitsToReturn = qtyToReturn * med.subRatio;
                 }
                 this.updateStockUnits(item.medicineId, unitsToReturn);
+                // Giá vốn của phần trả lại (theo đơn vị bán) để báo cáo giảm trừ đúng lợi nhuận
+                let unitCost = this.getMedicineUnitCost(med, item.unit);
+                if (unitCost <= 0) unitCost = parseFloat(item.costPrice) || 0;
+                totalReturnCost += qtyToReturn * unitCost;
             }
         });
 
@@ -1641,10 +1763,10 @@ class DataStore {
 
         // 2. Ghi nhận phiếu trả hàng vào đơn
         if (!order.returns) order.returns = [];
-        const returnId = `TH${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 900) + 100)}`;
+        const returnId = `TH${this.formatLocalISO().slice(2, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 900) + 100)}`;
         const returnRecord = {
             id: returnId,
-            createdAt: new Date().toISOString(),
+            createdAt: this.formatLocalISO(),
             items: returnedItems.map(i => ({
                 medicineId: i.medicineId,
                 medicineName: i.medicineName,
@@ -1656,6 +1778,8 @@ class DataStore {
             refundTotal: totalRefund,
             refundMethod: refundMethod, // 'cash' (mặc định trừ vào quỹ tiền mặt)
             reason: returnReason,
+            // Giá vốn hàng trả tại thời điểm trả (để báo cáo không phải tính lại theo giá hiện tại)
+            returnCost: Math.round(totalReturnCost),
             pharmacist: this.getSettings().pharmacist || 'Dược sĩ'
         };
         order.returns.push(returnRecord);
@@ -1693,8 +1817,12 @@ class DataStore {
                 note: `Chi hoàn tiền trả hàng đơn ${order.id}: ${returnReason || 'Khách đổi trả thuốc'}`,
                 isAccounting: true,
                 refId: order.id,
+                // Lưu lại giá vốn + chi tiết hàng trả để báo cáo không phải "đoán" tỷ lệ
+                returnCost: Math.round(totalReturnCost),
+                returnedItems: returnRecord.items,
+                returnId: returnId,
                 pharmacist: this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung',
-                createdAt: new Date().toISOString()
+                createdAt: this.formatLocalISO()
             });
         }
 
@@ -2582,16 +2710,59 @@ class DataStore {
     }
 
     // --- Đồng bộ toàn bộ Hóa đơn & Nhập kho vào Sổ Thu Chi ---
+    // Giá vốn của danh sách hàng trả (dùng cho báo cáo)
+    _calcReturnCost(returnItems) {
+        let total = 0;
+        (returnItems || []).forEach(i => {
+            const med = this.getMedicineById(i.medicineId);
+            let unitCost = 0;
+            if (med) unitCost = this.getMedicineUnitCost(med, i.unit);
+            if (unitCost <= 0) unitCost = parseFloat(i.costPrice) || 0;
+            total += (parseFloat(i.quantity) || 0) * unitCost;
+        });
+        return Math.round(total);
+    }
+
+    // Có phải phiếu chi hoàn tiền cho khách trả hàng không?
+    _isRefundPaymentVoucher(v) {
+        if (!v || v.isCancelled) return false;
+        if (v.type !== 'payment') return false;
+        if (v.id && String(v.id).startsWith('TTTH')) return true;
+        const cat = v.category || '';
+        if (cat.includes('trả khách') || cat.includes('trả lại hàng')) return true;
+        const note = v.note || '';
+        return note.includes('hoàn tiền trả hàng') || note.includes('Chi hoàn tiền');
+    }
+
     syncOrdersAndStockInsToVouchers() {
         const vouchers = this.getVouchers();
         const existingRefIds = new Set(vouchers.map(v => v.refId).filter(Boolean));
         let changed = false;
 
+        // Đếm số phiếu chi hoàn tiền đã có cho từng ĐƠN (không phụ thuộc tên category/ID)
+        const ordersForRefundCount = this.getOrders();
+        const returnIdToOrderId = new Map();
+        ordersForRefundCount.forEach(o => {
+            (o.returns || []).forEach(r => { if (r && r.id) returnIdToOrderId.set(r.id, o.id); });
+        });
+
+        const refundVoucherCountByOrder = new Map();
+        vouchers.forEach(v => {
+            if (!this._isRefundPaymentVoucher(v)) return;
+            const refId = String(v.refId || '');
+            if (!refId) return;
+            const orderId = refId.startsWith('RETURN_')
+                ? (returnIdToOrderId.get(refId.slice('RETURN_'.length)) || null)
+                : refId;
+            if (!orderId) return;
+            refundVoucherCountByOrder.set(orderId, (refundVoucherCountByOrder.get(orderId) || 0) + 1);
+        });
+
         // 1. Đồng bộ các hóa đơn bán hàng vào Phiếu Thu
         const orders = this.getOrders();
         orders.forEach(o => {
             if (o.totalAmount > 0 && !existingRefIds.has(o.id)) {
-                const dateStr = o.createdAt || new Date().toISOString();
+                const dateStr = o.createdAt || this.formatLocalISO();
                 const dCompact = dateStr.slice(2, 10).replace(/-/g, '');
                 const vId = 'PT' + dCompact + '-' + String(Math.floor(Math.random() * 900) + 100);
                 vouchers.push({
@@ -2616,28 +2787,41 @@ class DataStore {
 
             // Đồng bộ hoàn tiền đơn trả hàng
             if (o.returns && Array.isArray(o.returns)) {
+                // Số phiếu chi hoàn tiền đã tồn tại cho đơn này (do returnOrderItems tạo, refId = order.id)
+                let alreadyCovered = refundVoucherCountByOrder.get(o.id) || 0;
+
                 o.returns.forEach(r => {
+                    if (!(r.refundTotal > 0)) return;
                     const returnRefId = `RETURN_${r.id || o.id}`;
-                    if (r.refundTotal > 0 && !existingRefIds.has(returnRefId)) {
-                        const rDate = r.createdAt || o.createdAt || new Date().toISOString();
-                        const vId = 'PC' + rDate.slice(2, 10).replace(/-/g, '') + '-' + String(Math.floor(Math.random() * 900) + 100);
-                        vouchers.push({
-                            id: vId,
-                            type: 'payment',
-                            paymentMethod: r.refundMethod || 'cash',
-                            category: 'Chi trả lại hàng bán lẻ',
-                            targetType: 'customer',
-                            targetName: o.customerName || 'Khách lẻ trực tiếp',
-                            amount: r.refundTotal,
-                            note: `Chi hoàn tiền trả hàng đơn ${o.id}: ${r.reason || 'Khách trả hàng'}`,
-                            isAccounting: true,
-                            refId: returnRefId,
-                            pharmacist: r.pharmacist || 'DS. Nguyễn Thanh Dung',
-                            createdAt: rDate
-                        });
-                        existingRefIds.add(returnRefId);
-                        changed = true;
+                    if (existingRefIds.has(returnRefId)) return; // đã có phiếu kiểu cũ
+                    if (alreadyCovered > 0) {
+                        // Lần trả này đã được returnOrderItems tạo phiếu chi -> KHÔNG tạo thêm (tránh chi 2 lần)
+                        alreadyCovered--;
+                        return;
                     }
+
+                    const rDate = r.createdAt || o.createdAt || this.formatLocalISO();
+                    const vId = 'PC' + rDate.slice(2, 10).replace(/-/g, '') + '-' + String(Math.floor(Math.random() * 900) + 100);
+                    const returnCost = (typeof r.returnCost === 'number') ? r.returnCost : this._calcReturnCost(r.items);
+                    vouchers.push({
+                        id: vId,
+                        type: 'payment',
+                        paymentMethod: r.refundMethod || 'cash',
+                        category: 'Chi trả lại hàng bán lẻ',
+                        targetType: 'customer',
+                        targetName: o.customerName || 'Khách lẻ trực tiếp',
+                        amount: r.refundTotal,
+                        note: `Chi hoàn tiền trả hàng đơn ${o.id}: ${r.reason || 'Khách trả hàng'}`,
+                        isAccounting: true,
+                        refId: returnRefId,
+                        returnCost: returnCost,
+                        returnedItems: r.items || [],
+                        returnId: r.id || '',
+                        pharmacist: r.pharmacist || 'DS. Nguyễn Thanh Dung',
+                        createdAt: rDate
+                    });
+                    existingRefIds.add(returnRefId);
+                    changed = true;
                 });
             }
         });

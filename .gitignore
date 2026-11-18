@@ -22,6 +22,7 @@ MedicaPharmacy_Setup.exe
 data/backup_*/
 data/backup_*.json
 data/backups/
+data/db_counts.json
 
 # Excel imports dropped by user
 imports/*.xlsx

@@ -196,11 +196,11 @@ Tồn kho `stockUnits` tính theo **đơn vị cơ bản** (`baseUnit`). `packRa
 ## 8. Bẫy logic đã biết (đừng "sửa mù")
 
 1. **`safeSet` cắt dữ liệu localStorage**: chỉ giữ 2.000 thuốc / 100 đơn / 100 phiếu. Nếu server chưa tải xong mà người dùng thao tác, `getCurrentFullDatabase()` có thể gửi bản rút gọn và **ghi đè server**. Mọi thay đổi liên quan sync phải giữ nguyên hoặc tăng cường guard này.
-2. **Guard hiện tại chỉ chặn `medicines.length === 0`** (`uploadDatabaseToServer`, `schedulePersistToServer`, `persistImmediately`) — chưa đủ. Vẫn có thể POST bản 2.000 thuốc / 100 đơn nếu localStorage là nguồn duy nhất. Nếu thêm guard mới, phải so số bản ghi với `_cachedMedicines/_cachedOrders` gần nhất và chặn khi giảm bất thường.
-3. **`App.init()` không `await Store.init()`** — có race condition lúc khởi động. Sửa cần thêm cờ `Store.ready` và chặn checkout/ghi trước khi ready.
-4. **`backgroundCheckServerSync`**: đã so `version`/`lastUpdated` để quyết định tải lại, nhưng **vẫn chỉ áp dụng dữ liệu khi độ dài mảng đổi** (`ordersDiff = serverData.orders.length !== localOrders.length`). Sửa giá/tồn/hủy đơn/`isCancelled` không lan sang máy khác. Ngoài ra `lastDatabaseVersion` được gán trước khi kiểm tra diff → máy khác tải 16 MB rồi bỏ.
+2. **Guard chống ghi đè (đã có 2 lớp, đừng gỡ)**: client dùng `Store.ready`, `_loadedFromServer`, `_serverCounts`, `_ensureReadyForWrite()`, `_findAbnormalShrink()`; server dùng `CheckCountGuard()` + `data/db_counts.json` và trả **HTTP 409** `data_shrink_blocked`. Ngưỡng: giảm **> 20% và > 20 bản ghi**. Đường thoát hiểm khi thực sự cần thu gọn: header `X-Force-Shrink: true`.
+3. **`App.init()` vẫn không `await Store.init()`** — bù lại mọi lần ghi đều đi qua `_ensureReadyForWrite()`. Nếu thêm luồng ghi mới, phải gọi hàm này (hoặc `persistImmediately()`), không `fetch` POST trực tiếp.
+4. **`backgroundCheckServerSync`** giờ áp dụng dữ liệu khi **`version` đổi** (không còn phụ thuộc độ dài mảng), nhưng vẫn tải toàn bộ DB mỗi lần → iPad tải 16 MB mỗi khi POS ghi. Chỉ giảm được khi làm API theo năm.
 5. **Hủy đơn hoàn kho toàn bộ** kể cả phần đã trả (`cancelOrder` vs `returnOrderItems`) → có thể cộng tồn 2 lần.
-6. **Báo cáo trừ tiền trả hàng**: `calculateMonthlyData` đã bỏ `order.totalRefunded`, chuyển sang trừ theo phiếu chi trả khách. Nhưng **mỗi lần trả hàng sinh 2 phiếu chi trùng** (xem mục 19) nên vẫn trừ 2 lần. `renderSelectedDateSales` và `calculatePnLData` vẫn trộn `totalRefunded` với phiếu chi → số liệu lệch nhau giữa các tab.
+6. **Báo cáo trừ tiền trả hàng**: tháng / chi tiết ngày / P&L đều dùng chung `_collectRefundVouchers()` + `_returnCostOfVoucher()`. Hàm này tự loại phiếu chi trùng khi số phiếu > số lần trả hàng thực tế. Không quay lại trừ `order.totalRefunded` song song với phiếu chi (sẽ trừ 2 lần). P&L tính giá vốn theo **số lượng bán ra**, hàng trả trừ đúng một lần ở mục 2.2 (trước đây vừa trừ `returnedQty` vừa trừ `customerReturnCost`).
 7. **`updateStockInOrder` không hoàn nguyên giá vốn cũ** khi sửa phiếu nhập → giá bình quân trôi.
 8. **`updateStockUnits` kẹp `Math.max(0, …)`** → bán âm kho bị che.
 9. **`saveCustomer`/`addPointsToCustomer`** sinh ID `KH + (length+1)` → trùng sau khi xóa.
@@ -213,12 +213,13 @@ Tồn kho `stockUnits` tính theo **đơn vị cơ bản** (`baseUnit`). `packRa
 16. **API không xác thực**, `Access-Control-Allow-Origin: *`, license luôn trả `true`. Không thêm endpoint ghi mà bỏ qua các ràng buộc hiện có; không mở thêm dữ liệu ra Internet.
 17. **Không đổi `SecretSalt`** trong `LicenseManager.cs` — sẽ làm vô hiệu toàn bộ key đã phát hành.
 18. **`README.md` lỗi thời** (thiếu customers, vouchers, returns, audit log, báo cáo năm/P&L; có nhắc IndexedDB nhưng code không dùng).
-19. **Trả hàng sinh 2 phiếu chi trùng**: `returnOrderItems` tạo phiếu chi `refId = order.id`, rồi `syncOrdersAndStockInsToVouchers()` (chạy mỗi lần load trang) lại tạo thêm phiếu `refId = RETURN_<returnId>`. Đã có trong dữ liệu thật: `PC261111-871` (20.000đ) và `PC261106-907` (250.000đ) trùng với `TTTH002961` / `TTTH002959`. Hậu quả: sổ quỹ chi 2 lần, báo cáo trừ doanh thu 2 lần.
-20. **TDZ trong `reports.js`**: `calculateMonthlyData` dùng `grossCost`/`grossRevenue` ở nhánh fallback (dòng ~389) trước khi `const` được khai báo (dòng ~424) → ném `ReferenceError` và làm hỏng báo cáo tháng khi gặp phiếu trả hàng không xác định được giá vốn trên ngày không có doanh thu/giá vốn.
-21. **Fallback giá vốn trả hàng tự bịa**: khi phiếu chi thiếu `returnCost`/`returnedItems`, báo cáo đoán theo `item.total == amount` hoặc lấy tỷ lệ 0,70 → lợi nhuận sai. `returnOrderItems` không lưu `returnCost` vào phiếu chi (khác `createAggregateReturn`).
+19. **Trả hàng từng sinh 2 phiếu chi trùng** (đã sửa 19/11): `returnOrderItems` tạo phiếu chi `refId = order.id`, `syncOrdersAndStockInsToVouchers()` tạo thêm `refId = RETURN_<returnId>`. Nay `sync...` đếm số phiếu đã có cho đơn (kể cả `TTTH…`) và chỉ tạo bổ sung khi thiếu. **Dữ liệu cũ vẫn còn 2 phiếu trùng**: `PC261111-295` (20.000đ, trùng `TTTH002961`) và `PC261106-667` (250.000đ, trùng `TTTH002959`) — báo cáo đã tự bỏ qua, nhưng sổ quỹ vẫn hiển thị; dọn bằng `scripts\clean_duplicate_refund_vouchers.ps1` (mặc định xem trước, `-Apply` mới ghi, tự backup).
+20. **TDZ trong `reports.js`** (đã sửa): `grossCost`/`grossRevenue` nay khai báo trước khối xử lý phiếu trả hàng.
+21. **Giá vốn trả hàng** (đã sửa): `returnOrderItems` lưu `returnCost`, `returnedItems`, `returnId` vào phiếu chi; báo cáo dùng `_returnCostOfVoucher()` theo thứ tự `returnCost` → `returnedItems` → `order.returns[]`, không còn đoán tỷ lệ 0,70; không xác định được thì ghi 0.
 22. **`WriteAtomicJson` không còn atomic**: ghi `.tmp` → copy file cũ sang `.bak` → `File.Copy(tmp, path, true)`. Mỗi lần lưu gấp ~3 lần I/O và có thể để lại file dở dang nếu tắt máy giữa lúc copy. `InitDatabaseIfEmpty` khôi phục **toàn bộ** `*.json` từ snapshot cũ khi `medicines.json` rỗng → có thể lùi cả đơn hàng mới.
 23. **`RunAutoBackup` copy cả `backup_medicines_*.json`** (1,9 MB/file rác ở `data/`) và giữ 20 bản → ~22,7 MB × 20 ≈ 450 MB. Backup chạy trong `lock (_dbLock)` nên chặn request trong lúc copy.
-24. **`MedicaServer.exe` trong repo là bản build cũ** (11/11) so với `server/MedicaServer.cs` (18/11). Sửa server phải build lại (`build-installer.bat`) rồi khởi động lại thì mới có hiệu lực. Bản quyền đã bị bỏ kiểm tra (`_isLicensed = true`, `/api/license/*` luôn thành công) — `LicenseManager`/`KeyGen` chỉ còn là mã chết.
+24. **`MedicaServer.exe` trong repo là bản build cũ** (11/11) so với `server/MedicaServer.cs`. Sửa server phải build lại (`build-installer.bat`) rồi khởi động lại thì mới có hiệu lực. Bản quyền đã bị bỏ kiểm tra (`_isLicensed = true`, `/api/license/*` luôn thành công) — `LicenseManager`/`KeyGen` chỉ còn là mã chết.
+25. **`data/db_counts.json`** (mới): mốc đếm bản ghi do server ghi, đã thêm vào `.gitignore`. Xoá file này thì server tự đếm lại từ dữ liệu (chỉ chậm lần ghi đầu tiên).
 
 ---
 
@@ -276,16 +277,29 @@ Tồn kho `stockUnits` tính theo **đơn vị cơ bản** (`baseUnit`). `packRa
 
 ## 12. Ưu tiên kỹ thuật đề xuất
 
-Nếu được yêu cầu cải tiến, thứ tự ưu tiên:
+Danh sách đầy đủ (P0→P3, kèm trạng thái) nằm ở **`docs/IMPROVEMENTS.md`**. Tóm tắt thứ tự:
 
-1. **Chặn thảm họa ghi đè**: guard theo số bản ghi (không chỉ `medicines.length === 0`), cờ `Store.ready`, và guard phía server từ chối POST khi số đơn/phiếu giảm bất thường.
-2. **Sửa trả hàng**: bỏ `syncOrdersAndStockInsToVouchers()` tạo phiếu chi `RETURN_*` (hoặc chỉ tạo khi phiếu chi của đơn không tồn tại); lưu `returnCost` vào phiếu chi; xóa 2 phiếu trùng trong dữ liệu.
-3. **Sửa `reports.js`**: bỏ TDZ `grossCost/grossRevenue`, thống nhất một nguồn số liệu trả hàng cho tháng / ngày / P&L, bỏ fallback tỷ lệ 0,70.
-4. Sửa dữ liệu khách hàng (map cột + gộp bản ghi trùng) và logic sửa/xóa khách.
-5. Sửa sync 8 giây (áp dụng theo `version`, không theo độ dài mảng) và múi giờ (`formatLocalISO` cho mọi `createdAt`).
-6. Chuyển ghi từ "toàn bộ DB" sang API theo bản ghi / theo năm; trả `.bak` về đúng `File.Replace`.
-7. Lazy-load dữ liệu theo năm cho iPad; chế độ chỉ xem trên thiết bị di động.
-8. Trung hạn: SQLite (hoặc NDJSON append-only) nếu DB vượt ~40–50 MB.
+**Đợt 1 — đã xong trong mã nguồn (19/11):**
+1. Guard chống ghi đè 2 lớp (client `_ensureReadyForWrite`/`_findAbnormalShrink` + server `CheckCountGuard` → HTTP 409).
+2. Trả hàng: hết sinh 2 phiếu chi, lưu `returnCost`/`returnedItems`/`returnId`.
+3. `reports.js`: bỏ TDZ, bỏ fallback tỷ lệ 0,70, thống nhất `_collectRefundVouchers()` cho tháng/ngày/P&L.
+4. Sync 8 giây áp dụng theo `version`.
+
+**Đợt 1 — còn phải làm khi phát hành:**
+- Build lại `MedicaServer.exe` + khởi động lại server.
+- Dọn 2 phiếu chi trùng trong `data/vouchers_2026.json` (sau khi backup) bằng
+  `scripts\clean_duplicate_refund_vouchers.ps1` (`-Apply`; tắt server trước).
+
+**Đợt 2:**
+5. `formatLocalISO()` cho mọi `createdAt` mới; sinh ID không dựa `countToday + 1`.
+6. iPad/điện thoại: chế độ chỉ xem + server chỉ nhận POST từ máy POS chính.
+7. `cancelOrder` sau trả một phần, `updateStockUnits` không kẹp 0, công nợ khi thu thiếu.
+
+**Đợt 3:**
+8. Sửa dữ liệu khách hàng (map cột + gộp bản ghi trùng) và logic sửa/xóa khách.
+9. API theo năm (`?years=`), ghi theo bản ghi, archive năm cũ, `File.Replace` cho `WriteAtomicJson`.
+
+**Đợt 4 (khi cần):** SQLite/LiteDB nếu DB vượt ~40–50 MB; xác thực API.
 
 ---
 

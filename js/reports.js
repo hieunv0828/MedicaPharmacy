@@ -180,6 +180,137 @@ const ReportsModule = {
         }
     },
 
+    // Giá vốn chính xác của danh sách hàng trả (không đoán theo tỷ lệ)
+    _costOfReturnItems(items) {
+        let sum = 0;
+        (items || []).forEach(it => {
+            if (it.totalCost !== undefined && it.totalCost !== null) {
+                sum += Number(it.totalCost) || 0;
+                return;
+            }
+            const med = (typeof Store.getMedicineById === 'function'
+                ? Store.getMedicineById(it.medicineId)
+                : null) || (Store._medicineMap ? (Store._medicineMap[it.medicineCode] || Store._medicineMap[it.medicineId]) : null);
+            let unitCost = 0;
+            if (med && typeof Store.getMedicineUnitCost === 'function') {
+                unitCost = Store.getMedicineUnitCost(med, it.unit);
+            }
+            if (unitCost <= 0) unitCost = Number(it.costPrice) || 0;
+            sum += unitCost * (Number(it.quantity) || 0);
+        });
+        return Math.round(sum);
+    },
+
+    // Trả về giá vốn giảm trừ của một phiếu chi hoàn tiền, hoặc null nếu không xác định được
+    _returnCostOfVoucher(v) {
+        if (!v) return null;
+        if (typeof v.returnCost === 'number' && v.returnCost >= 0) return v.returnCost;
+        if (Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
+            return this._costOfReturnItems(v.returnedItems);
+        }
+
+        const refId = String(v.refId || '');
+        if (!refId) return null;
+
+        let order = null;
+        let ret = null;
+        if (refId.startsWith('RETURN_')) {
+            const rid = refId.slice('RETURN_'.length);
+            const orders = (typeof Store.getOrders === 'function') ? (Store.getOrders() || []) : [];
+            order = orders.find(o => (o.returns || []).some(r => r.id === rid)) || null;
+            if (order) ret = (order.returns || []).find(r => r.id === rid) || null;
+        } else {
+            order = (typeof Store.getOrderById === 'function') ? Store.getOrderById(refId) : null;
+            if (order && Array.isArray(order.returns)) {
+                if (v.returnId) ret = order.returns.find(r => r.id === v.returnId) || null;
+                if (!ret && order.returns.length === 1) ret = order.returns[0];
+                if (!ret) {
+                    const amt = Math.abs(Number(v.amount) || 0);
+                    ret = order.returns.find(r => Math.round(r.refundTotal) === Math.round(amt)) || null;
+                }
+            }
+        }
+        if (ret && Array.isArray(ret.items)) return this._costOfReturnItems(ret.items);
+        return null;
+    },
+
+    // Lấy danh sách phiếu chi hoàn tiền khách trả hàng trong khoảng thời gian
+    // (prefix = 'YYYY-MM' hoặc 'YYYY-MM-DD'; hoặc truyền startDate/endDate để lấy theo khoảng ngày)
+    // Đồng thời chống trừ tiền 2 lần: một lần trả hàng có thể bị sinh 2 phiếu chi
+    // (returnOrderItems: refId = HD..., syncOrdersAndStockInsToVouchers: refId = RETURN_...)
+    _collectRefundVouchers(prefix, startDate, endDate) {
+        const allVouchers = (typeof Store.getVouchers === 'function') ? (Store.getVouchers() || []) : [];
+        const isRefund = (v) => !v.isCancelled &&
+            v.type === 'payment' &&
+            (
+                (v.category && (v.category.includes('trả khách') || v.category.includes('trả lại hàng'))) ||
+                (v.reason && (v.reason.includes('trả khách') || v.reason.includes('trả lại hàng'))) ||
+                (v.id && v.id.startsWith('TTTH'))
+            );
+
+        const inRange = (v) => {
+            const d = String(v.createdAt || '');
+            if (!d) return false;
+            if (startDate && endDate) {
+                const day = d.slice(0, 10);
+                return day >= startDate && day <= endDate;
+            }
+            return d.startsWith(prefix);
+        };
+
+        const candidates = allVouchers.filter(v => isRefund(v) && inRange(v));
+
+        const orders = (typeof Store.getOrders === 'function') ? (Store.getOrders() || []) : [];
+        const returnIdToOrder = new Map();
+        const expectedReturnsByOrder = new Map();
+        orders.forEach(o => {
+            const returns = (o.returns || []).filter(r => r && (r.refundTotal || 0) > 0);
+            if (returns.length > 0) expectedReturnsByOrder.set(o.id, returns.length);
+            returns.forEach(r => { if (r.id) returnIdToOrder.set(r.id, o.id); });
+        });
+
+        const resolveOrderId = (v) => {
+            const refId = String(v.refId || '');
+            if (!refId) return null;
+            if (refId.startsWith('RETURN_')) {
+                return returnIdToOrder.get(refId.slice('RETURN_'.length)) || null;
+            }
+            return refId;
+        };
+
+        // Ưu tiên giữ phiếu trỏ trực tiếp tới đơn và phiếu có sẵn giá vốn/chi tiết hàng trả
+        const score = (v) => {
+            const isLegacy = String(v.refId || '').startsWith('RETURN_');
+            return (isLegacy ? 0 : 10)
+                + (typeof v.returnCost === 'number' ? 5 : 0)
+                + (Array.isArray(v.returnedItems) && v.returnedItems.length > 0 ? 3 : 0);
+        };
+
+        const groups = new Map();
+        const standalone = [];
+        candidates.forEach(v => {
+            const orderId = resolveOrderId(v);
+            if (!orderId) { standalone.push(v); return; }
+            if (!groups.has(orderId)) groups.set(orderId, []);
+            groups.get(orderId).push(v);
+        });
+
+        const result = standalone.slice();
+        groups.forEach((list, orderId) => {
+            const expected = expectedReturnsByOrder.get(orderId);
+            if (!expected || list.length <= expected) {
+                result.push(...list); // không có dấu hiệu trùng
+                return;
+            }
+            // Số phiếu nhiều hơn số lần trả hàng -> bỏ bớt phiếu trùng, ưu tiên phiếu chuẩn
+            const sorted = list.slice().sort((a, b) => score(b) - score(a));
+            result.push(...sorted.slice(0, expected));
+            console.warn(`⚠️ Bỏ qua ${list.length - expected} phiếu chi hoàn tiền trùng cho đơn ${orderId} khi tính báo cáo.`);
+        });
+
+        return result;
+    },
+
     // =========================================================================
     // SUB-TAB 1: TÍNH TOÁN VÀ RENDER DOANH SỐ THEO NGÀY & DANH SÁCH HÓA ĐƠN
     // =========================================================================
@@ -299,16 +430,12 @@ const ReportsModule = {
 
         // 2. Thu thập các khoản khách hàng trả hàng hoàn tiền trong tháng từ Sổ Quỹ
         const allVouchers = (typeof Store.getVouchers === 'function') ? Store.getVouchers() : [];
-        const monthReturnVouchers = allVouchers.filter(v => 
-            !v.isCancelled && 
-            v.type === 'payment' && 
-            (
-                (v.category && (v.category.includes('trả khách') || v.category.includes('trả lại hàng'))) || 
-                (v.reason && (v.reason.includes('trả khách') || v.reason.includes('trả lại hàng'))) || 
-                (v.id && v.id.startsWith('TTTH'))
-            ) &&
-            v.createdAt && v.createdAt.startsWith(monthPrefix)
-        );
+
+        // Doanh thu/giá vốn gộp (trước khi trừ trả hàng) — khai báo SỚM để tránh lỗi TDZ ở nhánh fallback bên dưới
+        const grossRevenue = Math.round(totalRevenue);
+        const grossCost = Math.round(totalCost);
+
+        const monthReturnVouchers = this._collectRefundVouchers(monthPrefix);
 
         let totalCustomerRefund = 0;
         let totalCustomerReturnCost = 0;
@@ -325,73 +452,9 @@ const ReportsModule = {
                 transferCustomerRefund += amt;
             }
 
-            let vCost = 0;
-            let costDetermined = false;
-
-            if (typeof v.returnCost === 'number' && v.returnCost >= 0) {
-                vCost = v.returnCost;
-                costDetermined = true;
-            } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
-                vCost = v.returnedItems.reduce((sum, item) => sum + (item.totalCost !== undefined ? Number(item.totalCost) : ((Number(item.costPrice) || 0) * (Number(item.quantity) || 1))), 0);
-                costDetermined = true;
-            } else if (v.refId) {
-                const order = (typeof Store.getOrderById === 'function') ? Store.getOrderById(v.refId) : null;
-                if (order && order.returns && Array.isArray(order.returns)) {
-                    const ret = order.returns.find(r => r.id === v.refId || `TT${r.id}` === v.id);
-                    if (ret && ret.items && Array.isArray(ret.items)) {
-                        vCost = ret.items.reduce((sum, item) => sum + (item.totalCost !== undefined ? Number(item.totalCost) : ((Number(item.costPrice) || 0) * (Number(item.quantity) || 1))), 0);
-                        costDetermined = true;
-                    }
-                }
-                if (!costDetermined && order && order.items) {
-                    const matchedItem = order.items.find(it => (it.total === amt || it.price === amt || it.lineTotal === amt));
-                    if (matchedItem) {
-                        const qty = matchedItem.price > 0 ? (amt / matchedItem.price) : 1;
-                        let uCost = 0;
-                        const med = Store.getMedicineById(matchedItem.medicineId) || (Store._medicineMap ? (Store._medicineMap[matchedItem.medicineCode] || Store._medicineMap[matchedItem.medicineId]) : null);
-                        if (med) uCost = Store.getMedicineUnitCost(med, matchedItem.unit);
-                        if (uCost <= 0) uCost = matchedItem.costPrice || 0;
-                        vCost = Math.round(qty * uCost);
-                        costDetermined = true;
-                    }
-                }
-            }
-
-            // Cơ chế tự động fallback chỉ dành cho chứng từ lịch sử cũ thiếu thông tin chi tiết
-            if (!costDetermined && amt > 0) {
-                const dateStr = v.createdAt ? v.createdAt.slice(0, 10) : '';
-                const candidateOrders = monthOrders.filter(o => {
-                    const oDate = o.createdAt ? o.createdAt.slice(0, 10) : '';
-                    return oDate === dateStr || Math.abs(new Date(o.createdAt).getTime() - new Date(v.createdAt).getTime()) < 3 * 86400000;
-                });
-                for (const o of candidateOrders) {
-                    if (!o.items) continue;
-                    const matchedItem = o.items.find(it => (it.total === amt || it.price === amt));
-                    if (matchedItem) {
-                        const qty = matchedItem.price > 0 ? (amt / matchedItem.price) : 1;
-                        let uCost = 0;
-                        const med = Store.getMedicineById(matchedItem.medicineId) || (Store._medicineMap ? (Store._medicineMap[matchedItem.medicineCode] || Store._medicineMap[matchedItem.medicineId]) : null);
-                        if (med) uCost = Store.getMedicineUnitCost(med, matchedItem.unit);
-                        if (uCost <= 0) uCost = matchedItem.costPrice || 0;
-                        if (uCost > 0) {
-                            vCost = Math.round(qty * uCost);
-                            costDetermined = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!costDetermined) {
-                    const dayObj = dailyMap[dateStr];
-                    let costRatio = 0.70;
-                    if (dayObj && dayObj.totalRevenue > 0 && dayObj.totalCost > 0) {
-                        costRatio = dayObj.totalCost / dayObj.totalRevenue;
-                    } else if (grossCost > 0 && grossRevenue > 0) {
-                        costRatio = grossCost / grossRevenue;
-                    }
-                    vCost = Math.round(amt * costRatio);
-                }
-            }
+            // Giá vốn hàng trả: lấy chính xác, không xác định được thì ghi 0
+            // (thà thiếu còn hơn bịa tỷ lệ 0,70 làm sai lợi nhuận)
+            const vCost = this._returnCostOfVoucher(v) || 0;
             totalCustomerReturnCost += vCost;
 
             const dateStr = v.createdAt.slice(0, 10);
@@ -421,8 +484,6 @@ const ReportsModule = {
             d.profit = Math.round(d.totalRevenue - d.totalCost);
         });
 
-        const grossRevenue = Math.round(totalRevenue);
-        const grossCost = Math.round(totalCost);
         totalRevenue = Math.round(Math.max(0, grossRevenue - totalCustomerRefund));
         totalCost = Math.round(Math.max(0, grossCost - totalCustomerReturnCost));
         cashRevenue = Math.round(Math.max(0, cashRevenue - cashCustomerRefund));
@@ -573,8 +634,8 @@ const ReportsModule = {
         dayOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         const itemsMap = {};
-        let dayRevenue = 0;
-        let dayCost = 0;
+        let dayGrossRevenue = 0;
+        let dayGrossCost = 0;
 
         const processedOrders = dayOrders.map(o => {
             const rawAmount = o.totalAmount || 0;
@@ -585,6 +646,7 @@ const ReportsModule = {
             const discountFactor = (orderSubTotal > 0 && o.discount > 0 && o.totalAmount) ? (o.totalAmount / orderSubTotal) : 1;
 
             let orderCost = 0;
+            let orderGrossCost = 0;
             (o.items || []).forEach(item => {
                 const returnedQty = (o.returns || []).reduce((sum, r) => {
                     const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
@@ -607,6 +669,7 @@ const ReportsModule = {
                 }
                 const lineCost = unitCost * netQty;
                 orderCost += lineCost;
+                orderGrossCost += unitCost * rawQty;
 
                 if (netQty > 0 || returnedQty > 0) {
                     const effectiveMedId = (med ? med.id : '') || item.medicineId || item.medicineCode || '---';
@@ -639,8 +702,8 @@ const ReportsModule = {
                 }
             });
 
-            dayRevenue += netRevenue;
-            dayCost += orderCost;
+            dayGrossRevenue += rawAmount;
+            dayGrossCost += orderGrossCost;
 
             const orderProfit = netRevenue - orderCost;
             const orderMargin = netRevenue > 0 ? ((orderProfit / netRevenue) * 100).toFixed(1) : 0;
@@ -656,36 +719,20 @@ const ReportsModule = {
 
         const itemsList = Object.values(itemsMap);
 
-        // Tìm các phiếu hoàn tiền khách trả hàng trong ngày từ Sổ Quỹ
-        const allVouchers = (typeof Store.getVouchers === 'function') ? Store.getVouchers() : [];
-        const dayReturnVouchers = allVouchers.filter(v => 
-            !v.isCancelled && 
-            v.type === 'payment' && 
-            (
-                (v.category && (v.category.includes('trả khách') || v.category.includes('trả lại hàng'))) || 
-                (v.reason && (v.reason.includes('trả khách') || v.reason.includes('trả lại hàng'))) || 
-                (v.id && v.id.startsWith('TTTH'))
-            ) &&
-            v.createdAt && v.createdAt.startsWith(dateStr)
-        );
+        // Tìm các phiếu hoàn tiền khách trả hàng trong ngày từ Sổ Quỹ (đã chống trùng)
+        const dayReturnVouchers = this._collectRefundVouchers(dateStr);
 
         const dayCustomerRefund = dayReturnVouchers.reduce((sum, v) => sum + Math.abs(Number(v.amount) || 0), 0);
-        const dayCustomerReturnCost = dayReturnVouchers.reduce((sum, v) => {
-            let vCost = 0;
-            if (typeof v.returnCost === 'number' && v.returnCost >= 0) {
-                vCost = v.returnCost;
-            } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
-                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost !== undefined ? Number(it.totalCost) : ((Number(it.costPrice) || 0) * (Number(it.quantity) || 1))), 0);
-            }
-            return sum + vCost;
-        }, 0);
+        const dayCustomerReturnCost = dayReturnVouchers.reduce((sum, v) => sum + (this._returnCostOfVoucher(v) || 0), 0);
 
         const dayData = this.currentReportData?.dailyBreakdown?.find(d => d.fullDate === dateStr);
-        const finalDayRevenue = dayData ? dayData.totalRevenue : Math.max(0, dayRevenue - dayCustomerRefund);
-        const finalDayCost = dayData ? dayData.totalCost : Math.max(0, dayCost - dayCustomerReturnCost);
+        // Nhất quán với báo cáo tháng: doanh thu GỘP của các đơn trong ngày trừ đi phiếu hoàn tiền phát sinh trong ngày
+        // (trước đây trừ cả totalRefunded của từng đơn rồi trừ tiếp phiếu chi -> trừ 2 lần)
+        const finalDayRevenue = dayData ? dayData.totalRevenue : Math.max(0, dayGrossRevenue - dayCustomerRefund);
+        const finalDayCost = dayData ? dayData.totalCost : Math.max(0, dayGrossCost - dayCustomerReturnCost);
         const finalDayProfit = dayData ? dayData.profit : (finalDayRevenue - finalDayCost);
-        const finalGrossRevenue = dayData ? (dayData.grossRevenue || dayRevenue) : dayRevenue;
-        const finalGrossCost = dayData ? (dayData.grossCost || dayCost) : dayCost;
+        const finalGrossRevenue = dayData ? (dayData.grossRevenue || dayGrossRevenue) : dayGrossRevenue;
+        const finalGrossCost = dayData ? (dayData.grossCost || dayGrossCost) : dayGrossCost;
         const finalRefund = dayData ? (dayData.customerRefund || 0) : dayCustomerRefund;
         const finalReturnCost = dayData ? (dayData.customerReturnCost || 0) : dayCustomerReturnCost;
 
@@ -741,7 +788,7 @@ const ReportsModule = {
                 dayReturnVouchers.forEach(v => {
                     const method = v.paymentMethod === 'transfer' ? 'Chuyển khoản' : 'Tiền mặt';
                     const time = v.createdAt ? v.createdAt.slice(11, 16) : '';
-                    const vCost = (typeof v.returnCost === 'number') ? v.returnCost : (v.returnedItems && Array.isArray(v.returnedItems) ? v.returnedItems.reduce((s, it) => s + (it.totalCost !== undefined ? Number(it.totalCost) : ((Number(it.costPrice) || 0) * (Number(it.quantity) || 1))), 0) : 0);
+                    const vCost = this._returnCostOfVoucher(v) || 0;
                     rHtml += `
                         <div class="bg-white p-2.5 rounded-lg border border-rose-200 shadow-sm flex flex-col justify-between gap-1.5">
                             <div class="flex items-start justify-between gap-2">
@@ -1525,18 +1572,15 @@ const ReportsModule = {
             grossSales += (subTotal > 0 ? subTotal : (rawAmount + disc));
             orderDiscount += disc;
 
-            // Tính tiền vốn đơn
+            // Tính tiền vốn đơn (theo số lượng BÁN RA, chưa trừ hàng trả)
+            // Hàng trả được trừ giá vốn ở mục 2.2 theo đúng kỳ phát sinh phiếu chi,
+            // tránh trừ 2 lần (trước đây vừa trừ returnedQty vừa trừ customerReturnCost).
             if (o.items && Array.isArray(o.items)) {
                 o.items.forEach(item => {
-                    const returnedQty = (o.returns || []).reduce((sum, r) => {
-                        const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
-                        return sum + (ri ? ri.quantity : 0);
-                    }, 0);
                     let rawQty = (typeof item.quantity === 'number') ? item.quantity : Number(item.quantity);
                     if (isNaN(rawQty) || (rawQty <= 0 && item.lineTotal > 0 && item.price > 0)) {
                         rawQty = item.price > 0 ? (item.lineTotal / item.price) : 0;
                     }
-                    const netQty = Math.max(0, rawQty - returnedQty);
 
                     let unitCost = 0;
                     const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
@@ -1546,24 +1590,13 @@ const ReportsModule = {
                     if (unitCost <= 0) {
                         unitCost = item.costPrice || 0;
                     }
-                    totalCost += (unitCost * netQty);
+                    totalCost += (unitCost * rawQty);
                 });
             }
         });
 
-        // Lọc các khoản hoàn trả khách trong kỳ (2.2)
-        const returnVouchers = allVouchers.filter(v => 
-            !v.isCancelled && 
-            v.type === 'payment' && 
-            (
-                (v.category && (v.category.includes('trả khách') || v.category.includes('trả lại hàng'))) || 
-                (v.reason && (v.reason.includes('trả khách') || v.reason.includes('trả lại hàng'))) || 
-                (v.id && v.id.startsWith('TTTH'))
-            ) &&
-            v.createdAt &&
-            v.createdAt.slice(0, 10) >= startDate &&
-            v.createdAt.slice(0, 10) <= endDate
-        );
+        // Lọc các khoản hoàn trả khách trong kỳ (2.2) — đã chống trùng phiếu chi
+        const returnVouchers = this._collectRefundVouchers(null, startDate, endDate);
 
         let customerRefund = 0;       // Giá trị hàng bán bị trả lại (2.2)
         let customerReturnCost = 0;   // Giảm giá vốn hàng bị trả lại
@@ -1571,13 +1604,7 @@ const ReportsModule = {
         returnVouchers.forEach(v => {
             const amt = Math.abs(Number(v.amount) || 0);
             customerRefund += amt;
-            let vCost = 0;
-            if (typeof v.returnCost === 'number' && v.returnCost >= 0) {
-                vCost = v.returnCost;
-            } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
-                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost !== undefined ? Number(it.totalCost) : ((Number(it.costPrice) || 0) * (Number(it.quantity) || 1))), 0);
-            }
-            customerReturnCost += vCost;
+            customerReturnCost += (this._returnCostOfVoucher(v) || 0);
         });
 
         // 2. Giảm trừ Doanh thu (2 = 2.1 + 2.2)
