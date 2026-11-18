@@ -74,22 +74,12 @@ class DataStore {
                 if (data.version) this.lastDatabaseVersion = data.version;
                 if (data.lastUpdated) this.lastDatabaseTimestamp = data.lastUpdated;
                 
-                // Nếu server chưa có dữ liệu (file mới tinh), nạp dữ liệu mẫu lên server
-                if (!data.medicines || data.medicines.length === 0) {
-                    console.log('📦 Khởi tạo dữ liệu mẫu lần đầu lên máy chủ...');
-                    const initialDb = {
-                        settings: SampleData.settings,
-                        medicines: SampleData.medicines,
-                        suppliers: SampleData.suppliers,
-                        orders: SampleData.orders,
-                        stockInOrders: SampleData.stockInOrders,
-                        lastUpdated: new Date().toISOString()
-                    };
-                    await this.uploadDatabaseToServer(initialDb);
-                    this.saveToLocalCache(initialDb);
-                } else {
-                    // Cập nhật dữ liệu từ server vào local
+                // Chỉ nạp vào Local Cache khi server có dữ liệu hợp lệ
+                // TUYỆT ĐỐI KHÔNG tự ý tải SampleData lên ghi đè máy chủ nếu server trả về mảng rỗng!
+                if (data.medicines && Array.isArray(data.medicines) && data.medicines.length > 0) {
                     this.saveToLocalCache(data);
+                } else {
+                    console.warn('⚠️ Server trả về danh mục thuốc rỗng hoặc chưa sẵn sàng. Bảo vệ dữ liệu hiện tại không bị ghi đè!');
                 }
                 this.syncCustomerOrdersStats();
                 this.lastServerSyncTime = Date.now();
@@ -97,11 +87,8 @@ class DataStore {
                 this.emit('all:changed');
             }
         } catch (e) {
-            console.warn('Không thể kết nối máy chủ /api/database, chuyển sang dùng bộ nhớ đệm máy:', e);
+            console.warn('Không thể kết nối máy chủ /api/database, duy trì dữ liệu hiện tại:', e);
             this.updateServerStatusBadge(false);
-            if (!localStorage.getItem(STORAGE_KEYS.MEDICINES)) {
-                this.loadInitialSampleData();
-            }
         } finally {
             this.syncInProgress = false;
         }
@@ -170,6 +157,11 @@ class DataStore {
 
     async uploadDatabaseToServer(fullDb) {
         if (!this.isServerMode) return;
+        // BẢO VỆ TUYỆT ĐỐI: Không bao giờ cho phép gửi danh mục rỗng đè lên máy chủ
+        if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
+            console.warn('⚠️ Chặn thao tác lưu: Danh mục thuốc rỗng, từ chối ghi đè lên máy chủ để bảo vệ dữ liệu!');
+            return;
+        }
         this.isSaving = true;
         try {
             const res = await fetch('/api/database', {
@@ -202,18 +194,32 @@ class DataStore {
     }
 
     saveToLocalCache(db) {
+        // Helper lưu an toàn có giới hạn kích thước chống tràn hạn mức 5MB của LocalStorage
+        const safeSet = (key, data, maxSlice = 0) => {
+            try {
+                if (data === undefined || data === null) return;
+                let payload = data;
+                if (maxSlice > 0 && Array.isArray(data) && data.length > maxSlice) {
+                    payload = data.slice(0, maxSlice);
+                }
+                localStorage.setItem(key, JSON.stringify(payload));
+            } catch (e) {
+                // Vượt hạn mức LocalStorage thì bỏ qua mượt mà, dữ liệu toàn vẹn luôn lưu trên RAM & Server
+            }
+        };
+
         try {
             if (db.settings) {
-                try { localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(db.settings)); } catch(e){}
+                safeSet(STORAGE_KEYS.SETTINGS, db.settings);
             }
             if (db.medicines) {
                 this._cachedMedicines = db.medicines;
                 this._rebuildMedicineMap();
-                try { localStorage.setItem(STORAGE_KEYS.MEDICINES, JSON.stringify(db.medicines)); } catch(e){}
+                safeSet(STORAGE_KEYS.MEDICINES, db.medicines, 2000);
             }
             if (db.suppliers) {
                 this._cachedSuppliers = db.suppliers;
-                try { localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(db.suppliers)); } catch(e){}
+                safeSet(STORAGE_KEYS.SUPPLIERS, db.suppliers);
             }
             if (db.orders) {
                 // Bảo vệ các đơn bán mới tạo trên máy cục bộ trong 5 phút gần nhất không bị ghi đè
@@ -229,7 +235,7 @@ class DataStore {
                     }
                 }
                 this._cachedOrders = db.orders;
-                try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(db.orders)); } catch(e){}
+                safeSet(STORAGE_KEYS.ORDERS, db.orders, 100);
             }
             if (db.stockInOrders) {
                 // Bảo vệ các phiếu nhập mới tạo trên máy cục bộ trong 5 phút gần nhất không bị ghi đè
@@ -245,14 +251,14 @@ class DataStore {
                     }
                 }
                 this._cachedStockIns = db.stockInOrders;
-                try { localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(db.stockInOrders)); } catch(e){}
+                safeSet(STORAGE_KEYS.STOCK_IN, db.stockInOrders, 100);
             }
             if (db.customers) {
                 this._cachedCustomers = db.customers;
-                try { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(db.customers)); } catch(e){}
+                safeSet(STORAGE_KEYS.CUSTOMERS, db.customers);
             }
             if (db.settingsHistory) {
-                try { localStorage.setItem(STORAGE_KEYS.SETTINGS_HISTORY, JSON.stringify(db.settingsHistory)); } catch(e){}
+                safeSet(STORAGE_KEYS.SETTINGS_HISTORY, db.settingsHistory);
             }
             if (db.vouchers) {
                 // Bảo vệ các phiếu chi/thu mới tạo trong 5 phút gần nhất
@@ -268,15 +274,15 @@ class DataStore {
                     }
                 }
                 this._cachedVouchers = db.vouchers;
-                try { localStorage.setItem(STORAGE_KEYS.VOUCHERS, JSON.stringify(db.vouchers)); } catch(e){}
+                safeSet(STORAGE_KEYS.VOUCHERS, db.vouchers, 100);
             }
             if (db.purchaseReturns) {
                 this._cachedReturns = db.purchaseReturns;
-                try { localStorage.setItem(STORAGE_KEYS.PURCHASE_RETURNS, JSON.stringify(db.purchaseReturns)); } catch(e){}
+                safeSet(STORAGE_KEYS.PURCHASE_RETURNS, db.purchaseReturns, 100);
             }
             if (db.auditLog && Array.isArray(db.auditLog)) {
                 this._cachedAuditLog = db.auditLog;
-                try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOG, JSON.stringify(db.auditLog)); } catch(e){}
+                safeSet(STORAGE_KEYS.AUDIT_LOG, db.auditLog, 100);
             }
             if (db.version) {
                 this.lastDatabaseVersion = db.version;
@@ -314,6 +320,10 @@ class DataStore {
         this._persistTimer = setTimeout(() => {
             this._persistTimer = null;
             const fullDb = this.getCurrentFullDatabase();
+            if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
+                console.warn('⚠️ Chặn persist: Dữ liệu thuốc rỗng, không lưu lên server.');
+                return;
+            }
             this.uploadDatabaseToServer(fullDb);
         }, delayMs);
     }
@@ -326,6 +336,9 @@ class DataStore {
         }
         if (this.isServerMode) {
             const fullDb = this.getCurrentFullDatabase();
+            if (!fullDb || !Array.isArray(fullDb.medicines) || fullDb.medicines.length === 0) {
+                return;
+            }
             return await this.uploadDatabaseToServer(fullDb);
         }
     }
@@ -632,24 +645,28 @@ class DataStore {
             stockIn.items.forEach(item => {
                 const med = this.getMedicineById(item.medicineId);
                 if (med) {
-                    let addedUnits = item.quantity;
-                    if (item.unit === med.packUnit && med.packRatio > 1) {
-                        addedUnits = item.quantity * med.packRatio;
-                    } else if (item.unit === med.subUnit && med.subRatio > 1) {
-                        addedUnits = item.quantity * med.subRatio;
+                    const u = (item.unit || '').trim().toLowerCase();
+                    const packU = (med.packUnit || '').trim().toLowerCase();
+                    const subU = (med.subUnit || '').trim().toLowerCase();
+                    const baseU = (med.baseUnit || '').trim().toLowerCase();
+                    const packRatio = (med.packRatio && Number(med.packRatio) > 0) ? Number(med.packRatio) : 1;
+                    const subRatio = (med.subRatio && Number(med.subRatio) > 0) ? Number(med.subRatio) : 1;
+
+                    let addedUnits = Number(item.quantity) || 0;
+                    if (u && packU && u === packU && packRatio > 1) {
+                        addedUnits = (Number(item.quantity) || 0) * packRatio;
+                    } else if (u && subU && u === subU && subRatio > 1) {
+                        addedUnits = (Number(item.quantity) || 0) * subRatio;
                     }
 
                     if (item.batchNo) med.batchNo = item.batchNo;
                     if (item.expiryDate) med.expiryDate = item.expiryDate;
                     if (item.costPrice && item.costPrice > 0) {
-                        const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
-                        const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
-
                         // Quy đổi giá nhập hiện tại về đơn vị hộp (packUnit)
                         let inCostPack = item.costPrice;
-                        if (item.unit !== med.packUnit && packRatio > 1) {
-                            if (item.unit === med.baseUnit) inCostPack = item.costPrice * packRatio;
-                            else if (item.unit === med.subUnit && subRatio > 0) inCostPack = item.costPrice * (packRatio / subRatio);
+                        if (u !== packU && packRatio > 1) {
+                            if (u === baseU) inCostPack = item.costPrice * packRatio;
+                            else if (u === subU && subRatio > 0) inCostPack = item.costPrice * (packRatio / subRatio);
                         }
 
                         // Bình quân gia quyền di động: (giá nhập hiện tại * số lượng nhập + giá nhập TB trước đó * số lượng tồn) / (số lượng nhập + số lượng tồn)
@@ -690,6 +707,7 @@ class DataStore {
         }
 
         this.schedulePersistToServer();
+        this.persistImmediately();
         this.emit('stockin:changed', orders);
         return stockIn;
     }
@@ -706,11 +724,17 @@ class DataStore {
             oldOrder.items.forEach(oldItem => {
                 const med = this.getMedicineById(oldItem.medicineId);
                 if (med) {
-                    let unitsToDeduct = oldItem.quantity;
-                    if (oldItem.unit === med.packUnit && med.packRatio > 1) {
-                        unitsToDeduct = oldItem.quantity * med.packRatio;
-                    } else if (oldItem.unit === med.subUnit && med.subRatio > 1) {
-                        unitsToDeduct = oldItem.quantity * med.subRatio;
+                    const u = (oldItem.unit || '').trim().toLowerCase();
+                    const packU = (med.packUnit || '').trim().toLowerCase();
+                    const subU = (med.subUnit || '').trim().toLowerCase();
+                    const packRatio = (med.packRatio && Number(med.packRatio) > 0) ? Number(med.packRatio) : 1;
+                    const subRatio = (med.subRatio && Number(med.subRatio) > 0) ? Number(med.subRatio) : 1;
+
+                    let unitsToDeduct = Number(oldItem.quantity) || 0;
+                    if (u && packU && u === packU && packRatio > 1) {
+                        unitsToDeduct = (Number(oldItem.quantity) || 0) * packRatio;
+                    } else if (u && subU && u === subU && subRatio > 1) {
+                        unitsToDeduct = (Number(oldItem.quantity) || 0) * subRatio;
                     }
                     med.stockUnits = Math.max(0, Math.round(((med.stockUnits || 0) - unitsToDeduct) * 1000) / 1000);
                     this.saveMedicine(med);
@@ -723,24 +747,28 @@ class DataStore {
             updatedStockIn.items.forEach(newItem => {
                 const med = this.getMedicineById(newItem.medicineId);
                 if (med) {
-                    let unitsToAdd = newItem.quantity;
-                    if (newItem.unit === med.packUnit && med.packRatio > 1) {
-                        unitsToAdd = newItem.quantity * med.packRatio;
-                    } else if (newItem.unit === med.subUnit && med.subRatio > 1) {
-                        unitsToAdd = newItem.quantity * med.subRatio;
+                    const u = (newItem.unit || '').trim().toLowerCase();
+                    const packU = (med.packUnit || '').trim().toLowerCase();
+                    const subU = (med.subUnit || '').trim().toLowerCase();
+                    const baseU = (med.baseUnit || '').trim().toLowerCase();
+                    const packRatio = (med.packRatio && Number(med.packRatio) > 0) ? Number(med.packRatio) : 1;
+                    const subRatio = (med.subRatio && Number(med.subRatio) > 0) ? Number(med.subRatio) : 1;
+
+                    let unitsToAdd = Number(newItem.quantity) || 0;
+                    if (u && packU && u === packU && packRatio > 1) {
+                        unitsToAdd = (Number(newItem.quantity) || 0) * packRatio;
+                    } else if (u && subU && u === subU && subRatio > 1) {
+                        unitsToAdd = (Number(newItem.quantity) || 0) * subRatio;
                     }
 
                     if (newItem.batchNo) med.batchNo = newItem.batchNo;
                     if (newItem.expiryDate) med.expiryDate = newItem.expiryDate;
                     if (newItem.costPrice && newItem.costPrice > 0) {
-                        const packRatio = (med.packRatio && med.packRatio > 0) ? med.packRatio : 1;
-                        const subRatio = (med.subRatio && med.subRatio > 0) ? med.subRatio : 1;
-
                         // Quy đổi giá nhập hiện tại về đơn vị hộp (packUnit)
                         let inCostPack = newItem.costPrice;
-                        if (newItem.unit !== med.packUnit && packRatio > 1) {
-                            if (newItem.unit === med.baseUnit) inCostPack = newItem.costPrice * packRatio;
-                            else if (newItem.unit === med.subUnit && subRatio > 0) inCostPack = newItem.costPrice * (packRatio / subRatio);
+                        if (u !== packU && packRatio > 1) {
+                            if (u === baseU) inCostPack = newItem.costPrice * packRatio;
+                            else if (u === subU && subRatio > 0) inCostPack = newItem.costPrice * (packRatio / subRatio);
                         }
 
                         // Bình quân gia quyền di động: (giá nhập hiện tại * số lượng nhập + giá nhập TB trước đó * số lượng tồn) / (số lượng nhập + số lượng tồn)
@@ -793,6 +821,7 @@ class DataStore {
         }
 
         this.schedulePersistToServer();
+        this.persistImmediately();
         this.emit('stockin:changed', orders);
         return orders[index];
     }

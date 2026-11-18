@@ -626,6 +626,14 @@ const OrdersModule = {
         const body = document.getElementById('order-details-body');
         if (!modal || !body) return;
 
+        // Luôn nâng z-index lên cao nhất để nổi lên trên bất kỳ cửa sổ nào mở nó
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        } else {
+            window._modalTopZIndex = Math.max(window._modalTopZIndex || 110, 110) + 10;
+            modal.style.zIndex = window._modalTopZIndex;
+        }
+
         const isCash = order.paymentMethod === 'cash';
         const hasReturns = order.returns && order.returns.length > 0;
         const isFullyReturned = order.returnStatus === 'fully_returned';
@@ -857,6 +865,9 @@ const OrdersModule = {
             }
         }
 
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -928,6 +939,9 @@ const OrdersModule = {
             reasonCustom.classList.add('hidden');
         }
 
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -1067,6 +1081,12 @@ const OrdersModule = {
         }
 
         this.updateReturnCalculations();
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -1236,6 +1256,9 @@ const OrdersModule = {
         if (elCustPhone) elCustPhone.value = order.customerPhone || '';
         if (elNote) elNote.value = order.note || '';
 
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -1405,6 +1428,9 @@ const OrdersModule = {
         });
 
         this.renderReturnCart();
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -1959,6 +1985,9 @@ const OrdersModule = {
             </div>
         `;
 
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -2071,6 +2100,9 @@ const OrdersModule = {
             </div>
         `;
 
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        }
         modal.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },

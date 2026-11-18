@@ -232,36 +232,26 @@ const ReportsModule = {
 
         monthOrders.forEach(o => {
             const rawAmount = o.totalAmount || 0;
-            const refundAmount = o.totalRefunded || 0;
-            const netAmount = Math.max(0, rawAmount - refundAmount);
-            totalRevenue += netAmount;
+            totalRevenue += rawAmount;
 
             const isCash = o.paymentMethod === 'cash';
             if (isCash) {
-                cashRevenue += (rawAmount - refundAmount);
+                cashRevenue += rawAmount;
                 cashOrdersCount++;
             } else {
                 transferRevenue += rawAmount;
-                if (refundAmount > 0) {
-                    cashRevenue -= refundAmount;
-                }
                 transferOrdersCount++;
             }
 
-            // Tính tiền vốn của đơn hàng (đã trừ thuốc trả lại nếu có)
+            // Tính tiền vốn gốc ban đầu của đơn hàng (Gross Cost)
             let orderCost = 0;
             if (o.items && Array.isArray(o.items)) {
                 o.items.forEach(item => {
-                    const returnedQty = (o.returns || []).reduce((sum, r) => {
-                        const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
-                        return sum + (ri ? ri.quantity : 0);
-                    }, 0);
-                    
                     let rawQty = (typeof item.quantity === 'number') ? item.quantity : Number(item.quantity);
                     if (isNaN(rawQty) || (rawQty <= 0 && item.lineTotal > 0 && item.price > 0)) {
                         rawQty = item.price > 0 ? (item.lineTotal / item.price) : 0;
                     }
-                    const netQty = Math.max(0, rawQty - returnedQty);
+                    if (rawQty <= 0) return;
 
                     let unitCost = 0;
                     const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
@@ -271,11 +261,11 @@ const ReportsModule = {
                     if (unitCost <= 0) {
                         unitCost = item.costPrice || 0;
                     }
-                    const lineCost = unitCost * netQty;
+                    const lineCost = unitCost * rawQty;
                     orderCost += lineCost;
 
-                    if (netQty > 0) {
-                        const medId = item.medicineId || item.medicineName;
+                    const medId = item.medicineId || item.medicineName;
+                    if (medId) {
                         if (!medicineSalesMap[medId]) {
                             medicineSalesMap[medId] = {
                                 id: item.medicineId,
@@ -285,28 +275,24 @@ const ReportsModule = {
                                 totalAmount: 0
                             };
                         }
-                        medicineSalesMap[medId].totalQty += netQty;
-                        let lineTotal = (typeof item.lineTotal === 'number' && item.lineTotal > 0) ? item.lineTotal : (netQty * (item.price || 0));
+                        medicineSalesMap[medId].totalQty += rawQty;
+                        let lineTotal = (typeof item.lineTotal === 'number' && item.lineTotal > 0) ? item.lineTotal : (rawQty * (item.price || 0));
                         medicineSalesMap[medId].totalAmount += lineTotal;
                     }
                 });
             }
             totalCost += orderCost;
 
-            // Đưa vào ngày tương ứng
+            // Đưa vào ngày tương ứng (Gross ban đầu, sẽ giảm trừ từ các phiếu trả hàng tập trung bên dưới)
             const orderDateStr = o.createdAt.slice(0, 10);
             if (dailyMap[orderDateStr]) {
                 dailyMap[orderDateStr].orderCount += 1;
-                dailyMap[orderDateStr].totalRevenue += netAmount;
+                dailyMap[orderDateStr].totalRevenue += rawAmount;
                 dailyMap[orderDateStr].totalCost += orderCost;
-                dailyMap[orderDateStr].profit += (netAmount - orderCost);
                 if (isCash) {
-                    dailyMap[orderDateStr].cashRevenue += (rawAmount - refundAmount);
+                    dailyMap[orderDateStr].cashRevenue += rawAmount;
                 } else {
                     dailyMap[orderDateStr].transferRevenue += rawAmount;
-                    if (refundAmount > 0) {
-                        dailyMap[orderDateStr].cashRevenue -= refundAmount;
-                    }
                 }
             }
         });
@@ -340,13 +326,24 @@ const ReportsModule = {
             }
 
             let vCost = 0;
-            if (typeof v.returnCost === 'number' && v.returnCost > 0) {
+            let costDetermined = false;
+
+            if (typeof v.returnCost === 'number' && v.returnCost >= 0) {
                 vCost = v.returnCost;
+                costDetermined = true;
             } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
-                vCost = v.returnedItems.reduce((sum, item) => sum + (item.totalCost || (item.costPrice * (item.quantity || 1)) || 0), 0);
+                vCost = v.returnedItems.reduce((sum, item) => sum + (item.totalCost !== undefined ? Number(item.totalCost) : ((Number(item.costPrice) || 0) * (Number(item.quantity) || 1))), 0);
+                costDetermined = true;
             } else if (v.refId) {
                 const order = (typeof Store.getOrderById === 'function') ? Store.getOrderById(v.refId) : null;
-                if (order && order.items) {
+                if (order && order.returns && Array.isArray(order.returns)) {
+                    const ret = order.returns.find(r => r.id === v.refId || `TT${r.id}` === v.id);
+                    if (ret && ret.items && Array.isArray(ret.items)) {
+                        vCost = ret.items.reduce((sum, item) => sum + (item.totalCost !== undefined ? Number(item.totalCost) : ((Number(item.costPrice) || 0) * (Number(item.quantity) || 1))), 0);
+                        costDetermined = true;
+                    }
+                }
+                if (!costDetermined && order && order.items) {
                     const matchedItem = order.items.find(it => (it.total === amt || it.price === amt || it.lineTotal === amt));
                     if (matchedItem) {
                         const qty = matchedItem.price > 0 ? (amt / matchedItem.price) : 1;
@@ -355,7 +352,44 @@ const ReportsModule = {
                         if (med) uCost = Store.getMedicineUnitCost(med, matchedItem.unit);
                         if (uCost <= 0) uCost = matchedItem.costPrice || 0;
                         vCost = Math.round(qty * uCost);
+                        costDetermined = true;
                     }
+                }
+            }
+
+            // Cơ chế tự động fallback chỉ dành cho chứng từ lịch sử cũ thiếu thông tin chi tiết
+            if (!costDetermined && amt > 0) {
+                const dateStr = v.createdAt ? v.createdAt.slice(0, 10) : '';
+                const candidateOrders = monthOrders.filter(o => {
+                    const oDate = o.createdAt ? o.createdAt.slice(0, 10) : '';
+                    return oDate === dateStr || Math.abs(new Date(o.createdAt).getTime() - new Date(v.createdAt).getTime()) < 3 * 86400000;
+                });
+                for (const o of candidateOrders) {
+                    if (!o.items) continue;
+                    const matchedItem = o.items.find(it => (it.total === amt || it.price === amt));
+                    if (matchedItem) {
+                        const qty = matchedItem.price > 0 ? (amt / matchedItem.price) : 1;
+                        let uCost = 0;
+                        const med = Store.getMedicineById(matchedItem.medicineId) || (Store._medicineMap ? (Store._medicineMap[matchedItem.medicineCode] || Store._medicineMap[matchedItem.medicineId]) : null);
+                        if (med) uCost = Store.getMedicineUnitCost(med, matchedItem.unit);
+                        if (uCost <= 0) uCost = matchedItem.costPrice || 0;
+                        if (uCost > 0) {
+                            vCost = Math.round(qty * uCost);
+                            costDetermined = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!costDetermined) {
+                    const dayObj = dailyMap[dateStr];
+                    let costRatio = 0.70;
+                    if (dayObj && dayObj.totalRevenue > 0 && dayObj.totalCost > 0) {
+                        costRatio = dayObj.totalCost / dayObj.totalRevenue;
+                    } else if (grossCost > 0 && grossRevenue > 0) {
+                        costRatio = grossCost / grossRevenue;
+                    }
+                    vCost = Math.round(amt * costRatio);
                 }
             }
             totalCustomerReturnCost += vCost;
@@ -638,10 +672,10 @@ const ReportsModule = {
         const dayCustomerRefund = dayReturnVouchers.reduce((sum, v) => sum + Math.abs(Number(v.amount) || 0), 0);
         const dayCustomerReturnCost = dayReturnVouchers.reduce((sum, v) => {
             let vCost = 0;
-            if (typeof v.returnCost === 'number' && v.returnCost > 0) {
+            if (typeof v.returnCost === 'number' && v.returnCost >= 0) {
                 vCost = v.returnCost;
             } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
-                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost || (it.costPrice * (it.quantity || 1)) || 0), 0);
+                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost !== undefined ? Number(it.totalCost) : ((Number(it.costPrice) || 0) * (Number(it.quantity) || 1))), 0);
             }
             return sum + vCost;
         }, 0);
@@ -699,7 +733,7 @@ const ReportsModule = {
                             </div>
                             <div class="flex items-center gap-2 text-xs flex-wrap">
                                 <span class="text-rose-700 font-mono font-black">Tổng hoàn tiền: -${AppUtils.formatVND(dayCustomerRefund)}</span>
-                                ${finalReturnCost > 0 ? `<span class="text-emerald-800 font-mono font-bold">| Giảm vốn: -${AppUtils.formatVND(finalReturnCost)}</span>` : ''}
+                                ${finalReturnCost > 0 ? `<span class="text-emerald-800 font-mono font-bold">| Giảm vốn: -${AppUtils.formatVND(finalReturnCost)}</span>` : (dayReturnVouchers.some(v => v.returnCost === 0) ? `<span class="text-slate-500 font-mono font-medium">| Giảm vốn: 0 đ</span>` : '')}
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -707,7 +741,7 @@ const ReportsModule = {
                 dayReturnVouchers.forEach(v => {
                     const method = v.paymentMethod === 'transfer' ? 'Chuyển khoản' : 'Tiền mặt';
                     const time = v.createdAt ? v.createdAt.slice(11, 16) : '';
-                    const vCost = v.returnCost || 0;
+                    const vCost = (typeof v.returnCost === 'number') ? v.returnCost : (v.returnedItems && Array.isArray(v.returnedItems) ? v.returnedItems.reduce((s, it) => s + (it.totalCost !== undefined ? Number(it.totalCost) : ((Number(it.costPrice) || 0) * (Number(it.quantity) || 1))), 0) : 0);
                     rHtml += `
                         <div class="bg-white p-2.5 rounded-lg border border-rose-200 shadow-sm flex flex-col justify-between gap-1.5">
                             <div class="flex items-start justify-between gap-2">
@@ -721,7 +755,7 @@ const ReportsModule = {
                                 </div>
                                 <div class="text-right whitespace-nowrap">
                                     <div class="font-mono font-black text-rose-700">-${AppUtils.formatVND(Math.abs(Number(v.amount) || 0))}</div>
-                                    ${(vCost > 0) ? `<div class="font-mono text-[11px] text-slate-500 font-semibold">Vốn: -${AppUtils.formatVND(vCost)}</div>` : ''}
+                                    ${(vCost > 0) ? `<div class="font-mono text-[11px] text-slate-500 font-semibold">Vốn: -${AppUtils.formatVND(vCost)}</div>` : ((typeof v.returnCost === 'number' || (v.returnedItems && v.returnedItems.length > 0)) ? `<div class="font-mono text-[11px] text-slate-400 font-normal">Vốn: 0 đ</div>` : '')}
                                 </div>
                             </div>
                         </div>
@@ -1538,10 +1572,10 @@ const ReportsModule = {
             const amt = Math.abs(Number(v.amount) || 0);
             customerRefund += amt;
             let vCost = 0;
-            if (typeof v.returnCost === 'number' && v.returnCost > 0) {
+            if (typeof v.returnCost === 'number' && v.returnCost >= 0) {
                 vCost = v.returnCost;
             } else if (v.returnedItems && Array.isArray(v.returnedItems) && v.returnedItems.length > 0) {
-                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost || (it.costPrice * (it.quantity || 1)) || 0), 0);
+                vCost = v.returnedItems.reduce((s, it) => s + (it.totalCost !== undefined ? Number(it.totalCost) : ((Number(it.costPrice) || 0) * (Number(it.quantity) || 1))), 0);
             }
             customerReturnCost += vCost;
         });

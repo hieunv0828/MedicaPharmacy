@@ -18,12 +18,15 @@ if (!(Test-Path $csc)) {
 # 1. Bien dich MedicaServer.exe
 Write-Host "[1/4] Bien dich may chu MedicaServer.exe moi nhat..." -ForegroundColor Cyan
 & $csc /target:winexe /platform:anycpu /out:"$root\MedicaServer.new.exe" "$root\server\MedicaServer.cs" "$root\server\LicenseManager.cs" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Web.Extensions.dll | Out-Null
+$serverBinaryToCopy = "$root\MedicaServer.exe"
 if (Test-Path "$root\MedicaServer.new.exe") {
-    # Thu thay the MedicaServer.exe neu khong bi khoa
+    # Thu thay the MedicaServer.exe neu khong bi khoa boi tien trinh dang chay
     try {
         Move-Item -Path "$root\MedicaServer.new.exe" -Destination "$root\MedicaServer.exe" -Force
+        $serverBinaryToCopy = "$root\MedicaServer.exe"
     } catch {
-        Remove-Item -Path "$root\MedicaServer.new.exe" -Force -ErrorAction SilentlyContinue
+        Write-Warning "MedicaServer.exe dang chay, se su dung ban moi bien dich cho bo cai dat."
+        $serverBinaryToCopy = "$root\MedicaServer.new.exe"
     }
 }
 
@@ -46,7 +49,6 @@ $filesToCopy = @(
     "license-activation.html",
     "huong-dan-su-dung.html",
     "tai-lieu-thiet-ke.html",
-    "MedicaServer.exe",
     "Start-App.bat",
     "start-app-without-ngrok.bat",
     "Stop-Server.bat",
@@ -61,6 +63,9 @@ foreach ($f in $filesToCopy) {
     }
 }
 
+# Copy MedicaServer.exe moi nhat vao staging
+Copy-Item -Path $serverBinaryToCopy -Destination (Join-Path $stagingDir "MedicaServer.exe") -Force
+
 # Copy cac thu muc
 $dirsToCopy = @("css", "js", "vendor", "data", "server")
 foreach ($d in $dirsToCopy) {
@@ -70,11 +75,9 @@ foreach ($d in $dirsToCopy) {
     }
 }
 
-# Xoa file license.key khoi goi cai dat de moi may bat buoc phai kich hoat key rieng
-$stagingLicenseKey = Join-Path $stagingDir "data\license.key"
-if (Test-Path $stagingLicenseKey) {
-    Remove-Item -Path $stagingLicenseKey -Force
-}
+# Loai bo cac file backup khoi goi cai dat de goi cai nhe va gon gang
+Get-ChildItem -Path (Join-Path $stagingDir "data\backup_*") -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+Get-ChildItem -Path (Join-Path $stagingDir "data\backups") -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 
 # Copy tools (ngrok.exe)
 $stagingTools = Join-Path $stagingDir "tools"
@@ -96,7 +99,7 @@ Write-Host "  -> Dung luong goi ung dung: $zipSizeMb MB" -ForegroundColor DarkGr
 Write-Host "[4/4] Bien dich file cai dat Standalone: MedicaPharmacy_Setup.exe..." -ForegroundColor Cyan
 $setupOut = "$root\MedicaPharmacy_Setup.exe"
 
-& $csc /target:winexe /platform:anycpu /out:"$setupOut" "$root\installer\MedicaInstaller.cs" "$root\server\LicenseManager.cs" /resource:"$zipPath,MedicaPayload" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll
+& $csc /target:winexe /platform:anycpu /out:"$setupOut" "$root\installer\MedicaInstaller.cs" /resource:"$zipPath,MedicaPayload" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll
 
 if (Test-Path $setupOut) {
     $setupItem = Get-Item $setupOut
@@ -105,6 +108,7 @@ if (Test-Path $setupOut) {
     # Don dep staging
     Remove-Item -Path $stagingDir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$root\MedicaServer.new.exe" -Force -ErrorAction SilentlyContinue
 
     Write-Host ""
     Write-Host "======================================================================" -ForegroundColor Green

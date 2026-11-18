@@ -1313,6 +1313,9 @@ const InventoryModule = {
             this.stockInCurrentPage = 1;
             this.renderStockInHistory();
             this.renderStockInSummaryCards();
+            this.renderInventoryTable();
+            this.renderInventoryPagination();
+            this.renderSummaryCards();
             App.showToast(`Đã cập nhật thành công phiếu nhập kho ${updatedRecord.id}! Tồn kho và Sổ Quỹ đã được điều chỉnh.`, 'success');
         } else {
             const stockInRecord = {
@@ -1336,6 +1339,9 @@ const InventoryModule = {
             this.closeStockInModal();
             this.renderStockInHistory();
             this.renderStockInSummaryCards();
+            this.renderInventoryTable();
+            this.renderInventoryPagination();
+            this.renderSummaryCards();
             App.showToast(`Đã hoàn tất nhập kho phiếu ${saved.id} (${paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})! Tồn kho đã tự động cộng dồn.`, 'success');
 
             // Tự động hỏi / mở in tem mã vạch dán hộp cho các mặt hàng vừa nhập
@@ -2026,6 +2032,14 @@ const InventoryModule = {
         const body = document.getElementById('stockin-detail-body');
         const idText = document.getElementById('stockin-detail-id-text');
         if (!modal || !body) return;
+
+        // Luôn nâng z-index lên cao nhất để nổi lên trên bất kỳ cửa sổ nào mở nó
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        } else {
+            window._modalTopZIndex = Math.max(window._modalTopZIndex || 110, 110) + 10;
+            modal.style.zIndex = window._modalTopZIndex;
+        }
 
         if (idText) idText.innerText = `Mã phiếu: ${o.id}`;
 
@@ -3167,6 +3181,7 @@ const InventoryModule = {
             };
         }
 
+        window.bringModalToFront && window.bringModalToFront('modal-purchase-return-detail');
         document.getElementById('modal-purchase-return-detail')?.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },
@@ -3544,6 +3559,14 @@ const InventoryModule = {
 
         const modal = document.getElementById('modal-medicine-history');
         if (!modal) return;
+
+        // Luôn nâng z-index lên cao nhất để nổi lên trên bất kỳ cửa sổ nào mở nó
+        if (typeof window.bringModalToFront === 'function') {
+            window.bringModalToFront(modal);
+        } else {
+            window._modalTopZIndex = Math.max(window._modalTopZIndex || 110, 110) + 10;
+            modal.style.zIndex = window._modalTopZIndex;
+        }
 
         document.getElementById('med-history-name').innerText = med.name;
         document.getElementById('med-history-sub').innerText = `Mã: ${med.id} • Hoạt chất: ${med.activeIngredient || '---'} • Nhóm: ${med.category || 'Thuốc chung'} • Quy cách: 1 ${med.packUnit || 'Hộp'} = ${med.packRatio} ${med.baseUnit}`;
@@ -4415,6 +4438,7 @@ const InventoryModule = {
             tbody.innerHTML = html;
         }
 
+        window.bringModalToFront && window.bringModalToFront('modal-disposal-detail');
         document.getElementById('modal-disposal-detail')?.classList.remove('hidden');
         if (window.lucide) lucide.createIcons();
     },

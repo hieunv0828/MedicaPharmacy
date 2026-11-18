@@ -330,12 +330,20 @@ table td span.font-mono {
     transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
 }
 
-#header-brand-container:hover .header-brand-menu,
-#header-brand-container:focus-within .header-brand-menu {
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
-    transform: translateY(0) !important;
+#header-brand-container:hover .header-brand-menu {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+/* Đóng ngay lập tức khi click chọn tab hoặc yêu cầu đóng menu */
+#header-brand-container.menu-closed .header-brand-menu,
+.header-brand-menu.force-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translateY(4px) !important;
 }
 
 /* ========================================================

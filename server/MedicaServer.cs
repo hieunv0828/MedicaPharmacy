@@ -87,8 +87,9 @@ namespace MedicaPharmacy
         private Process _ngrokProcess = null;
         private string _ngrokFixedUrl = "https://proofread-unissued-roundness.ngrok-free.dev";
         private bool _enableNgrok = true;
-        private bool _isLicensed = false;
+        private bool _isLicensed = true;
         private string _machineCode = "";
+        private System.Threading.Timer _autoBackupTimer = null;
 
         // In-memory database cache (string + encoded bytes)
         private string _dbCache = null;
@@ -151,6 +152,7 @@ namespace MedicaPharmacy
 
             InitDatabaseIfEmpty();
             StartServer();
+            StartAutoBackupEngine();
             StartNgrokTunnel();
             try { InitTrayIcon(); } catch { }
 
@@ -160,23 +162,8 @@ namespace MedicaPharmacy
 
         private void CheckLicenseStatus()
         {
-            lock (_dbLock)
-            {
-                string keyFile = Path.Combine(_dataDir, "license.key");
-                if (File.Exists(keyFile))
-                {
-                    try
-                    {
-                        string key = File.ReadAllText(keyFile, Encoding.UTF8).Trim();
-                        _isLicensed = LicenseManager.ValidateLicenseKey(_machineCode, key);
-                    }
-                    catch { _isLicensed = false; }
-                }
-                else
-                {
-                    _isLicensed = false;
-                }
-            }
+            // Mở khóa bản quyền vĩnh viễn không cần nhập key
+            _isLicensed = true;
         }
 
         private void StartNgrokTunnel()
@@ -192,6 +179,7 @@ namespace MedicaPharmacy
 
             ThreadPool.QueueUserWorkItem((state) =>
             {
+                int failCount = 0;
                 while (_isRunning)
                 {
                     try
@@ -205,6 +193,8 @@ namespace MedicaPharmacy
                             Thread.Sleep(500);
 
                             string logFile = Path.Combine(_webRoot, "tools", "ngrok.log");
+                            RotateLogFile(logFile);
+
                             ProcessStartInfo psi = new ProcessStartInfo
                             {
                                 FileName = ngrokExe,
@@ -216,11 +206,28 @@ namespace MedicaPharmacy
                             };
 
                             _ngrokProcess = Process.Start(psi);
+
+                            // Kiểm tra xem tiến trình có thoát ngay không (mất mạng/lỗi token)
+                            Thread.Sleep(3000);
+                            if (_ngrokProcess != null && _ngrokProcess.HasExited)
+                            {
+                                failCount++;
+                            }
+                            else
+                            {
+                                failCount = 0;
+                            }
                         }
                     }
-                    catch { }
+                    catch { failCount++; }
 
-                    Thread.Sleep(5000);
+                    // Cooldown thích ứng: nếu lỗi liên tục, giãn thời gian chờ từ 5s -> 15s -> 60s
+                    int sleepMs = 5000;
+                    if (failCount > 5) sleepMs = 60000;
+                    else if (failCount > 2) sleepMs = 15000;
+                    else if (failCount > 0) sleepMs = 10000;
+
+                    Thread.Sleep(sleepMs);
                 }
             });
         }
@@ -252,8 +259,25 @@ namespace MedicaPharmacy
             bool started = TryBindPort(80);
             if (!started)
             {
-                // Nếu 80 bị chiếm, dùng 8080
+                // Nếu 80 bị chiếm (thường do IIS/W3SVC), dùng 8080
                 started = TryBindPort(8080);
+                if (started)
+                {
+                    ThreadPool.QueueUserWorkItem((s) => {
+                        Thread.Sleep(2500);
+                        try
+                        {
+                            if (_trayIcon != null)
+                            {
+                                _trayIcon.ShowBalloonTip(4000, 
+                                    "Thông báo cổng mạng", 
+                                    "Cổng 80 đang bận (do IIS/W3SVC). Máy chủ đang chạy ở cổng 8080 (http://localhost:8080).", 
+                                    ToolTipIcon.Warning);
+                            }
+                        }
+                        catch { }
+                    });
+                }
             }
 
             if (!started)
@@ -295,7 +319,7 @@ namespace MedicaPharmacy
             menu.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             // 1. Mở giao diện bán thuốc
-            string openLabel = _isLicensed ? "🌐 Mở Phần Mềm (http://medica.com)" : "🔒 Kích Hoạt Bản Quyền (http://medica.com)";
+            string openLabel = "🌐 Mở Phần Mềm (http://medica.com)";
             ToolStripMenuItem itemOpen = new ToolStripMenuItem(openLabel);
             itemOpen.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             itemOpen.Click += (s, e) => {
@@ -608,13 +632,6 @@ namespace MedicaPharmacy
                         // API kiểm tra trạng thái cơ sở dữ liệu siêu nhẹ (chỉ ~70 bytes thay vì tải toàn bộ database 17MB)
                         if (rawUrl.Equals("/api/database/status", StringComparison.OrdinalIgnoreCase))
                         {
-                            CheckLicenseStatus();
-                            if (!_isLicensed)
-                            {
-                                string forbid = string.Format("{{\"error\":\"license_required\",\"machineCode\":\"{0}\",\"message\":\"Phần mềm chưa kích hoạt bản quyền trên máy tính này!\"}}", _machineCode);
-                                SendResponse(stream, 403, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(forbid));
-                                return;
-                            }
                             string statusJson = string.Format("{{\"status\":\"online\",\"version\":{0},\"lastUpdated\":\"{1}\"}}", _dbVersion, _dbLastUpdated);
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(statusJson));
                             return;
@@ -623,57 +640,23 @@ namespace MedicaPharmacy
                         // API kiểm tra trạng thái bản quyền thiết bị
                         if (rawUrl.Equals("/api/license/status", StringComparison.OrdinalIgnoreCase))
                         {
-                            CheckLicenseStatus();
                             string statusJson = string.Format(
-                                "{{\"licensed\":{0},\"machineCode\":\"{1}\",\"message\":\"{2}\"}}",
-                                _isLicensed ? "true" : "false",
-                                _machineCode,
-                                _isLicensed ? "Bản quyền hợp lệ cho thiết bị này" : "Chưa kích hoạt bản quyền thiết bị"
+                                "{{\"licensed\":true,\"machineCode\":\"{0}\",\"message\":\"Bản quyền sử dụng vĩnh viễn\"}}",
+                                _machineCode
                             );
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(statusJson));
                             return;
                         }
 
-                        // API kích hoạt bản quyền trực tiếp từ trình duyệt
+                        // API kích hoạt bản quyền trực tiếp từ trình duyệt (luôn trả về thành công)
                         if (rawUrl.Equals("/api/license/activate", StringComparison.OrdinalIgnoreCase) && method == "POST")
                         {
-                            string inputKey = "";
-                            try
-                            {
-                                var serializer = new JavaScriptSerializer();
-                                var dict = serializer.Deserialize<Dictionary<string, object>>(body);
-                                if (dict != null && dict.ContainsKey("key") && dict["key"] != null)
-                                {
-                                    inputKey = dict["key"].ToString().Trim();
-                                }
-                            }
-                            catch { }
-
-                            if (!string.IsNullOrEmpty(inputKey) && LicenseManager.ValidateLicenseKey(_machineCode, inputKey))
-                            {
-                                lock (_dbLock)
-                                {
-                                    File.WriteAllText(Path.Combine(_dataDir, "license.key"), inputKey, Encoding.UTF8);
-                                    _isLicensed = true;
-                                }
-                                SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":true,\"message\":\"Kích hoạt bản quyền thành công!\"}"));
-                            }
-                            else
-                            {
-                                SendResponse(stream, 400, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":false,\"message\":\"Mã kích hoạt không hợp lệ với máy tính này!\"}"));
-                            }
+                            SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes("{\"success\":true,\"message\":\"Bản quyền đã được kích hoạt vĩnh viễn!\"}"));
                             return;
                         }
 
                         if (rawUrl.Equals("/api/database", StringComparison.OrdinalIgnoreCase))
                         {
-                            CheckLicenseStatus();
-                            if (!_isLicensed)
-                            {
-                                string forbid = string.Format("{{\"error\":\"license_required\",\"machineCode\":\"{0}\",\"message\":\"Phần mềm chưa kích hoạt bản quyền trên máy tính này!\"}}", _machineCode);
-                                SendResponse(stream, 403, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(forbid));
-                                return;
-                            }
 
                             if (method == "GET")
                             {
@@ -720,15 +703,7 @@ namespace MedicaPharmacy
 
                         if (rawUrl == "/" || rawUrl.Equals("/index.html", StringComparison.OrdinalIgnoreCase))
                         {
-                            CheckLicenseStatus();
-                            if (!_isLicensed)
-                            {
-                                rawUrl = "/license-activation.html";
-                            }
-                            else
-                            {
-                                rawUrl = "/index.html";
-                            }
+                            rawUrl = "/index.html";
                         }
                         string cleanPath = rawUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
                         string filePath = Path.Combine(_webRoot, cleanPath);
@@ -849,8 +824,44 @@ namespace MedicaPharmacy
             {
                 MigrateSingleDatabaseIfPresent();
                 string medFile = Path.Combine(_dataDir, "medicines.json");
-                if (!File.Exists(medFile))
+                if (!File.Exists(medFile) || new FileInfo(medFile).Length == 0)
                 {
+                    // 1. Kiểm tra và khôi phục từ .bak hoặc .tmp nếu có
+                    string bakFile = medFile + ".bak";
+                    string tmpFile = medFile + ".tmp";
+                    if (File.Exists(bakFile) && new FileInfo(bakFile).Length > 10)
+                    {
+                        try { File.Copy(bakFile, medFile, true); return; } catch { }
+                    }
+                    if (File.Exists(tmpFile) && new FileInfo(tmpFile).Length > 10)
+                    {
+                        try { File.Copy(tmpFile, medFile, true); return; } catch { }
+                    }
+
+                    // 2. Kiểm tra và tự động khôi phục từ bản backup gần nhất trong data/backups
+                    string backupDir = Path.Combine(_dataDir, "backups");
+                    if (Directory.Exists(backupDir))
+                    {
+                        var backupFolders = new DirectoryInfo(backupDir).GetDirectories("backup_*");
+                        if (backupFolders.Length > 0)
+                        {
+                            Array.Sort(backupFolders, (a, b) => b.CreationTime.CompareTo(a.CreationTime));
+                            foreach (var bFolder in backupFolders)
+                            {
+                                string bMed = Path.Combine(bFolder.FullName, "medicines.json");
+                                if (File.Exists(bMed) && new FileInfo(bMed).Length > 100)
+                                {
+                                    foreach (var f in bFolder.GetFiles("*.json"))
+                                    {
+                                        try { File.Copy(f.FullName, Path.Combine(_dataDir, f.Name), true); } catch { }
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Chỉ tạo mới nếu hoàn toàn là cài đặt lần đầu trên máy trắng
                     string initialJson = "{\"medicines\":[],\"orders\":[],\"stockInOrders\":[],\"suppliers\":[],\"customers\":[],\"vouchers\":[],\"settings\":{}}";
                     SaveFullDatabaseInternal(initialJson);
                 }
@@ -1168,21 +1179,162 @@ namespace MedicaPharmacy
             }
         }
 
+        private void AppendLimitedErrorLog(string filename, string text)
+        {
+            try
+            {
+                string logPath = Path.Combine(_webRoot, filename);
+                if (File.Exists(logPath))
+                {
+                    FileInfo fi = new FileInfo(logPath);
+                    if (fi.Length > 2 * 1024 * 1024) // Giới hạn 2 MB
+                    {
+                        string oldPath = logPath + ".old";
+                        try { if (File.Exists(oldPath)) File.Delete(oldPath); } catch { }
+                        try { File.Move(logPath, oldPath); } catch { }
+                    }
+                }
+                string msg = string.Format("[{0}] {1}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), text);
+                File.AppendAllText(logPath, msg, Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        private void RotateLogFile(string logPath)
+        {
+            try
+            {
+                if (File.Exists(logPath))
+                {
+                    FileInfo fi = new FileInfo(logPath);
+                    if (fi.Length > 2 * 1024 * 1024) // Giới hạn 2 MB
+                    {
+                        string oldLog = logPath + ".old";
+                        try { if (File.Exists(oldLog)) File.Delete(oldLog); } catch { }
+                        try { File.Move(logPath, oldLog); } catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
         private void WriteAtomicJson(string path, string json)
         {
+            if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(json)) return;
+
             string temp = path + ".tmp";
-            File.WriteAllText(temp, json, Encoding.UTF8);
-            for (int retry = 0; retry < 3; retry++)
+            string backup = path + ".bak";
+            try
+            {
+                // Bước 1: Ghi ra file .tmp trước
+                File.WriteAllText(temp, json, Encoding.UTF8);
+
+                FileInfo fiTemp = new FileInfo(temp);
+                if (!fiTemp.Exists || fiTemp.Length == 0) return;
+
+                // Bước 2: Tạo/Cập nhật file .bak từ file hiện tại (giữ .bak làm lớp dự phòng vĩnh viễn)
+                if (File.Exists(path))
+                {
+                    try { File.Copy(path, backup, true); } catch { }
+                }
+
+                // Bước 3: Ghi đè an toàn nguyên tử - TUYỆT ĐỐI KHÔNG GỌI File.Delete(path) TRƯỚC!
+                for (int retry = 0; retry < 10; retry++)
+                {
+                    try
+                    {
+                        File.Copy(temp, path, true);
+                        try { File.Delete(temp); } catch { }
+                        return;
+                    }
+                    catch (IOException)
+                    {
+                        Thread.Sleep(50 * (retry + 1));
+                    }
+                }
+
+                // Nếu vẫn bị lock sau 10 lần, thử dùng File.Replace nếu cả hai file đều tồn tại
+                if (File.Exists(path) && File.Exists(temp))
+                {
+                    try
+                    {
+                        File.Replace(temp, path, backup, true);
+                        return;
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Nếu file chính bị 0 bytes hoặc biến mất do sự cố, khôi phục ngay từ backup .bak
+                try
+                {
+                    if ((!File.Exists(path) || new FileInfo(path).Length == 0) && File.Exists(backup))
+                    {
+                        File.Copy(backup, path, true);
+                    }
+                }
+                catch { }
+
+                AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi WriteAtomicJson ({0}): {1}", path, ex.Message));
+            }
+        }
+
+        private void StartAutoBackupEngine()
+        {
+            try
+            {
+                // Khởi động backup tự động: lần đầu sau 1 phút, sau đó lặp lại mỗi 4 giờ
+                _autoBackupTimer = new System.Threading.Timer((state) => {
+                    RunAutoBackup();
+                }, null, TimeSpan.FromMinutes(1), TimeSpan.FromHours(4));
+            }
+            catch { }
+        }
+
+        private void RunAutoBackup()
+        {
+            lock (_dbLock)
             {
                 try
                 {
-                    if (File.Exists(path)) File.Delete(path);
-                    File.Move(temp, path);
-                    break;
+                    string backupDir = Path.Combine(_dataDir, "backups");
+                    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
+                    string medFile = Path.Combine(_dataDir, "medicines.json");
+                    if (!File.Exists(medFile)) return;
+
+                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string snapshotFolder = Path.Combine(backupDir, "backup_auto_" + timestamp);
+                    Directory.CreateDirectory(snapshotFolder);
+
+                    string[] jsonFiles = Directory.GetFiles(_dataDir, "*.json");
+                    foreach (string f in jsonFiles)
+                    {
+                        try
+                        {
+                            File.Copy(f, Path.Combine(snapshotFolder, Path.GetFileName(f)), true);
+                        }
+                        catch { }
+                    }
+
+                    // Tự động duy trì tối đa 20 bản backup gần nhất, xóa bớt bản cũ hơn
+                    var backupFolders = new DirectoryInfo(backupDir).GetDirectories("backup_*");
+                    if (backupFolders.Length > 20)
+                    {
+                        Array.Sort(backupFolders, (a, b) => a.CreationTime.CompareTo(b.CreationTime));
+                        for (int i = 0; i < backupFolders.Length - 20; i++)
+                        {
+                            try { backupFolders[i].Delete(true); } catch { }
+                        }
+                    }
                 }
-                catch (IOException)
+                catch (Exception ex)
                 {
-                    Thread.Sleep(50);
+                    try {
+                        File.AppendAllText(Path.Combine(_webRoot, "save_err.txt"), 
+                            string.Format("[{0}] AutoBackup error: {1}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), ex.Message));
+                    } catch { }
                 }
             }
         }

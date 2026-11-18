@@ -3,6 +3,15 @@
  * Điều phối các module, thanh điều hướng chính, Cài đặt & Sao lưu dữ liệu
  */
 
+// Quản lý thứ tự hiển thị pop-up/modal linh hoạt, luôn đảm bảo modal mở sau cùng nằm ở trên cùng
+window._modalTopZIndex = 110;
+window.bringModalToFront = function(modalElementOrId) {
+    const el = typeof modalElementOrId === 'string' ? document.getElementById(modalElementOrId) : modalElementOrId;
+    if (!el) return;
+    window._modalTopZIndex = Math.max(window._modalTopZIndex || 110, 110) + 10;
+    el.style.zIndex = window._modalTopZIndex;
+};
+
 const App = {
     currentTab: 'pos', // 'pos', 'inventory', 'stockin', 'orders', 'reports', 'settings'
 
@@ -39,6 +48,26 @@ const App = {
         }
         this.setupNavigation();
 
+        // Tự động nâng z-index cho bất kỳ modal nào khi được mở để luôn hiển thị nổi lên phía trước
+        try {
+            const modalObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        const target = mutation.target;
+                        if (target.id && target.id.startsWith('modal-') && !target.classList.contains('hidden')) {
+                            window.bringModalToFront(target);
+                        }
+                    }
+                });
+            });
+
+            document.querySelectorAll('[id^="modal-"]').forEach((m) => {
+                modalObserver.observe(m, { attributes: true, attributeFilter: ['class'] });
+            });
+        } catch (e) {
+            console.warn('Modal observer init warning:', e);
+        }
+
         // Khởi tạo các Combobox tìm kiếm thông minh
         if (window.SearchableSelect) {
             SearchableSelect.init('stockin-supplier', { richType: 'supplier', placeholder: '🔍 Tìm nhà cung cấp...' });
@@ -72,6 +101,21 @@ const App = {
         }
     },
 
+    closeBrandMenu() {
+        const brandContainer = document.getElementById('header-brand-container');
+        const brandMenu = document.querySelector('.header-brand-menu');
+        if (brandContainer) {
+            brandContainer.classList.add('menu-closed');
+        }
+        if (brandMenu) {
+            brandMenu.classList.add('force-hidden');
+            // Chỉ blur nếu phần tử đang focus nằm BÊN TRONG menu nhanh (tuyệt đối không blur input/select ngoài trang)
+            if (brandMenu.contains(document.activeElement) && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
+        }
+    },
+
     setupNavigation() {
         const navButtons = document.querySelectorAll('.nav-tab-btn');
         navButtons.forEach(btn => {
@@ -80,9 +124,41 @@ const App = {
                 this.switchTab(targetTab);
             });
         });
+
+        // Xử lý menu nhanh Danh Mục Chức Năng ở header
+        const brandContainer = document.getElementById('header-brand-container');
+        const brandMenu = document.querySelector('.header-brand-menu');
+        if (brandContainer) {
+            // Khi di chuột ra ngoài brandContainer, gỡ bỏ trạng thái đóng để có thể hover mở lại bình thường
+            brandContainer.addEventListener('mouseleave', () => {
+                brandContainer.classList.remove('menu-closed');
+                if (brandMenu) brandMenu.classList.remove('force-hidden');
+            });
+
+            // Khi click vào brand link (logo & tên Medica Pharmacy)
+            const brandLink = brandContainer.querySelector('a');
+            if (brandLink) {
+                brandLink.addEventListener('click', () => {
+                    brandContainer.classList.remove('menu-closed');
+                    if (brandMenu) brandMenu.classList.remove('force-hidden');
+                });
+            }
+        }
+
+        // Bất kỳ thao tác click nào vào button hoặc link trong menu nhanh đều đóng menu ngay lập tức
+        if (brandMenu) {
+            brandMenu.querySelectorAll('button, a').forEach(el => {
+                el.addEventListener('click', () => {
+                    this.closeBrandMenu();
+                });
+            });
+        }
     },
 
     switchTab(tabId) {
+        // Đóng ngay menu nhanh danh mục chức năng ở header khi chọn tab
+        this.closeBrandMenu();
+
         // Kiểm tra phân quyền truy cập tab
         if (window.AuthModule && !AuthModule.canAccessTab(tabId)) {
             if (!AuthModule.isAuthenticated()) {

@@ -36,13 +36,6 @@ namespace MedicaPharmacy.Installer
         private Button btnInstall;
         private Button btnCancel;
 
-        // Khóa bản quyền thiết bị
-        private TextBox txtMachineCode;
-        private Button btnCopyMachineCode;
-        private TextBox txtLicenseKey;
-        private Label lblLicenseStatus;
-        private string _currentMachineCode = "";
-
         public InstallerForm()
         {
             InitializeComponent();
@@ -51,7 +44,7 @@ namespace MedicaPharmacy.Installer
         private void InitializeComponent()
         {
             this.Text = "Cài Đặt Phần Mềm Quản Lý Nhà Thuốc - MedicaPharmacy GPP";
-            this.Size = new Size(580, 565);
+            this.Size = new Size(580, 440);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -89,99 +82,13 @@ namespace MedicaPharmacy.Installer
             headerPanel.Controls.Add(lblSubtitle);
             this.Controls.Add(headerPanel);
 
-            // 2. Nhóm Kích Hoạt Bản Quyền (Bắt Buộc)
-            GroupBox grpLicense = new GroupBox
-            {
-                Text = " 🔒 Kích Hoạt Bản Quyền Thiết Bị (Bắt Buộc) ",
-                Location = new Point(25, 85),
-                Size = new Size(515, 122),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(5, 150, 105)
-            };
-
-            Label lblMachineTitle = new Label
-            {
-                Text = "Mã Thiết Bị của máy tính này (Gửi mã này cho Tác giả để lấy Key):",
-                Font = new Font("Segoe UI", 8.5F, FontStyle.Regular),
-                ForeColor = Color.FromArgb(71, 85, 105),
-                Location = new Point(15, 20),
-                AutoSize = true
-            };
-            grpLicense.Controls.Add(lblMachineTitle);
-
-            _currentMachineCode = LicenseManager.GetCurrentMachineCode();
-
-            txtMachineCode = new TextBox
-            {
-                Text = _currentMachineCode,
-                ReadOnly = true,
-                BackColor = Color.FromArgb(241, 245, 249),
-                ForeColor = Color.FromArgb(15, 118, 110),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                Location = new Point(15, 40),
-                Size = new Size(390, 23)
-            };
-            grpLicense.Controls.Add(txtMachineCode);
-
-            btnCopyMachineCode = new Button
-            {
-                Text = "📋 Sao Chép",
-                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                Location = new Point(415, 39),
-                Size = new Size(88, 26),
-                BackColor = Color.White,
-                FlatStyle = FlatStyle.System,
-                Cursor = Cursors.Hand
-            };
-            btnCopyMachineCode.Click += (s, e) => {
-                try {
-                    Clipboard.SetText(_currentMachineCode);
-                    lblLicenseStatus.Text = "✅ Đã sao chép Mã Thiết Bị! Hãy gửi mã này qua Zalo để nhận Key.";
-                    lblLicenseStatus.ForeColor = Color.FromArgb(5, 150, 105);
-                } catch { }
-            };
-            grpLicense.Controls.Add(btnCopyMachineCode);
-
-            Label lblKeyTitle = new Label
-            {
-                Text = "Nhập Mã Kích Hoạt Bản Quyền (License Key):",
-                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(30, 41, 59),
-                Location = new Point(15, 68),
-                AutoSize = true
-            };
-            grpLicense.Controls.Add(lblKeyTitle);
-
-            txtLicenseKey = new TextBox
-            {
-                Location = new Point(15, 88),
-                Size = new Size(488, 23),
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                CharacterCasing = CharacterCasing.Upper,
-                ForeColor = Color.FromArgb(30, 41, 59)
-            };
-            txtLicenseKey.TextChanged += TxtLicenseKey_TextChanged;
-            grpLicense.Controls.Add(txtLicenseKey);
-
-            this.Controls.Add(grpLicense);
-
-            lblLicenseStatus = new Label
-            {
-                Text = "⚠️ Vui lòng liên hệ Dược sĩ Dung (0982.149.806) để nhận Mã Kích Hoạt.",
-                Font = new Font("Segoe UI", 8.5F, FontStyle.Italic),
-                ForeColor = Color.FromArgb(217, 119, 6),
-                Location = new Point(25, 212),
-                Size = new Size(515, 18)
-            };
-            this.Controls.Add(lblLicenseStatus);
-
-            // 3. Thư mục cài đặt
+            // 2. Thư mục cài đặt
             Label lblPathTitle = new Label
             {
                 Text = "Thư mục cài đặt trên máy tính:",
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 41, 59),
-                Location = new Point(25, 235),
+                Location = new Point(25, 92),
                 AutoSize = true
             };
             this.Controls.Add(lblPathTitle);
@@ -189,7 +96,7 @@ namespace MedicaPharmacy.Installer
             txtInstallPath = new TextBox
             {
                 Text = @"C:\MedicaPharmacy",
-                Location = new Point(25, 256),
+                Location = new Point(25, 114),
                 Size = new Size(420, 25),
                 Font = new Font("Segoe UI", 9F)
             };
@@ -198,7 +105,7 @@ namespace MedicaPharmacy.Installer
             btnBrowse = new Button
             {
                 Text = "Chọn...",
-                Location = new Point(455, 254),
+                Location = new Point(455, 112),
                 Size = new Size(85, 27),
                 BackColor = Color.White,
                 FlatStyle = FlatStyle.System
@@ -206,11 +113,11 @@ namespace MedicaPharmacy.Installer
             btnBrowse.Click += BtnBrowse_Click;
             this.Controls.Add(btnBrowse);
 
-            // 4. Nhóm Tùy chọn cài đặt
+            // 3. Nhóm Tùy chọn cài đặt
             GroupBox grpOptions = new GroupBox
             {
                 Text = " Tùy chọn thiết lập hệ thống ",
-                Location = new Point(25, 290),
+                Location = new Point(25, 150),
                 Size = new Size(515, 132),
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular),
                 ForeColor = Color.FromArgb(71, 85, 105)
@@ -273,11 +180,11 @@ namespace MedicaPharmacy.Installer
             grpOptions.Controls.Add(chkLaunchAfterInstall);
             this.Controls.Add(grpOptions);
 
-            // 5. Progress bar & Status
+            // 4. Progress bar & Status
             lblStatus = new Label
             {
-                Text = "Nhập mã kích hoạt ở trên để mở khóa nút cài đặt.",
-                Location = new Point(25, 430),
+                Text = "Sẵn sàng cài đặt. Nhấn 'Bắt Đầu Cài Đặt' để tiến hành.",
+                Location = new Point(25, 292),
                 Size = new Size(515, 18),
                 ForeColor = Color.FromArgb(100, 116, 139),
                 Font = new Font("Segoe UI", 8.5F)
@@ -286,18 +193,18 @@ namespace MedicaPharmacy.Installer
 
             progressBar = new ProgressBar
             {
-                Location = new Point(25, 452),
+                Location = new Point(25, 314),
                 Size = new Size(515, 16),
                 Style = ProgressBarStyle.Blocks,
                 Value = 0
             };
             this.Controls.Add(progressBar);
 
-            // 6. Bottom buttons
+            // 5. Bottom buttons
             btnCancel = new Button
             {
                 Text = "Thoát",
-                Location = new Point(345, 480),
+                Location = new Point(345, 342),
                 Size = new Size(90, 32),
                 BackColor = Color.FromArgb(241, 245, 249),
                 FlatStyle = FlatStyle.System
@@ -311,42 +218,14 @@ namespace MedicaPharmacy.Installer
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(5, 150, 105),
-                Location = new Point(445, 480),
+                Location = new Point(445, 342),
                 Size = new Size(95, 32),
                 FlatStyle = FlatStyle.Flat,
-                Enabled = false
+                Enabled = true
             };
             btnInstall.FlatAppearance.BorderSize = 0;
             btnInstall.Click += BtnInstall_Click;
             this.Controls.Add(btnInstall);
-        }
-
-        private void TxtLicenseKey_TextChanged(object sender, EventArgs e)
-        {
-            string key = txtLicenseKey.Text.Trim();
-            if (string.IsNullOrEmpty(key))
-            {
-                lblLicenseStatus.Text = "⚠️ Vui lòng liên hệ Dược sĩ Dung (0982.149.806) để nhận Mã Kích Hoạt.";
-                lblLicenseStatus.ForeColor = Color.FromArgb(217, 119, 6);
-                btnInstall.Enabled = false;
-                lblStatus.Text = "Nhập mã kích hoạt ở trên để mở khóa nút cài đặt.";
-                return;
-            }
-
-            if (LicenseManager.ValidateLicenseForCurrentMachine(key))
-            {
-                lblLicenseStatus.Text = "✅ Mã kích hoạt hợp lệ cho máy tính này! Nút 'Bắt Đầu Cài Đặt' đã mở.";
-                lblLicenseStatus.ForeColor = Color.FromArgb(5, 150, 105);
-                btnInstall.Enabled = true;
-                lblStatus.Text = "Sẵn sàng cài đặt. Nhấn 'Bắt Đầu Cài Đặt' để tiến hành.";
-            }
-            else
-            {
-                lblLicenseStatus.Text = "❌ Mã kích hoạt không khớp với máy tính này! Vui lòng kiểm tra lại.";
-                lblLicenseStatus.ForeColor = Color.FromArgb(220, 38, 38);
-                btnInstall.Enabled = false;
-                lblStatus.Text = "Mã kích hoạt không hợp lệ.";
-            }
         }
 
         private void BtnBrowse_Click(object sender, EventArgs e)
@@ -395,6 +274,46 @@ namespace MedicaPharmacy.Installer
 
         private void BtnInstall_Click(object sender, EventArgs e)
         {
+            // Kiểm tra xem máy chủ MedicaServer có đang hoạt động trên máy không
+            Process[] existingServers = Process.GetProcessesByName("MedicaServer");
+            if (existingServers != null && existingServers.Length > 0)
+            {
+                DialogResult dr = MessageBox.Show(
+                    "Máy chủ MedicaServer đang hoạt động trên máy tính này.\n\n" +
+                    "Để cài đặt hoặc nâng cấp phần mềm đè lên máy một cách an toàn và tránh bị khóa file, máy chủ cũ cần được đóng lại.\n\n" +
+                    "Bạn có muốn tự động tắt máy chủ cũ trước khi cài đặt không?",
+                    "Phát Hiện Máy Chủ Đang Hoạt Động",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning
+                );
+
+                if (dr == DialogResult.Yes)
+                {
+                    try
+                    {
+                        foreach (Process p in existingServers)
+                        {
+                            try
+                            {
+                                p.Kill();
+                                p.WaitForExit(3000);
+                            }
+                            catch { }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Không thể tự động tắt MedicaServer: " + ex.Message + "\nVui lòng tắt biểu tượng MedicaServer dưới khay hệ thống trước khi tiếp tục.", "Thông Báo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Quá trình cài đặt đã dừng lại. Vui lòng tắt máy chủ cũ trước khi chạy lại bộ cài đặt.", "Thông Báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+            }
+
             // Kiểm tra quyền Admin nếu cần chỉnh sửa hosts hoặc firewall
             if ((chkConfigureHosts.Checked || chkConfigureFirewall.Checked) && !IsAdministrator())
             {
@@ -428,17 +347,8 @@ namespace MedicaPharmacy.Installer
             {
                 try
                 {
-                    // 1. Giải nén payload
+                    // 1. Giải nén payload (ghi đè data, giữ lại data/backups)
                     ExtractPayload(targetDir);
-
-                    // 1.1 Lưu khóa bản quyền đã kích hoạt cho máy tính này
-                    try
-                    {
-                        string dataDir = Path.Combine(targetDir, "data");
-                        if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
-                        File.WriteAllText(Path.Combine(dataDir, "license.key"), txtLicenseKey.Text.Trim(), Encoding.UTF8);
-                    }
-                    catch { }
 
                     // 2. Cấu hình hosts nếu được chọn
                     if (chkConfigureHosts.Checked)
@@ -527,6 +437,32 @@ namespace MedicaPharmacy.Installer
                 Directory.CreateDirectory(targetDir);
             }
 
+            // Tự động sao lưu an toàn toàn bộ dữ liệu hiện tại trước khi ghi đè nếu đã có thư mục data
+            string existingDataDir = Path.Combine(targetDir, "data");
+            if (Directory.Exists(existingDataDir))
+            {
+                try
+                {
+                    string backupDir = Path.Combine(existingDataDir, "backups");
+                    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
+                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string preInstallFolder = Path.Combine(backupDir, "backup_before_install_" + timestamp);
+                    Directory.CreateDirectory(preInstallFolder);
+
+                    string[] jsonFiles = Directory.GetFiles(existingDataDir, "*.json");
+                    foreach (string jf in jsonFiles)
+                    {
+                        try
+                        {
+                            File.Copy(jf, Path.Combine(preInstallFolder, Path.GetFileName(jf)), true);
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+
             Assembly assembly = Assembly.GetExecutingAssembly();
             using (Stream zipStream = assembly.GetManifestResourceStream("MedicaPayload"))
             {
@@ -553,12 +489,15 @@ namespace MedicaPharmacy.Installer
                         // Không ghi đè nếu là thư mục
                         if (string.IsNullOrEmpty(entry.Name)) continue;
 
-                        // Bảo vệ file database.json cũ không bị ghi đè nếu người dùng cài nâng cấp
-                        if (entry.FullName.Replace('\\', '/').EndsWith("data/database.json") && File.Exists(destPath))
+                        string normalized = entry.FullName.Replace('\\', '/');
+
+                        // BẢO VỆ DỮ LIỆU BACKUP: Giữ nguyên thư mục data/backups, không ghi đè bất kỳ file backup cũ nào
+                        if (normalized.Contains("data/backups/") && File.Exists(destPath))
                         {
                             continue;
                         }
 
+                        // Cho phép ghi đè các file khác (kể cả thư mục data)
                         entry.ExtractToFile(destPath, true);
                         int p = 10 + (int)((count / (float)total) * 45);
                         UpdateStatus("Đang giải nén: " + entry.Name, p);
