@@ -1842,9 +1842,8 @@ class DataStore {
                     unitsToReturn = qtyToReturn * med.subRatio;
                 }
                 this.updateStockUnits(item.medicineId, unitsToReturn);
-                // Giá vốn của phần trả lại (theo đơn vị bán) để báo cáo giảm trừ đúng lợi nhuận
-                let unitCost = this.getMedicineUnitCost(med, item.unit);
-                if (unitCost <= 0) unitCost = parseFloat(item.costPrice) || 0;
+                // Giá vốn của phần trả lại (ưu tiên giá vốn lúc bán) để báo cáo giảm trừ đúng lợi nhuận
+                let unitCost = (parseFloat(item.costPrice) > 0) ? parseFloat(item.costPrice) : this.getMedicineUnitCost(med, item.unit);
                 totalReturnCost += qtyToReturn * unitCost;
             }
         });
@@ -2836,9 +2835,10 @@ class DataStore {
         let total = 0;
         (returnItems || []).forEach(i => {
             const med = this.getMedicineById(i.medicineId);
-            let unitCost = 0;
-            if (med) unitCost = this.getMedicineUnitCost(med, i.unit);
-            if (unitCost <= 0) unitCost = parseFloat(i.costPrice) || 0;
+            let unitCost = (parseFloat(i.costPrice) > 0) ? parseFloat(i.costPrice) : 0;
+            if (unitCost <= 0 && med) {
+                unitCost = this.getMedicineUnitCost(med, i.unit);
+            }
             total += (parseFloat(i.quantity) || 0) * unitCost;
         });
         return Math.round(total);

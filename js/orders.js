@@ -336,13 +336,13 @@ const OrdersModule = {
             }
             const netQty = Math.max(0, rawQty - returnedQty);
 
-            let unitCost = 0;
-            const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-            if (med) {
-                unitCost = Store.getMedicineUnitCost(med, item.unit);
-            }
+            // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice) để không làm sai lệch lợi nhuận quá khứ khi giá nhập thay đổi
+            let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
             if (unitCost <= 0) {
-                unitCost = item.costPrice || 0;
+                const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
+                if (med) {
+                    unitCost = Store.getMedicineUnitCost(med, item.unit);
+                }
             }
             totalCost += unitCost * netQty;
         });
