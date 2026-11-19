@@ -272,26 +272,17 @@ namespace MedicaPharmacy.Installer
             }
         }
 
-        private void BtnInstall_Click(object sender, EventArgs e)
+        private void StopRunningServers()
         {
-            // Kiểm tra xem máy chủ MedicaServer có đang hoạt động trên máy không
-            Process[] existingServers = Process.GetProcessesByName("MedicaServer");
-            if (existingServers != null && existingServers.Length > 0)
+            string[] procNames = new string[] { "MedicaServer", "ngrok" };
+            foreach (string name in procNames)
             {
-                DialogResult dr = MessageBox.Show(
-                    "Máy chủ MedicaServer đang hoạt động trên máy tính này.\n\n" +
-                    "Để cài đặt hoặc nâng cấp phần mềm đè lên máy một cách an toàn và tránh bị khóa file, máy chủ cũ cần được đóng lại.\n\n" +
-                    "Bạn có muốn tự động tắt máy chủ cũ trước khi cài đặt không?",
-                    "Phát Hiện Máy Chủ Đang Hoạt Động",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning
-                );
-
-                if (dr == DialogResult.Yes)
+                try
                 {
-                    try
+                    Process[] procs = Process.GetProcessesByName(name);
+                    if (procs != null && procs.Length > 0)
                     {
-                        foreach (Process p in existingServers)
+                        foreach (Process p in procs)
                         {
                             try
                             {
@@ -301,20 +292,18 @@ namespace MedicaPharmacy.Installer
                             catch { }
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show("Không thể tự động tắt MedicaServer: " + ex.Message + "\nVui lòng tắt biểu tượng MedicaServer dưới khay hệ thống trước khi tiếp tục.", "Thông Báo", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
                 }
-                else
-                {
-                    MessageBox.Show("Quá trình cài đặt đã dừng lại. Vui lòng tắt máy chủ cũ trước khi chạy lại bộ cài đặt.", "Thông Báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                catch { }
             }
+            Thread.Sleep(600); // Đảm bảo hệ điều hành giải phóng hoàn toàn file handles
+        }
 
-            // Kiểm tra quyền Admin nếu cần chỉnh sửa hosts hoặc firewall
+        private void BtnInstall_Click(object sender, EventArgs e)
+        {
+            // 1. Tự động kiểm tra và tắt máy chủ cũ nếu đang chạy để giải phóng file khóa
+            StopRunningServers();
+
+            // 2. Kiểm tra quyền Admin nếu cần chỉnh sửa hosts hoặc firewall
             if ((chkConfigureHosts.Checked || chkConfigureFirewall.Checked) && !IsAdministrator())
             {
                 DialogResult dr = MessageBox.Show(
@@ -340,13 +329,17 @@ namespace MedicaPharmacy.Installer
             btnInstall.Enabled = false;
             btnBrowse.Enabled = false;
             btnCancel.Enabled = false;
-            progressBar.Value = 10;
-            lblStatus.Text = "Đang giải nén tập tin ứng dụng...";
+            progressBar.Value = 5;
+            lblStatus.Text = "Đang kiểm tra và đóng máy chủ cũ nếu đang chạy...";
 
             ThreadPool.QueueUserWorkItem((state) =>
             {
                 try
                 {
+                    // Đảm bảo đóng dứt điểm máy chủ cũ và các tiến trình phụ thuộc trước khi giải nén
+                    UpdateStatus("Đang đóng máy chủ cũ và chuẩn bị ghi đè file...", 8);
+                    StopRunningServers();
+
                     // 1. Giải nén payload (ghi đè data, giữ lại data/backups)
                     ExtractPayload(targetDir);
 
