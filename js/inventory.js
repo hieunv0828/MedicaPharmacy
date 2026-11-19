@@ -1314,8 +1314,6 @@ const InventoryModule = {
             this.renderStockInHistory();
             this.renderStockInSummaryCards();
             this.renderInventoryTable();
-            this.renderInventoryPagination();
-            this.renderSummaryCards();
             App.showToast(`Đã cập nhật thành công phiếu nhập kho ${updatedRecord.id}! Tồn kho và Sổ Quỹ đã được điều chỉnh.`, 'success');
         } else {
             const stockInRecord = {
@@ -1331,7 +1329,7 @@ const InventoryModule = {
             // Đặt lại trang 1 và xóa ô tìm kiếm để người dùng thấy ngay phiếu vừa nhập
             this.stockInCurrentPage = 1;
             this.stockInSearchKeyword = '';
-            const searchInput = document.getElementById('stockin-search');
+            const searchInput = document.getElementById('stockin-search-input') || document.getElementById('stockin-search');
             if (searchInput) searchInput.value = '';
 
             const saved = Store.addStockInOrder(stockInRecord);
@@ -1340,8 +1338,6 @@ const InventoryModule = {
             this.renderStockInHistory();
             this.renderStockInSummaryCards();
             this.renderInventoryTable();
-            this.renderInventoryPagination();
-            this.renderSummaryCards();
             App.showToast(`Đã hoàn tất nhập kho phiếu ${saved.id} (${paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})! Tồn kho đã tự động cộng dồn.`, 'success');
 
             // Tự động hỏi / mở in tem mã vạch dán hộp cho các mặt hàng vừa nhập

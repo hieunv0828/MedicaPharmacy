@@ -643,7 +643,7 @@ const ReportsModule = {
             const netRevenue = Math.max(0, rawAmount - refundAmount);
 
             const orderSubTotal = o.subTotal || (o.items || []).reduce((s, it) => s + (it.lineTotal || (it.quantity * it.price) || 0), 0);
-            const discountFactor = (orderSubTotal > 0 && o.discount > 0 && o.totalAmount) ? (o.totalAmount / orderSubTotal) : 1;
+            const discountFactor = (orderSubTotal > 0 && o.totalAmount && o.totalAmount < orderSubTotal) ? (o.totalAmount / orderSubTotal) : 1;
 
             let orderCost = 0;
             let orderGrossCost = 0;
@@ -1567,7 +1567,7 @@ const ReportsModule = {
         orders.forEach(o => {
             const rawAmount = o.totalAmount || 0;
             const subTotal = o.subTotal || (o.items || []).reduce((s, it) => s + (it.lineTotal || (it.quantity * it.price) || 0), 0);
-            const disc = o.discount || 0;
+            const disc = (o.discount || 0) + (o.pointsDiscount || 0);
 
             grossSales += (subTotal > 0 ? subTotal : (rawAmount + disc));
             orderDiscount += disc;

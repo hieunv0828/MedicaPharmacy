@@ -770,7 +770,7 @@ const VouchersModule = {
             note,
             isAccounting: isAccounting !== false,
             pharmacist: pharmacist || 'admin',
-            createdAt: timeVal ? new Date(timeVal).toISOString() : new Date().toISOString()
+            createdAt: timeVal ? Store.formatLocalISO(new Date(timeVal)) : Store.formatLocalISO()
         };
 
         let saved = null;
@@ -781,20 +781,40 @@ const VouchersModule = {
                 return;
             }
 
-            // Đồng bộ sang hóa đơn/phiếu nhập nếu có refId và hình thức thay đổi
+            // Đồng bộ sang hóa đơn/phiếu nhập nếu có refId và hình thức/số tiền thay đổi
             if (saved.refId && typeof Store.getOrders === 'function' && saved.refId.startsWith('HD')) {
                 const orders = Store.getOrders();
                 const ord = orders.find(o => o.id === saved.refId);
-                if (ord && ord.paymentMethod !== paymentMethod) {
-                    ord.paymentMethod = paymentMethod;
-                    Store.saveOrders(orders);
+                if (ord) {
+                    let ordChanged = false;
+                    if (ord.paymentMethod !== paymentMethod) {
+                        ord.paymentMethod = paymentMethod;
+                        ordChanged = true;
+                    }
+                    if (saved.type === 'receipt' && ord.totalAmount !== amount) {
+                        ord.totalAmount = amount;
+                        ordChanged = true;
+                    }
+                    if (ordChanged) {
+                        Store.saveOrders(orders);
+                    }
                 }
             } else if (saved.refId && typeof Store.getStockInOrders === 'function' && saved.refId.startsWith('PN')) {
                 const stockins = Store.getStockInOrders();
                 const st = stockins.find(s => s.id === saved.refId);
-                if (st && st.paymentMethod !== paymentMethod) {
-                    st.paymentMethod = paymentMethod;
-                    Store.saveStockInOrders(stockins);
+                if (st) {
+                    let stChanged = false;
+                    if (st.paymentMethod !== paymentMethod) {
+                        st.paymentMethod = paymentMethod;
+                        stChanged = true;
+                    }
+                    if (saved.type === 'payment' && st.totalAmount !== amount) {
+                        st.totalAmount = amount;
+                        stChanged = true;
+                    }
+                    if (stChanged) {
+                        Store.saveStockInOrders(stockins);
+                    }
                 }
             }
 

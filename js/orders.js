@@ -841,13 +841,13 @@ const OrdersModule = {
 
                 <!-- Các nút hành động nghiệp vụ -->
                 <div class="pt-3 border-t border-slate-200 flex flex-wrap justify-end gap-2">
-                    ${canCancelOrReturn && !order.isCancelled && !isFullyReturned ? `
+                    ${canCancelOrReturn && !order.isCancelled && !order.isReturn && !isFullyReturned ? `
                     <button onclick="OrdersModule.openReturnModal('${order.id}')" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="corner-down-left" class="w-4 h-4"></i>
-                        <span>Trả Hàng & Hoàn Tiền Mặt</span>
+                        <span>Trả Hàng & Hoàn Tiền</span>
                     </button>` : ''}
 
-                    ${canCancelOrReturn && !order.isCancelled ? `
+                    ${canCancelOrReturn && !order.isCancelled && !order.isReturn ? `
                     <button onclick="OrdersModule.openCancelModal('${order.id}')" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="x-circle" class="w-4 h-4"></i>
                         <span>Hủy Đơn Hàng</span>
@@ -858,7 +858,7 @@ const OrdersModule = {
 
         const btnEditFromDetails = document.getElementById('btn-edit-from-order-details');
         if (btnEditFromDetails) {
-            if (order.isCancelled) {
+            if (order.isCancelled || order.isReturn) {
                 btnEditFromDetails.classList.add('hidden');
             } else {
                 btnEditFromDetails.classList.remove('hidden');
@@ -1081,8 +1081,9 @@ const OrdersModule = {
         }
 
         this.updateReturnCalculations();
-        if (typeof window.bringModalToFront === 'function') {
-            window.bringModalToFront(modal);
+        const methodSelect = document.getElementById('return-payment-method');
+        if (methodSelect) {
+            methodSelect.value = order.paymentMethod || 'cash';
         }
         if (typeof window.bringModalToFront === 'function') {
             window.bringModalToFront(modal);
@@ -1118,6 +1119,12 @@ const OrdersModule = {
     },
 
     updateReturnCalculations() {
+        const orderId = this.pendingReturnOrderId;
+        const order = orderId ? Store.getOrderById(orderId) : null;
+        const orderSubTotal = order ? (order.subTotal || (order.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.price || 0)), 0)) : 0;
+        const orderDiscount = order ? ((order.discount || 0) + (order.pointsDiscount || 0)) : 0;
+        const discountRatio = (orderSubTotal > 0 && orderDiscount > 0) ? Math.min(1, orderDiscount / orderSubTotal) : 0;
+
         const inputs = document.querySelectorAll('input[id^="return-qty-"]');
         let totalRefund = 0;
 
@@ -1131,12 +1138,19 @@ const OrdersModule = {
             inp.value = val;
 
             const price = parseFloat(inp.dataset.price) || 0;
-            const lineTotal = val * price;
+            const listTotal = val * price;
+            const lineTotal = Math.round(listTotal * (1 - discountRatio));
             totalRefund += lineTotal;
 
             const lineEl = document.getElementById(`return-line-total-${idx}`);
             if (lineEl) lineEl.innerText = AppUtils.formatVND(lineTotal);
         });
+
+        // Không hoàn vượt quá số tiền thực thu còn lại của đơn hàng
+        const maxRefundAllowed = order ? Math.max(0, (order.totalAmount || 0) - (order.totalRefunded || 0)) : totalRefund;
+        if (totalRefund > maxRefundAllowed) {
+            totalRefund = maxRefundAllowed;
+        }
 
         const totalEl = document.getElementById('return-calc-total-refund');
         if (totalEl) totalEl.innerText = AppUtils.formatVND(totalRefund);
@@ -1186,7 +1200,10 @@ const OrdersModule = {
             reason = custom.value.trim();
         }
 
-        const res = Store.returnOrderItems(orderId, returnedItems, reason, 'cash');
+        const methodSelect = document.getElementById('return-payment-method');
+        const refundMethod = methodSelect ? methodSelect.value : 'cash';
+
+        const res = Store.returnOrderItems(orderId, returnedItems, reason, refundMethod);
         if (!res) {
             alert('Có lỗi xảy ra khi thực hiện trả hàng.');
             return;
@@ -1196,7 +1213,8 @@ const OrdersModule = {
         // Cập nhật lại modal chi tiết nếu đang mở
         this.openOrderDetails(orderId);
 
-        App.showToast(`Đã trả hàng thành công! Đã trừ ${AppUtils.formatVND(res.returnRecord.refundTotal)} vào quỹ tiền mặt và hoàn kho thuốc.`, 'success');
+        const methodLabel = refundMethod === 'transfer' ? 'tài khoản ngân hàng' : 'quỹ tiền mặt';
+        App.showToast(`Đã trả hàng thành công! Đã trừ ${AppUtils.formatVND(res.returnRecord.refundTotal)} (${methodLabel}) và hoàn kho thuốc.`, 'success');
         AppUtils.playBeepSound('success');
     },
 
