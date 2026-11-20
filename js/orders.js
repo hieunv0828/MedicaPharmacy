@@ -831,12 +831,12 @@ const OrdersModule = {
 
                 ${order.note ? `
                 <div class="bg-amber-50 p-2.5 rounded border border-amber-200 text-xs text-amber-900">
-                    <span class="font-bold">Ghi chú bệnh nhân:</span> ${order.note}
+                    <span class="font-bold">Ghi chú bệnh nhân:</span> ${AppUtils.escapeHtml(order.note)}
                 </div>` : ''}
 
                 ${order.isCancelled && order.cancelReason ? `
                 <div class="bg-rose-50 p-2.5 rounded border border-rose-200 text-xs text-rose-900">
-                    <span class="font-bold">Lý do hủy đơn:</span> ${order.cancelReason} (${AppUtils.formatDateTime(order.cancelledAt)})
+                    <span class="font-bold">Lý do hủy đơn:</span> ${AppUtils.escapeHtml(order.cancelReason)} (${AppUtils.formatDateTime(order.cancelledAt)})
                 </div>` : ''}
 
                 <!-- Các nút hành động nghiệp vụ -->

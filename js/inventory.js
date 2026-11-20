@@ -596,13 +596,13 @@ const InventoryModule = {
             html += `
                 <tr class="hover:bg-slate-50/80 transition-colors border-b border-slate-100 text-[13px]">
                     <td class="py-3.5 px-3 whitespace-nowrap">
-                        <span class="text-[13px] font-medium text-slate-900 hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="Mã thuốc: ${m.id}">${m.id || '---'}</span>
+                        <span class="text-[13px] font-medium text-slate-900 hover:text-emerald-700 cursor-pointer" ${nameClickAction} title="Mã thuốc: ${AppUtils.escapeHtml(m.id || '')}">${AppUtils.escapeHtml(m.id || '---')}</span>
                     </td>
                     <td class="py-3.5 px-3">
                         <div>
-                            <span class="font-semibold text-slate-900 text-[13px] hover:text-emerald-700 cursor-pointer transition-colors" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${m.name}</span>
+                            <span class="font-semibold text-slate-900 text-[13px] hover:text-emerald-700 cursor-pointer transition-colors" ${nameClickAction} title="${canEdit ? 'Nhấn để sửa thông tin thuốc' : 'Nhấn để xem thông tin tồn kho & lịch sử'}">${AppUtils.escapeHtml(m.name)}</span>
                         </div>
-                        <div class="text-xs text-slate-600 line-clamp-1 mt-0.5">${m.activeIngredient || 'Chưa cập nhật hoạt chất'}</div>
+                        <div class="text-xs text-slate-600 line-clamp-1 mt-0.5">${AppUtils.escapeHtml(m.activeIngredient || 'Chưa cập nhật hoạt chất')}</div>
                     </td>
                     <td class="py-3.5 px-3">
                         <div class="font-medium text-slate-900 text-[13px] tabular-nums">${AppUtils.formatStockUnitsDisplay(m)}</div>
@@ -615,7 +615,7 @@ const InventoryModule = {
                     </td>
                     ${costPriceCell}
                     <td class="py-3.5 px-3">
-                        <div class="text-[13px] text-slate-900">${m.batchNo || '---'}</div>
+                        <div class="text-[13px] text-slate-900">${AppUtils.escapeHtml(m.batchNo || '---')}</div>
                         <div class="mt-1">${expiryBadge}</div>
                     </td>
                     <td class="py-3.5 px-3 text-center">
@@ -3475,7 +3475,7 @@ const InventoryModule = {
         if (dateVal) {
             const parsed = new Date(dateVal);
             if (!isNaN(parsed.getTime())) {
-                createdAt = parsed.toISOString();
+                createdAt = window.Store && typeof Store.formatLocalISO === 'function' ? Store.formatLocalISO(parsed) : parsed.toISOString();
             }
         }
 

@@ -954,7 +954,8 @@ class DataStore {
             return { success: false, message: 'Vui lòng chọn ít nhất một mặt hàng để trả!' };
         }
 
-        // 1. Kiểm tra số lượng tồn kho thực tế trước khi xuất trả
+        // 1. Kiểm tra số lượng tồn kho thực tế trước khi xuất trả (cộng dồn theo từng loại thuốc)
+        const requiredUnitsByMed = new Map();
         for (const item of returnedItems) {
             const qtyToReturn = parseInt(item.quantity) || 0;
             if (qtyToReturn <= 0) continue;
@@ -970,24 +971,36 @@ class DataStore {
             } else if (item.unit === med.subUnit && med.subRatio > 1) {
                 unitsToDeduct = qtyToReturn * med.subRatio;
             }
+            requiredUnitsByMed.set(med.id, (requiredUnitsByMed.get(med.id) || 0) + unitsToDeduct);
+        }
 
-            if ((med.stockUnits || 0) < unitsToDeduct) {
+        for (const [medId, neededUnits] of requiredUnitsByMed.entries()) {
+            const med = this.getMedicineById(medId);
+            if ((med.stockUnits || 0) < neededUnits) {
                 return { 
                     success: false, 
-                    message: `Thuốc [${med.name}] hiện tại trong kho chỉ còn ${med.stockUnits || 0} ${med.baseUnit} (đã bán bớt cho khách), không đủ số lượng ${unitsToDeduct} ${med.baseUnit} để xuất trả lại nhà cung cấp!` 
+                    message: `Thuốc [${med.name}] hiện tại trong kho chỉ còn ${med.stockUnits || 0} ${med.baseUnit}, không đủ số lượng ${neededUnits} ${med.baseUnit} để xuất trả lại nhà cung cấp!` 
                 };
             }
         }
 
+        // Validate tổng số tiền hoàn trả trước khi trừ kho
         let totalRefund = 0;
+        returnedItems.forEach(item => {
+            const qtyToReturn = parseInt(item.quantity) || 0;
+            if (qtyToReturn > 0) {
+                totalRefund += qtyToReturn * (parseFloat(item.costPrice) || 0);
+            }
+        });
 
-        // 2. Trừ số lượng thuốc trong kho tương ứng
+        if (totalRefund <= 0) {
+            return { success: false, message: 'Tổng số tiền hoàn trả phải lớn hơn 0!' };
+        }
+
+        // 2. Trừ số lượng thuốc trong kho tương ứng sau khi kiểm tra hợp lệ
         returnedItems.forEach(item => {
             const qtyToReturn = parseInt(item.quantity) || 0;
             if (qtyToReturn <= 0) return;
-
-            const lineRefund = qtyToReturn * (parseFloat(item.costPrice) || 0);
-            totalRefund += lineRefund;
 
             const med = this.getMedicineById(item.medicineId);
             if (med) {
@@ -1003,15 +1016,18 @@ class DataStore {
             }
         });
 
-        if (totalRefund <= 0) {
-            return { success: false, message: 'Tổng số tiền hoàn trả phải lớn hơn 0!' };
-        }
-
         // 3. Ghi nhận phiếu trả hàng vào danh sách returns của phiếu nhập gốc
         if (!stockIn.returns) stockIn.returns = [];
         const localNow = this.formatLocalISO();
         const dateStr = localNow.slice(2, 10).replace(/-/g, '');
-        const returnId = `THN${dateStr}-${String(Math.floor(Math.random() * 900) + 100)}`;
+        const allReturns = this.getAllPurchaseReturns();
+        const existingReturnIds = new Set(allReturns.map(r => r.id));
+        let retSuffix = 1;
+        let returnId = `THN${dateStr}-${String(retSuffix).padStart(3, '0')}`;
+        while (existingReturnIds.has(returnId)) {
+            retSuffix++;
+            returnId = `THN${dateStr}-${String(retSuffix).padStart(3, '0')}`;
+        }
         
         const returnRecord = {
             id: returnId,
@@ -1022,6 +1038,7 @@ class DataStore {
             paymentMethod: paymentMethod || 'cash', // 'cash' (tiền mặt) hoặc 'transfer' (chuyển khoản)
             reason: returnReason || 'Trả hàng cho nhà cung cấp',
             note: note || '',
+            stockAdjusted: true,
             items: returnedItems.map(i => ({
                 medicineId: i.medicineId,
                 medicineName: i.medicineName,
@@ -1140,6 +1157,38 @@ class DataStore {
         const genIdx = generals.findIndex(r => r.id === returnId);
         if (genIdx !== -1) {
             returnRecord = generals[genIdx];
+
+            // Điều chỉnh tồn kho tương ứng nếu phiếu có điều chỉnh kho và sửa đổi items
+            if (returnRecord.stockAdjusted === true && Array.isArray(updateFields.items)) {
+                const oldUnitsByMed = new Map();
+                (returnRecord.items || []).forEach(it => {
+                    const med = this.getMedicineById(it.medicineId);
+                    let u = Number(it.quantity) || 0;
+                    if (med && it.unit === med.packUnit && med.packRatio > 1) u *= med.packRatio;
+                    else if (med && it.unit === med.subUnit && med.subRatio > 1) u *= med.subRatio;
+                    oldUnitsByMed.set(it.medicineId, (oldUnitsByMed.get(it.medicineId) || 0) + u);
+                });
+
+                const newUnitsByMed = new Map();
+                (updateFields.items || []).forEach(it => {
+                    const med = this.getMedicineById(it.medicineId);
+                    let u = Number(it.quantity) || 0;
+                    if (med && it.unit === med.packUnit && med.packRatio > 1) u *= med.packRatio;
+                    else if (med && it.unit === med.subUnit && med.subRatio > 1) u *= med.subRatio;
+                    newUnitsByMed.set(it.medicineId, (newUnitsByMed.get(it.medicineId) || 0) + u);
+                });
+
+                const allMeds = new Set([...oldUnitsByMed.keys(), ...newUnitsByMed.keys()]);
+                allMeds.forEach(medId => {
+                    const oldU = oldUnitsByMed.get(medId) || 0;
+                    const newU = newUnitsByMed.get(medId) || 0;
+                    const delta = newU - oldU;
+                    if (delta !== 0) {
+                        this.updateStockUnits(medId, -delta);
+                    }
+                });
+            }
+
             Object.assign(returnRecord, updateFields);
             returnRecord.updatedAt = this.formatLocalISO();
             generals[genIdx] = returnRecord;
@@ -1153,6 +1202,36 @@ class DataStore {
                     if (rIdx !== -1) {
                         returnRecord = s.returns[rIdx];
                         isStockInReturn = true;
+
+                        if (returnRecord.stockAdjusted === true && Array.isArray(updateFields.items)) {
+                            const oldUnitsByMed = new Map();
+                            (returnRecord.items || []).forEach(it => {
+                                const med = this.getMedicineById(it.medicineId);
+                                let u = Number(it.quantity) || 0;
+                                if (med && it.unit === med.packUnit && med.packRatio > 1) u *= med.packRatio;
+                                else if (med && it.unit === med.subUnit && med.subRatio > 1) u *= med.subRatio;
+                                oldUnitsByMed.set(it.medicineId, (oldUnitsByMed.get(it.medicineId) || 0) + u);
+                            });
+
+                            const newUnitsByMed = new Map();
+                            (updateFields.items || []).forEach(it => {
+                                const med = this.getMedicineById(it.medicineId);
+                                let u = Number(it.quantity) || 0;
+                                if (med && it.unit === med.packUnit && med.packRatio > 1) u *= med.packRatio;
+                                else if (med && it.unit === med.subUnit && med.subRatio > 1) u *= med.subRatio;
+                                newUnitsByMed.set(it.medicineId, (newUnitsByMed.get(it.medicineId) || 0) + u);
+                            });
+
+                            const allMeds = new Set([...oldUnitsByMed.keys(), ...newUnitsByMed.keys()]);
+                            allMeds.forEach(medId => {
+                                const oldU = oldUnitsByMed.get(medId) || 0;
+                                const newU = newUnitsByMed.get(medId) || 0;
+                                const delta = newU - oldU;
+                                if (delta !== 0) {
+                                    this.updateStockUnits(medId, -delta);
+                                }
+                            });
+                        }
 
                         Object.assign(returnRecord, updateFields);
                         returnRecord.updatedAt = this.formatLocalISO();
@@ -1252,8 +1331,8 @@ class DataStore {
         }
 
         if (deleted) {
-            // Hoàn lại tồn kho cho các mặt hàng trong phiếu trả vừa bị xoá
-            if (returnRecord && Array.isArray(returnRecord.items)) {
+            // Hoàn lại tồn kho cho các mặt hàng trong phiếu trả vừa bị xoá (chỉ hoàn nếu phiếu đó đã từng trừ kho)
+            if (returnRecord && returnRecord.stockAdjusted === true && Array.isArray(returnRecord.items)) {
                 returnRecord.items.forEach(item => {
                     const med = this.getMedicineById(item.medicineId);
                     if (med) {
@@ -1405,7 +1484,8 @@ class DataStore {
             return { success: false, message: 'Vui lòng chọn ít nhất một mặt hàng thuốc để xuất hủy!' };
         }
 
-        // 1. Kiểm tra tồn kho thực tế của từng thuốc - KHÔNG CHO PHÉP XUẤT ÂM!
+        // 1. Kiểm tra tồn kho thực tế của từng thuốc (cộng dồn theo mã thuốc) - KHÔNG CHO PHÉP XUẤT ÂM!
+        const requiredUnitsByMed = new Map();
         for (const item of items) {
             const qtyToDispose = parseFloat(item.quantity) || 0;
             if (qtyToDispose <= 0) {
@@ -1423,29 +1503,38 @@ class DataStore {
             } else if (item.unit === med.subUnit && med.subRatio > 1) {
                 unitsToDeduct = qtyToDispose * med.subRatio;
             }
+            requiredUnitsByMed.set(med.id, (requiredUnitsByMed.get(med.id) || 0) + unitsToDeduct);
+        }
 
+        for (const [medId, neededUnits] of requiredUnitsByMed.entries()) {
+            const med = this.getMedicineById(medId);
             const availableUnits = med.stockUnits || 0;
-            if (availableUnits < unitsToDeduct) {
-                let maxInUnit = availableUnits;
-                if (item.unit === med.packUnit && med.packRatio > 1) maxInUnit = availableUnits / med.packRatio;
-                else if (item.unit === med.subUnit && med.subRatio > 1) maxInUnit = availableUnits / med.subRatio;
+            if (availableUnits < neededUnits) {
                 return {
                     success: false,
-                    message: `Thuốc [${med.name}] hiện trong kho chỉ còn ${AppUtils.formatNumber(maxInUnit)} ${item.unit} (${availableUnits} ${med.baseUnit || 'đơn vị'}). Không thể xuất hủy vượt quá số lượng tồn kho!`
+                    message: `Thuốc [${med.name}] hiện trong kho chỉ còn ${availableUnits} ${med.baseUnit || 'đơn vị'}, không đủ số lượng ${neededUnits} ${med.baseUnit} để xuất hủy!`
                 };
             }
         }
 
+        // Validate tổng tiền trước khi trừ kho
         let totalDisposalAmount = 0;
+        items.forEach(item => {
+            const qtyToDispose = parseFloat(item.quantity) || 0;
+            if (qtyToDispose > 0) {
+                const costPrice = parseFloat(item.costPrice) || 0;
+                totalDisposalAmount += Math.round(qtyToDispose * costPrice);
+            }
+        });
 
-        // 2. Trừ kho thuốc tương ứng
+        if (totalDisposalAmount <= 0) {
+            return { success: false, message: 'Tổng giá trị hàng xuất hủy phải lớn hơn 0!' };
+        }
+
+        // 2. Trừ kho thuốc tương ứng sau khi kiểm tra hợp lệ
         items.forEach(item => {
             const qtyToDispose = parseFloat(item.quantity) || 0;
             if (qtyToDispose <= 0) return;
-
-            const costPrice = parseFloat(item.costPrice) || 0;
-            const lineTotal = Math.round(qtyToDispose * costPrice);
-            totalDisposalAmount += lineTotal;
 
             const med = this.getMedicineById(item.medicineId);
             if (med) {
@@ -1461,16 +1550,17 @@ class DataStore {
             }
         });
 
-        if (totalDisposalAmount <= 0) {
-            return { success: false, message: 'Tổng giá trị hàng xuất hủy phải lớn hơn 0!' };
-        }
-
-        // 3. Tạo mã phiếu xuất hủy PXHyymmdd-xxx
+        // 3. Tạo mã phiếu xuất hủy PXHyymmdd-xxx (chống trùng ID)
         const localNow = this.formatLocalISO();
         const dateStr = localNow.slice(2, 10).replace(/-/g, '');
         const allReturns = this.getAllPurchaseReturns();
-        const countToday = allReturns.filter(r => r.id && r.id.startsWith('PXH' + dateStr)).length + 1;
-        const disposalId = `PXH${dateStr}-${String(countToday).padStart(3, '0')}`;
+        const existingIds = new Set(allReturns.map(r => r.id));
+        let pxhSuffix = 1;
+        let disposalId = `PXH${dateStr}-${String(pxhSuffix).padStart(3, '0')}`;
+        while (existingIds.has(disposalId)) {
+            pxhSuffix++;
+            disposalId = `PXH${dateStr}-${String(pxhSuffix).padStart(3, '0')}`;
+        }
         const settings = this.getSettings();
 
         const disposalRecord = {
@@ -1481,6 +1571,7 @@ class DataStore {
             supplierName: 'Xuất Hủy Kho Nội Bộ',
             reason: reason || 'Hết hạn sử dụng (quá date)',
             note: note || '',
+            stockAdjusted: true,
             createdAt: localNow,
             date: localNow,
             paymentMethod: paymentMethod || 'cash',
@@ -1538,27 +1629,30 @@ class DataStore {
 
         const record = returns[idx];
 
-        // 1. Hoàn lại số lượng tồn kho cho các thuốc trong phiếu
-        (record.items || []).forEach(item => {
-            const med = this.getMedicineById(item.medicineId);
-            if (med) {
-                const qty = parseFloat(item.quantity) || 0;
-                let unitsToRestore = qty;
-                if (item.unit === med.packUnit && med.packRatio > 1) {
-                    unitsToRestore = qty * med.packRatio;
-                } else if (item.unit === med.subUnit && med.subRatio > 1) {
-                    unitsToRestore = qty * med.subRatio;
+        // 1. Hoàn lại số lượng tồn kho cho các thuốc trong phiếu (chỉ hoàn nếu phiếu đó đã từng trừ kho)
+        if (record.stockAdjusted === true) {
+            (record.items || []).forEach(item => {
+                const med = this.getMedicineById(item.medicineId);
+                if (med) {
+                    const qty = parseFloat(item.quantity) || 0;
+                    let unitsToRestore = qty;
+                    if (item.unit === med.packUnit && med.packRatio > 1) {
+                        unitsToRestore = qty * med.packRatio;
+                    } else if (item.unit === med.subUnit && med.subRatio > 1) {
+                        unitsToRestore = qty * med.subRatio;
+                    }
+                    med.stockUnits = Math.round(((med.stockUnits || 0) + unitsToRestore) * 1000) / 1000;
+                    this.saveMedicine(med);
                 }
-                med.stockUnits = Math.round(((med.stockUnits || 0) + unitsToRestore) * 1000) / 1000;
-                this.saveMedicine(med);
-            }
-        });
+            });
+        }
 
-        // 2. Hủy phiếu chi tương ứng trong Sổ Quỹ
+        // 2. Hủy phiếu chi tương ứng trong Sổ Quỹ (giữ lịch sử kế toán)
         const vouchers = this.getVouchers();
-        const vIdx = vouchers.findIndex(v => v.refId === disposalId);
+        const vIdx = vouchers.findIndex(v => v.refId === disposalId && !v.isCancelled);
         if (vIdx !== -1) {
-            vouchers.splice(vIdx, 1);
+            vouchers[vIdx].isCancelled = true;
+            vouchers[vIdx].cancelReason = `Hủy theo phiếu xuất hủy ${disposalId} đã xóa`;
             this.saveVouchers(vouchers);
         }
 
@@ -1613,8 +1707,22 @@ class DataStore {
         const localNow = this.formatLocalISO();
         if (!order.id) {
             const dateStr = localNow.slice(2, 10).replace(/-/g, '');
-            const countToday = orders.filter(o => o.createdAt && o.createdAt.startsWith(localNow.slice(0, 10))).length + 1;
-            order.id = `HD${dateStr}-${String(countToday).padStart(3, '0')}`;
+            const prefix = `HD${dateStr}-`;
+            let maxSuffix = 0;
+            orders.forEach(o => {
+                if (o.id && o.id.startsWith(prefix)) {
+                    const num = parseInt(o.id.slice(prefix.length), 10);
+                    if (!isNaN(num) && num > maxSuffix) maxSuffix = num;
+                }
+            });
+            let nextNum = maxSuffix + 1;
+            let nextId = `${prefix}${String(nextNum).padStart(3, '0')}`;
+            const existingIds = new Set(orders.map(o => o.id));
+            while (existingIds.has(nextId)) {
+                nextNum++;
+                nextId = `${prefix}${String(nextNum).padStart(3, '0')}`;
+            }
+            order.id = nextId;
         }
         if (!order.createdAt) {
             order.createdAt = localNow;
@@ -1850,27 +1958,51 @@ class DataStore {
 
         // Không bao giờ hoàn vượt quá số tiền thực thu còn lại của đơn hàng
         const maxRefundAllowed = Math.max(0, (order.totalAmount || 0) - (order.totalRefunded || 0));
+        let finalRefundTotal = totalRefund;
+        let scale = 1;
         if (totalRefund > maxRefundAllowed) {
-            totalRefund = maxRefundAllowed;
+            finalRefundTotal = maxRefundAllowed;
+            scale = totalRefund > 0 ? (maxRefundAllowed / totalRefund) : 0;
         }
 
-        if (totalRefund <= 0) return null;
+        if (finalRefundTotal <= 0) return null;
 
         // 2. Ghi nhận phiếu trả hàng vào đơn
         if (!order.returns) order.returns = [];
-        const returnId = `TH${this.formatLocalISO().slice(2, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 900) + 100)}`;
-        const returnRecord = {
-            id: returnId,
-            createdAt: this.formatLocalISO(),
-            items: returnedItems.map(i => ({
+        const dateStr = this.formatLocalISO().slice(2, 10).replace(/-/g, '');
+        let retSuffix = 1;
+        let returnId = `TH${dateStr}-${String(retSuffix).padStart(3, '0')}`;
+        const existingReturnIds = new Set();
+        orders.forEach(o => (o.returns || []).forEach(r => { if (r && r.id) existingReturnIds.add(r.id); }));
+        while (existingReturnIds.has(returnId)) {
+            retSuffix++;
+            returnId = `TH${dateStr}-${String(retSuffix).padStart(3, '0')}`;
+        }
+
+        let allocatedSum = 0;
+        const mappedItems = returnedItems.map((i, idx) => {
+            const rawRefund = i._calculatedRefund !== undefined ? i._calculatedRefund : Math.round(i.quantity * i.price * (1 - discountRatio));
+            let lineRefund = Math.round(rawRefund * scale);
+            if (idx === returnedItems.length - 1) {
+                lineRefund = Math.max(0, finalRefundTotal - allocatedSum);
+            } else {
+                allocatedSum += lineRefund;
+            }
+            return {
                 medicineId: i.medicineId,
                 medicineName: i.medicineName,
                 unit: i.unit,
                 quantity: i.quantity,
                 price: i.price,
-                refundAmount: i._calculatedRefund !== undefined ? i._calculatedRefund : Math.round(i.quantity * i.price * (1 - discountRatio))
-            })),
-            refundTotal: totalRefund,
+                refundAmount: lineRefund
+            };
+        });
+
+        const returnRecord = {
+            id: returnId,
+            createdAt: this.formatLocalISO(),
+            items: mappedItems,
+            refundTotal: finalRefundTotal,
             refundMethod: refundMethod, // 'cash' hoặc 'transfer'
             reason: returnReason,
             // Giá vốn hàng trả tại thời điểm trả (để báo cáo không phải tính lại theo giá hiện tại)
@@ -1878,7 +2010,7 @@ class DataStore {
             pharmacist: this.getSettings().pharmacist || 'Dược sĩ'
         };
         order.returns.push(returnRecord);
-        order.totalRefunded = (order.totalRefunded || 0) + totalRefund;
+        order.totalRefunded = (order.totalRefunded || 0) + finalRefundTotal;
 
         // Kiểm tra xem đã trả hết toàn bộ số lượng thuốc trong đơn chưa
         let allReturned = true;
@@ -2299,10 +2431,26 @@ class DataStore {
         }
     }
 
-    deleteCustomer(id) {
+    deleteCustomer(id, phone = null) {
         let customers = this.getCustomers();
         const initialLen = customers.length;
-        customers = customers.filter(c => c.id !== id && c.phone !== id);
+        if (id === 'Cá nhân' || !id) {
+            // Bảo vệ danh bạ: Chặn xóa hàng loạt khi ID là "Cá nhân" (dùng chung cho các bản ghi import cũ)
+            if (!phone) {
+                console.warn('Từ chối xóa khách hàng: Không thể xóa với ID chung "Cá nhân" mà không có số điện thoại xác thực!');
+                return false;
+            }
+            const normPhone = this.normalizePhone(phone);
+            customers = customers.filter(c => !(c.id === id && this.normalizePhone(c.phone) === normPhone));
+        } else {
+            const matches = customers.filter(c => c.id === id);
+            if (matches.length > 1 && phone) {
+                const normPhone = this.normalizePhone(phone);
+                customers = customers.filter(c => !(c.id === id && this.normalizePhone(c.phone) === normPhone));
+            } else {
+                customers = customers.filter(c => c.id !== id && c.phone !== id);
+            }
+        }
         if (customers.length !== initialLen) {
             this.saveCustomers(customers);
             return true;
@@ -2310,7 +2458,7 @@ class DataStore {
         return false;
     }
 
-    getOrdersByCustomer(phoneOrId, customerName = '') {
+    getOrdersByCustomer(phoneOrId, customerName = '', includeReturns = false) {
         const orders = this.getOrders();
         const cust = this.getCustomerById(phoneOrId) || this.getCustomerByPhone(phoneOrId);
         const targetId = cust ? cust.id : (phoneOrId && phoneOrId.startsWith('KH') ? phoneOrId : '');
@@ -2319,6 +2467,7 @@ class DataStore {
         const targetName = (cust ? cust.name : customerName || '').trim().toLowerCase();
 
         return orders.filter(o => {
+            if (!includeReturns && o.isReturn) return false;
             if (targetId && o.customerId && o.customerId === targetId) return true;
             if (targetNorm && o.customerPhone) {
                 if (this.normalizePhone(o.customerPhone) === targetNorm) return true;
@@ -2517,10 +2666,10 @@ class DataStore {
                 const st = custStats.get(matched);
                 if (st) {
                     if (o.isReturn) {
-                        st.spent = Math.max(0, st.spent - (o.totalAmount || 0));
+                        st.spent -= (Number(o.totalAmount) || 0);
                     } else {
                         st.count++;
-                        const netSpent = Math.max(0, (o.totalAmount || 0) - (o.totalRefunded || 0));
+                        const netSpent = Math.max(0, (Number(o.totalAmount) || 0) - (Number(o.totalRefunded) || 0));
                         st.spent += netSpent;
                     }
                     if (!st.lastVisit || (o.createdAt && o.createdAt > st.lastVisit)) {
@@ -2538,15 +2687,14 @@ class DataStore {
                 c.ordersCount = realCount;
                 changed = true;
             }
-            if (st && st.spent > 0) {
-                if (st.spent > (c.totalSpent || 0)) {
-                    c.totalSpent = Math.round(st.spent);
-                    changed = true;
-                }
-                if (st.lastVisit && (!c.lastVisit || st.lastVisit > c.lastVisit)) {
-                    c.lastVisit = st.lastVisit;
-                    changed = true;
-                }
+            const finalSpent = Math.max(0, Math.round(st ? st.spent : 0));
+            if (c.totalSpent !== finalSpent) {
+                c.totalSpent = finalSpent;
+                changed = true;
+            }
+            if (st && st.lastVisit && (!c.lastVisit || st.lastVisit > c.lastVisit)) {
+                c.lastVisit = st.lastVisit;
+                changed = true;
             }
         });
 
@@ -2627,10 +2775,24 @@ class DataStore {
         const vouchers = this.getVouchers();
         const localNow = this.formatLocalISO();
         if (!voucher.id) {
-            const prefix = voucher.type === 'receipt' ? 'PT' : 'PC';
+            const typePre = voucher.type === 'receipt' ? 'PT' : 'PC';
             const dateStr = localNow.slice(2, 10).replace(/-/g, '');
-            const countToday = vouchers.filter(v => v.id && v.id.startsWith(prefix + dateStr)).length + 1;
-            voucher.id = `${prefix}${dateStr}-${String(countToday).padStart(3, '0')}`;
+            const prefix = `${typePre}${dateStr}-`;
+            let maxSuffix = 0;
+            vouchers.forEach(v => {
+                if (v.id && v.id.startsWith(prefix)) {
+                    const num = parseInt(v.id.slice(prefix.length), 10);
+                    if (!isNaN(num) && num > maxSuffix) maxSuffix = num;
+                }
+            });
+            let nextNum = maxSuffix + 1;
+            let nextId = `${prefix}${String(nextNum).padStart(3, '0')}`;
+            const existingIds = new Set(vouchers.map(v => v.id));
+            while (existingIds.has(nextId)) {
+                nextNum++;
+                nextId = `${prefix}${String(nextNum).padStart(3, '0')}`;
+            }
+            voucher.id = nextId;
         }
         if (!voucher.createdAt) {
             voucher.createdAt = localNow;
@@ -2646,9 +2808,9 @@ class DataStore {
         return voucher;
     }
 
-    updateVoucher(voucherId, updatedFields) {
+    updateVoucher(voucherId, updatedFields, refId = null) {
         const vouchers = this.getVouchers();
-        const index = vouchers.findIndex(v => v.id === voucherId);
+        const index = vouchers.findIndex(v => v.id === voucherId && (!refId || v.refId === refId));
         if (index === -1) return null;
 
         const oldVoucher = vouchers[index];
@@ -2667,24 +2829,42 @@ class DataStore {
         let vouchers = this.getVouchers();
         const target = vouchers.find(v => v.id === voucherId);
         if (target && target.refId) {
+            const refId = String(target.refId);
             // Đánh dấu đơn hàng hoặc phiếu nhập liên kết là đã xóa voucher để sync không tự tạo lại
-            if (target.refId.startsWith('HD')) {
+            if (target.type === 'receipt' && refId.startsWith('HD')) {
                 const orders = this.getOrders();
-                const ord = orders.find(o => o.id === target.refId);
+                const ord = orders.find(o => o.id === refId);
                 if (ord) {
                     ord.voucherDeleted = true;
                     this.saveOrders(orders);
                 }
-            } else if (target.refId.startsWith('PN')) {
+            } else if (target.type === 'payment' && (refId.startsWith('HD') || refId.startsWith('RETURN_') || target.id.startsWith('TTTH'))) {
+                const orders = this.getOrders();
+                orders.forEach(o => {
+                    if (o.id === refId) o.refundVoucherDeleted = true;
+                    (o.returns || []).forEach(r => {
+                        if (r.id === refId || `RETURN_${r.id}` === refId || `TT${r.id}` === target.id) {
+                            r.voucherDeleted = true;
+                            o.refundVoucherDeleted = true;
+                        }
+                    });
+                });
+                this.saveOrders(orders);
+            } else if (target.type === 'payment' && refId.startsWith('PN')) {
                 const stockins = this.getStockInOrders();
-                const st = stockins.find(s => s.id === target.refId);
+                const st = stockins.find(s => s.id === refId);
                 if (st) {
                     st.voucherDeleted = true;
                     this.saveStockInOrders(stockins);
                 }
             }
         }
-        vouchers = vouchers.filter(v => v.id !== voucherId);
+        const targetIdx = vouchers.findIndex(v => v.id === voucherId && (!target || v.refId === target.refId));
+        if (targetIdx !== -1) {
+            vouchers.splice(targetIdx, 1);
+        } else {
+            vouchers = vouchers.filter(v => v.id !== voucherId);
+        }
         this.saveVouchers(vouchers);
     }
 
@@ -2913,6 +3093,7 @@ class DataStore {
 
                 o.returns.forEach(r => {
                     if (!(r.refundTotal > 0)) return;
+                    if (o.refundVoucherDeleted || r.voucherDeleted) return; // Đã chủ động xóa phiếu hoàn tiền, không tự tạo lại
                     const returnRefId = `RETURN_${r.id || o.id}`;
                     if (existingRefIds.has(returnRefId)) return; // đã có phiếu kiểu cũ
                     if (alreadyCovered > 0) {

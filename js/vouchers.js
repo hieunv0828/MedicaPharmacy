@@ -77,6 +77,19 @@ const VouchersModule = {
                 if (customDiv) {
                     if (e.target.value === 'custom') {
                         customDiv.classList.remove('hidden');
+                        const now = new Date();
+                        const today = now.toISOString().slice(0, 10);
+                        const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                        if (!this.dateFrom) {
+                            this.dateFrom = firstDay;
+                            const elFrom = document.getElementById('vouchers-date-from');
+                            if (elFrom) elFrom.value = firstDay;
+                        }
+                        if (!this.dateTo) {
+                            this.dateTo = today;
+                            const elTo = document.getElementById('vouchers-date-to');
+                            if (elTo) elTo.value = today;
+                        }
                     } else {
                         customDiv.classList.add('hidden');
                     }
@@ -183,8 +196,9 @@ const VouchersModule = {
         // Lọc theo từ khóa tìm kiếm (nếu có)
         if (this.searchKeyword) {
             const q = this.searchKeyword;
+            const lookupMaps = this.buildLookupMaps();
             periodVouchers = periodVouchers.filter(v => {
-                const target = this.getTargetInfo(v);
+                const target = this.getTargetInfo(v, lookupMaps);
                 return (v.id && v.id.toLowerCase().includes(q)) ||
                     (v.category && v.category.toLowerCase().includes(q)) ||
                     (target.name && target.name.toLowerCase().includes(q)) ||
@@ -198,9 +212,10 @@ const VouchersModule = {
         const badgeReceipt = document.getElementById('badge-vouchers-receipt');
         const badgePayment = document.getElementById('badge-vouchers-payment');
 
-        if (badgeAll) badgeAll.innerText = periodVouchers.length;
-        if (badgeReceipt) badgeReceipt.innerText = periodVouchers.filter(v => v.type === 'receipt').length;
-        if (badgePayment) badgePayment.innerText = periodVouchers.filter(v => v.type === 'payment').length;
+        const activeVouchers = periodVouchers.filter(v => !v.isCancelled);
+        if (badgeAll) badgeAll.innerText = activeVouchers.length;
+        if (badgeReceipt) badgeReceipt.innerText = activeVouchers.filter(v => v.type === 'receipt').length;
+        if (badgePayment) badgePayment.innerText = activeVouchers.filter(v => v.type === 'payment').length;
     },
 
     getFilteredVouchers() {
@@ -228,8 +243,9 @@ const VouchersModule = {
         // 4. Tìm kiếm từ khóa
         if (this.searchKeyword) {
             const q = this.searchKeyword;
+            const lookupMaps = this.buildLookupMaps();
             vouchers = vouchers.filter(v => {
-                const target = this.getTargetInfo(v);
+                const target = this.getTargetInfo(v, lookupMaps);
                 return (v.id && v.id.toLowerCase().includes(q)) ||
                     (target.name && target.name.toLowerCase().includes(q)) ||
                     (v.category && v.category.toLowerCase().includes(q)) ||
@@ -444,7 +460,23 @@ const VouchersModule = {
         if (window.lucide) lucide.createIcons();
     },
 
-    getTargetInfo(v) {
+    buildLookupMaps() {
+        const orderMap = new Map();
+        if (window.Store && typeof Store.getOrders === 'function') {
+            (Store.getOrders() || []).forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
+        }
+        const stockInMap = new Map();
+        if (window.Store && typeof Store.getStockInOrders === 'function') {
+            (Store.getStockInOrders() || []).forEach(s => { if (s && s.id) stockInMap.set(s.id, s); });
+        }
+        const returnsMap = new Map();
+        if (window.Store && typeof Store.getPurchaseReturns === 'function') {
+            (Store.getPurchaseReturns() || []).forEach(r => { if (r && r.id) returnsMap.set(r.id, r); });
+        }
+        return { orderMap, stockInMap, returnsMap };
+    },
+
+    getTargetInfo(v, lookupMaps = null) {
         if (!v) return { name: '---', type: 'other', typeLabel: 'Đối tác khác' };
         let name = (v.targetName || v.recipientName || v.person || '').trim();
         let type = v.targetType;
@@ -455,21 +487,36 @@ const VouchersModule = {
             const altRefPN = ref.startsWith('PN') ? ref : ('PN' + ref.replace(/\D/g, ''));
             const altRefTHN = ref.startsWith('THN') ? ref : ('THN' + ref.replace(/\D/g, ''));
 
-            if (window.Store && typeof Store.getOrderById === 'function' && (Store.getOrderById(ref) || Store.getOrderById(altRefHD))) {
-                const o = Store.getOrderById(ref) || Store.getOrderById(altRefHD);
+            let o = null;
+            let s = null;
+            let r = null;
+
+            if (lookupMaps) {
+                o = lookupMaps.orderMap.get(ref) || lookupMaps.orderMap.get(altRefHD);
+                s = lookupMaps.stockInMap.get(ref) || lookupMaps.stockInMap.get(altRefPN);
+                r = lookupMaps.returnsMap.get(ref) || lookupMaps.returnsMap.get(altRefTHN);
+            } else {
+                if (window.Store && typeof Store.getOrderById === 'function') {
+                    o = Store.getOrderById(ref) || Store.getOrderById(altRefHD);
+                }
+                if (!o && window.Store && typeof Store.getStockInOrderById === 'function') {
+                    s = Store.getStockInOrderById(ref) || Store.getStockInOrderById(altRefPN);
+                }
+                if (!o && !s && window.Store && typeof Store.getPurchaseReturns === 'function') {
+                    const rets = Store.getPurchaseReturns() || [];
+                    r = rets.find(x => x.id === ref || x.id === altRefTHN);
+                }
+            }
+
+            if (o) {
                 name = (o.customerName || (o.customerPhone ? ('Khách ' + o.customerPhone) : 'Khách lẻ')).trim();
                 type = 'customer';
-            } else if (window.Store && typeof Store.getStockInOrderById === 'function' && (Store.getStockInOrderById(ref) || Store.getStockInOrderById(altRefPN))) {
-                const s = Store.getStockInOrderById(ref) || Store.getStockInOrderById(altRefPN);
+            } else if (s) {
                 name = (s.supplierName || v.person || 'Nhà cung cấp').trim();
                 type = 'supplier';
-            } else if (window.Store && typeof Store.getPurchaseReturns === 'function' && (ref.startsWith('TH') || (v.id && (v.id.startsWith('PTTH') || v.id.startsWith('TTTH'))))) {
-                const returns = Store.getPurchaseReturns() || [];
-                const r = returns.find(x => x.id === ref || x.id === altRefTHN);
-                if (r) {
-                    name = (r.supplierName || r.customerName || 'Nhà cung cấp').trim();
-                    type = r.supplierName ? 'supplier' : 'customer';
-                }
+            } else if (r) {
+                name = (r.supplierName || r.customerName || 'Nhà cung cấp').trim();
+                type = r.supplierName ? 'supplier' : 'customer';
             }
 
             if (!name || name === '---') {
@@ -1006,6 +1053,14 @@ const VouchersModule = {
     },
 
     deleteVoucherConfirm(voucherId) {
+        if (window.AuthModule && !AuthModule.canAccessTab('vouchers')) {
+            if (window.AppUtils && AppUtils.showToast) {
+                AppUtils.showToast('Bạn không có quyền xóa phiếu thu/chi! Chỉ Quản trị viên mới có quyền này.', 'warning');
+            } else {
+                alert('Chỉ Quản trị viên mới có quyền xóa phiếu thu/chi!');
+            }
+            return;
+        }
         if (confirm(`Bạn có chắc chắn muốn xóa phiếu ${voucherId} khỏi sổ quỹ?`)) {
             Store.deleteVoucher(voucherId);
             App.showToast(`Đã xóa phiếu ${voucherId}.`, 'info');
@@ -1029,15 +1084,25 @@ const VouchersModule = {
             return;
         }
 
+        const lookupMaps = this.buildLookupMaps();
+        const escapeCsv = (val) => {
+            if (val === null || val === undefined) return '""';
+            let s = String(val).replace(/"/g, '""');
+            if (/^[=+\-@\t\r]/.test(s)) {
+                s = "'" + s;
+            }
+            return `"${s}"`;
+        };
+
         let csv = '\uFEFFMã Phiếu,Thời Gian,Phân Loại,Phương Thức,Danh Mục / Lý Do,Người Nhận/Nộp,Đối Tượng,Số Tiền,Hạch Toán KD,Người Lập,Ghi Chú\n';
         list.forEach(v => {
             const typeStr = v.type === 'receipt' ? 'Phiếu Thu' : 'Phiếu Chi';
             const methodStr = v.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản';
             const accStr = v.isAccounting !== false ? 'Có' : 'Không';
             const absAmt = Math.abs(Number(v.amount) || 0);
-            const targetInfo = this.getTargetInfo(v);
+            const targetInfo = this.getTargetInfo(v, lookupMaps);
             const expTargetName = targetInfo.name !== '---' ? targetInfo.name : '';
-            csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${expTargetName}","${targetInfo.typeLabel}",${absAmt},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
+            csv += `${escapeCsv(v.id)},${escapeCsv(AppUtils.formatDateTime(v.createdAt))},${escapeCsv(typeStr)},${escapeCsv(methodStr)},${escapeCsv(v.category)},${escapeCsv(expTargetName)},${escapeCsv(targetInfo.typeLabel)},${absAmt},${escapeCsv(accStr)},${escapeCsv(v.pharmacist || '')},${escapeCsv(v.note || '')}\n`;
         });
 
         const filename = `So_Quy_Thu_Chi_${new Date().toISOString().slice(0, 10)}.csv`;

@@ -1409,20 +1409,33 @@ const POSModule = {
                     <p class="text-[10px] text-slate-500">${AppUtils.formatDateTime(order.createdAt)}</p>
                 </div>
 
+                ${order.isCancelled ? `
+                <div class="my-2 p-2 bg-rose-50 border-2 border-rose-500 rounded text-center text-rose-800">
+                    <div class="font-black text-sm uppercase tracking-wide">*** HÓA ĐƠN ĐÃ HỦY ***</div>
+                    ${order.cancelReason ? `<div class="text-[11px] mt-0.5 font-medium">Lý do: ${AppUtils.escapeHtml(order.cancelReason)}</div>` : ''}
+                </div>` : ''}
+
+                ${!order.isCancelled && order.totalRefunded > 0 ? `
+                <div class="my-2 p-2 bg-amber-50 border-2 border-amber-500 rounded text-center text-amber-900">
+                    <div class="font-bold text-xs uppercase tracking-wide">*** ĐÃ HOÀN TRẢ HÀNG ***</div>
+                    <div class="text-[11px] mt-0.5">Số tiền đã hoàn: -${AppUtils.formatVND(order.totalRefunded)}</div>
+                    <div class="text-[11px] font-bold text-emerald-800 mt-0.5">Thực thu còn lại: ${AppUtils.formatVND(Math.max(0, (order.totalAmount || 0) - order.totalRefunded))}</div>
+                </div>` : ''}
+
                 <!-- Thông tin khách hàng & Dược sĩ -->
                 <div class="text-[11px] space-y-0.5 py-1 border-b border-dashed border-slate-300">
                     <div class="flex justify-between">
                         <span class="text-slate-500">Khách hàng:</span>
-                        <span class="font-bold text-slate-800">${order.customerName || 'Khách vãng lai'}</span>
+                        <span class="font-bold text-slate-800">${AppUtils.escapeHtml(order.customerName || 'Khách vãng lai')}</span>
                     </div>
                     ${order.customerPhone ? `
                     <div class="flex justify-between">
                         <span class="text-slate-500">Số ĐT:</span>
-                        <span class="font-mono">${order.customerPhone}</span>
+                        <span class="font-mono">${AppUtils.escapeHtml(order.customerPhone)}</span>
                     </div>` : ''}
                     <div class="flex justify-between">
                         <span class="text-slate-500">Dược sĩ:</span>
-                        <span>${order.pharmacist || settings.pharmacist}</span>
+                        <span>${AppUtils.escapeHtml(order.pharmacist || settings.pharmacist || '')}</span>
                     </div>
                 </div>
 

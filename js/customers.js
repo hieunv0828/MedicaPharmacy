@@ -300,7 +300,7 @@ const CustomersModule = {
                                     onclick="CustomersModule.openCustomerOrdersModal('${c.id || safePhone}')"
                                     class="font-medium text-slate-900 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1.5 text-[13px]"
                                     title="Bấm vào tên để xem danh sách toàn bộ hóa đơn khách đã mua">
-                                <span>${c.name || 'Khách hàng'}</span>
+                                <span>${AppUtils.escapeHtml(c.name || 'Khách hàng')}</span>
                                 <i data-lucide="receipt" class="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 opacity-60 group-hover:opacity-100 transition"></i>
                             </button>
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${tier.badge}">
@@ -308,8 +308,8 @@ const CustomersModule = {
                             </span>
                         </div>
                         <div class="flex items-center gap-2 mt-0.5 text-xs text-slate-600">
-                            <span>Mã: ${c.id || '---'}</span>
-                            ${c.address ? `<span class="truncate max-w-[200px]" title="${c.address}">• ${c.address}</span>` : ''}
+                            <span>Mã: ${AppUtils.escapeHtml(c.id || '---')}</span>
+                            ${c.address ? `<span class="truncate max-w-[200px]" title="${AppUtils.escapeHtml(c.address)}">• ${AppUtils.escapeHtml(c.address)}</span>` : ''}
                         </div>
                     </td>
 
@@ -317,7 +317,7 @@ const CustomersModule = {
                     <td class="py-3.5 px-3">
                         ${c.phone ? `
                             <span class="text-slate-900 text-[13px] tabular-nums">
-                                ${c.phone}
+                                ${AppUtils.escapeHtml(c.phone)}
                             </span>
                         ` : `<span class="text-slate-400 italic text-xs">Chưa có SĐT</span>`}
                     </td>

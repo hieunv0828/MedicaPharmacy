@@ -6,6 +6,7 @@ save_err.txt
 tools/*.log
 test_*.txt
 test_*.html
+tests/*-results.json
 
 # External large binaries (can be downloaded when setting up remote tunnel)
 tools/cloudflared.exe
