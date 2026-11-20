@@ -80,7 +80,9 @@ function Get-UnitCost($m, $unit) {
 # File sau ghi de file truoc khi trung id
 $allOrders = [System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[object]]]::new()
 
+$fileIdx = 0
 foreach ($xlsxFile in $xlsxFiles) {
+    $fileIdx++
     $xlsxPath = Join-Path $importsDir $xlsxFile
     if (-not (Test-Path $xlsxPath)) {
         Write-Host "  KHONG TIM THAY: $xlsxFile - Bo qua"
@@ -159,6 +161,7 @@ foreach ($xlsxFile in $xlsxFiles) {
             cashAmt=$cashAmt; transferAmt=$transferAmt; status=$status
             medCode=$medCode; medName=$medName; unit=$unit
             qty=$qty; unitPrice=$unitPrice; lineTotal=$lineTotal
+            fileIndex=$fileIdx
         }
 
         # File sau ghi de: xoa lines cu cua invoiceId nay neu day la file moi
@@ -167,11 +170,12 @@ foreach ($xlsxFile in $xlsxFiles) {
             $allOrders[$invoiceId] = [System.Collections.Generic.List[object]]::new()
             $newLines++
         } else {
-            # Da co tu file truoc - ghi de bang file nay (xoa data cu)
-            if ($allOrders[$invoiceId].Count -gt 0 -and $allOrders[$invoiceId][0].timeRaw -eq $timeRaw) {
-                # Cung don, them item vao
+            # Kiem tra dong truoc do den tu file nao
+            $lastLine = $allOrders[$invoiceId][$allOrders[$invoiceId].Count - 1]
+            if ($lastLine.fileIndex -eq $fileIdx) {
+                # Cung file, dong tiep theo cua cung don -> them item vao
             } else {
-                # Khac don (trung ID nhung khac data) -> ghi de bang file moi hon
+                # Den tu file khac (file moi hon) -> ghi de toan bo don cu
                 $allOrders[$invoiceId].Clear()
                 $dupLines++
             }

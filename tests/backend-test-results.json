@@ -1,91 +1,91 @@
 ﻿{
     "TotalTests":  12,
-    "TotalFailed":  8,
-    "TotalPassed":  4,
+    "TotalFailed":  1,
+    "TotalPassed":  11,
     "Results":  [
                     {
                         "Id":  "TC-31",
                         "Name":  "Server Web Root: GET / returns 200 OK",
-                        "Status":  "FAIL",
-                        "Duration":  "4121ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Status":  "PASS",
+                        "Duration":  "2177ms",
+                        "Error":  ""
                     },
                     {
                         "Id":  "TC-32",
                         "Name":  "TÃ i Liá»‡u Thiáº¿t Káº¿ HTML: GET /tai-lieu-thiet-ke.html returns 200 OK",
-                        "Status":  "FAIL",
-                        "Duration":  "4085ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Status":  "PASS",
+                        "Duration":  "32ms",
+                        "Error":  ""
                     },
                     {
                         "Id":  "TC-33",
                         "Name":  "Health Endpoint: GET /api/status returns JSON online status",
-                        "Status":  "FAIL",
-                        "Duration":  "4084ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Status":  "PASS",
+                        "Duration":  "99ms",
+                        "Error":  ""
                     },
                     {
                         "Id":  "TC-34",
                         "Name":  "License Status: GET /api/license/status returns hardware machineCode",
-                        "Status":  "FAIL",
-                        "Duration":  "4082ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Status":  "PASS",
+                        "Duration":  "35ms",
+                        "Error":  ""
                     },
                     {
                         "Id":  "TC-35",
                         "Name":  "License Anti-Tamper: POST /api/license/activate with fake key correctly rejected (HTTP 400)",
                         "Status":  "FAIL",
-                        "Duration":  "4116ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Duration":  "72ms",
+                        "Error":  "Server should have rejected fake key with HTTP 400, but returned 200!"
                     },
                     {
                         "Id":  "TC-36",
                         "Name":  "Database Fetch: GET /api/database returns all collections",
-                        "Status":  "FAIL",
-                        "Duration":  "4093ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Status":  "PASS",
+                        "Duration":  "9259ms",
+                        "Error":  ""
                     },
                     {
                         "Id":  "TC-37",
                         "Name":  "Storage Integrity: orders_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "5561ms",
+                        "Duration":  "5151ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-38",
                         "Name":  "Storage Integrity: stockin_2026.json exists and is valid JSON",
                         "Status":  "PASS",
-                        "Duration":  "588ms",
+                        "Duration":  "598ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-39",
                         "Name":  "Offline Assets: vendor/mermaid.min.js exists and is \u003e 1MB",
                         "Status":  "PASS",
-                        "Duration":  "11ms",
+                        "Duration":  "25ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-40",
                         "Name":  "Offline Assets: vendor/tailwind.js exists and is valid",
                         "Status":  "PASS",
-                        "Duration":  "1ms",
+                        "Duration":  "17ms",
                         "Error":  ""
                     },
                     {
                         "Id":  "TC-41",
                         "Name":  "Performance Benchmark: 3 consecutive GET /api/database latency (Full 8MB Dataset)",
-                        "Status":  "FAIL",
-                        "Duration":  "4087ms",
-                        "Error":  "Unable to connect to the remote server"
+                        "Status":  "PASS",
+                        "Duration":  "4126ms",
+                        "Error":  ""
                     },
                     {
                         "Id":  "TC-42",
                         "Name":  "Concurrency Stress: 5 simultaneous requests without deadlock",
-                        "Status":  "FAIL",
-                        "Duration":  "5290ms",
-                        "Error":  "Concurrent request returned status "
+                        "Status":  "PASS",
+                        "Duration":  "108510ms",
+                        "Error":  ""
                     }
                 ]
 }

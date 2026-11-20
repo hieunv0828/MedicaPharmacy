@@ -1,6 +1,8 @@
 # Temporary & Log files
 *.log
 *.bak
+*.patch
+save_err.txt
 tools/*.log
 test_*.txt
 test_*.html

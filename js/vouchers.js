@@ -183,13 +183,15 @@ const VouchersModule = {
         // Lọc theo từ khóa tìm kiếm (nếu có)
         if (this.searchKeyword) {
             const q = this.searchKeyword;
-            periodVouchers = periodVouchers.filter(v =>
-                (v.id && v.id.toLowerCase().includes(q)) ||
-                (v.category && v.category.toLowerCase().includes(q)) ||
-                (v.targetName && v.targetName.toLowerCase().includes(q)) ||
-                (v.note && v.note.toLowerCase().includes(q)) ||
-                (v.refId && v.refId.toLowerCase().includes(q))
-            );
+            periodVouchers = periodVouchers.filter(v => {
+                const target = this.getTargetInfo(v);
+                return (v.id && v.id.toLowerCase().includes(q)) ||
+                    (v.category && v.category.toLowerCase().includes(q)) ||
+                    (target.name && target.name.toLowerCase().includes(q)) ||
+                    (v.note && v.note.toLowerCase().includes(q)) ||
+                    (v.refId && v.refId.toLowerCase().includes(q)) ||
+                    (v.person && v.person.toLowerCase().includes(q));
+            });
         }
 
         const badgeAll = document.getElementById('badge-vouchers-all');
@@ -226,13 +228,16 @@ const VouchersModule = {
         // 4. Tìm kiếm từ khóa
         if (this.searchKeyword) {
             const q = this.searchKeyword;
-            vouchers = vouchers.filter(v => 
-                (v.id && v.id.toLowerCase().includes(q)) ||
-                (v.targetName && v.targetName.toLowerCase().includes(q)) ||
-                (v.category && v.category.toLowerCase().includes(q)) ||
-                (v.note && v.note.toLowerCase().includes(q)) ||
-                (v.pharmacist && v.pharmacist.toLowerCase().includes(q))
-            );
+            vouchers = vouchers.filter(v => {
+                const target = this.getTargetInfo(v);
+                return (v.id && v.id.toLowerCase().includes(q)) ||
+                    (target.name && target.name.toLowerCase().includes(q)) ||
+                    (v.category && v.category.toLowerCase().includes(q)) ||
+                    (v.note && v.note.toLowerCase().includes(q)) ||
+                    (v.refId && v.refId.toLowerCase().includes(q)) ||
+                    (v.person && v.person.toLowerCase().includes(q)) ||
+                    (v.pharmacist && v.pharmacist.toLowerCase().includes(q));
+            });
         }
 
         return vouchers;
@@ -391,6 +396,8 @@ const VouchersModule = {
                 : `<span class="font-semibold text-rose-700 text-[13px] tabular-nums ${v.isCancelled ? 'line-through text-slate-400' : ''}">-${AppUtils.formatVND(absAmt)}</span>`;
 
             const refBadge = v.refId ? `<div class="text-xs text-emerald-700 font-medium mt-0.5">Ref: ${v.refId}</div>` : '';
+            const targetInfo = this.getTargetInfo(v);
+            const escapedTargetName = window.AppUtils && AppUtils.escapeHtml ? AppUtils.escapeHtml(targetInfo.name) : targetInfo.name;
 
             html += `
                 <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-[13px] ${v.isCancelled ? 'opacity-50' : ''}">
@@ -407,8 +414,8 @@ const VouchersModule = {
                         ${v.note ? `<div class="text-xs text-slate-600 line-clamp-1 mt-0.5" title="${v.note}">${v.note}</div>` : ''}
                     </td>
                     <td class="py-3.5 px-3">
-                        <div class="font-medium text-slate-900 text-[13px]">${v.targetName || '---'}</div>
-                        <div class="text-xs text-slate-600 mt-0.5">${this.formatTargetType(v.targetType)}</div>
+                        <div class="font-medium text-slate-900 text-[13px]">${escapedTargetName}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">${targetInfo.typeLabel}</div>
                     </td>
                     <td class="py-3.5 px-3 text-right">${amountHtml}</td>
                     <td class="py-3.5 px-3 text-center">
@@ -435,6 +442,63 @@ const VouchersModule = {
 
         tbody.innerHTML = html;
         if (window.lucide) lucide.createIcons();
+    },
+
+    getTargetInfo(v) {
+        if (!v) return { name: '---', type: 'other', typeLabel: 'Đối tác khác' };
+        let name = (v.targetName || v.recipientName || v.person || '').trim();
+        let type = v.targetType;
+
+        if (!name || name === '---') {
+            const ref = String(v.refId || (v.id && v.id.startsWith('TT') ? v.id.slice(2) : ''));
+            const altRefHD = ref.startsWith('HD') ? ref : ('HD' + ref.replace(/\D/g, ''));
+            const altRefPN = ref.startsWith('PN') ? ref : ('PN' + ref.replace(/\D/g, ''));
+            const altRefTHN = ref.startsWith('THN') ? ref : ('THN' + ref.replace(/\D/g, ''));
+
+            if (window.Store && typeof Store.getOrderById === 'function' && (Store.getOrderById(ref) || Store.getOrderById(altRefHD))) {
+                const o = Store.getOrderById(ref) || Store.getOrderById(altRefHD);
+                name = (o.customerName || (o.customerPhone ? ('Khách ' + o.customerPhone) : 'Khách lẻ')).trim();
+                type = 'customer';
+            } else if (window.Store && typeof Store.getStockInOrderById === 'function' && (Store.getStockInOrderById(ref) || Store.getStockInOrderById(altRefPN))) {
+                const s = Store.getStockInOrderById(ref) || Store.getStockInOrderById(altRefPN);
+                name = (s.supplierName || v.person || 'Nhà cung cấp').trim();
+                type = 'supplier';
+            } else if (window.Store && typeof Store.getPurchaseReturns === 'function' && (ref.startsWith('TH') || (v.id && (v.id.startsWith('PTTH') || v.id.startsWith('TTTH'))))) {
+                const returns = Store.getPurchaseReturns() || [];
+                const r = returns.find(x => x.id === ref || x.id === altRefTHN);
+                if (r) {
+                    name = (r.supplierName || r.customerName || 'Nhà cung cấp').trim();
+                    type = r.supplierName ? 'supplier' : 'customer';
+                }
+            }
+
+            if (!name || name === '---') {
+                if (v.person && v.person.trim()) {
+                    name = v.person.trim();
+                    if (v.category === 'Tiền trả NCC') type = 'supplier';
+                    else if (v.category === 'Tiền khách trả') type = 'customer';
+                    else type = type || 'other';
+                } else if (v.category === 'Tiền khách trả' || v.category === 'Thu tiền bán thuốc') {
+                    name = 'Khách lẻ';
+                    type = 'customer';
+                } else if (v.category === 'Tiền trả NCC' || v.category === 'Chi tiền hàng Nhà Cung Cấp') {
+                    name = 'Nhà cung cấp';
+                    type = 'supplier';
+                }
+            }
+        }
+
+        if (!type) {
+            if (v.category === 'Tiền trả NCC' || v.category === 'Chi tiền hàng Nhà Cung Cấp') type = 'supplier';
+            else if (v.category === 'Tiền khách trả' || v.category === 'Thu tiền bán thuốc') type = 'customer';
+            else type = 'other';
+        }
+
+        return {
+            name: name || '---',
+            type: type,
+            typeLabel: this.formatTargetType(type)
+        };
     },
 
     formatTargetType(t) {
@@ -868,6 +932,8 @@ const VouchersModule = {
 
         const isReceipt = v.type === 'receipt';
         const settings = Store.getSettings();
+        const targetInfo = this.getTargetInfo(v);
+        const printTargetName = targetInfo.name !== '---' ? (window.AppUtils && AppUtils.escapeHtml ? AppUtils.escapeHtml(targetInfo.name) : targetInfo.name) : '';
 
         container.innerHTML = `
             <div class="receipt-paper k80-width bg-white text-slate-900 mx-auto p-4 shadow-lg font-sans text-xs">
@@ -886,11 +952,11 @@ const VouchersModule = {
                 <div class="space-y-1.5 border-t border-b border-dashed border-slate-300 py-2 text-xs">
                     <div class="flex justify-between">
                         <span class="text-slate-500">${isReceipt ? 'Người nộp tiền:' : 'Người nhận tiền:'}</span>
-                        <span class="font-bold text-slate-800">${v.targetName || '---'}</span>
+                        <span class="font-bold text-slate-800">${printTargetName || '---'}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Đối tượng:</span>
-                        <span>${this.formatTargetType(v.targetType)}</span>
+                        <span>${targetInfo.typeLabel}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Hình thức:</span>
@@ -915,7 +981,7 @@ const VouchersModule = {
                         <p class="font-bold uppercase">${isReceipt ? 'Người nộp' : 'Người nhận'}</p>
                         <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
                         <div class="h-10"></div>
-                        <p class="font-semibold">${v.targetName || ''}</p>
+                        <p class="font-semibold">${printTargetName}</p>
                     </div>
                     <div>
                         <p class="font-bold uppercase">Người lập phiếu</p>
@@ -969,7 +1035,9 @@ const VouchersModule = {
             const methodStr = v.paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản';
             const accStr = v.isAccounting !== false ? 'Có' : 'Không';
             const absAmt = Math.abs(Number(v.amount) || 0);
-            csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${v.targetName || ''}","${this.formatTargetType(v.targetType)}",${absAmt},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
+            const targetInfo = this.getTargetInfo(v);
+            const expTargetName = targetInfo.name !== '---' ? targetInfo.name : '';
+            csv += `"${v.id}","${AppUtils.formatDateTime(v.createdAt)}","${typeStr}","${methodStr}","${v.category}","${expTargetName}","${targetInfo.typeLabel}",${absAmt},"${accStr}","${v.pharmacist || ''}","${(v.note || '').replace(/"/g, '""')}"\n`;
         });
 
         const filename = `So_Quy_Thu_Chi_${new Date().toISOString().slice(0, 10)}.csv`;

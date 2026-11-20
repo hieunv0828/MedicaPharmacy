@@ -386,13 +386,11 @@ const ReportsModule = {
                     }
                     if (rawQty <= 0) return;
 
+                    const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
                     // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice)
                     let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-                    if (unitCost <= 0) {
-                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                        if (med) {
-                            unitCost = Store.getMedicineUnitCost(med, item.unit);
-                        }
+                    if (unitCost <= 0 && med) {
+                        unitCost = Store.getMedicineUnitCost(med, item.unit);
                     }
                     const lineCost = unitCost * rawQty;
                     orderCost += lineCost;
@@ -661,13 +659,11 @@ const ReportsModule = {
                 }
                 const netQty = Math.max(0, rawQty - returnedQty);
 
+                const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
                 // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice)
                 let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-                if (unitCost <= 0) {
-                    const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                    if (med) {
-                        unitCost = Store.getMedicineUnitCost(med, item.unit);
-                    }
+                if (unitCost <= 0 && med) {
+                    unitCost = Store.getMedicineUnitCost(med, item.unit);
                 }
                 const lineCost = unitCost * netQty;
                 orderCost += lineCost;
@@ -1584,13 +1580,11 @@ const ReportsModule = {
                         rawQty = item.price > 0 ? (item.lineTotal / item.price) : 0;
                     }
 
+                    const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
                     // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice)
                     let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-                    if (unitCost <= 0) {
-                        const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                        if (med) {
-                            unitCost = Store.getMedicineUnitCost(med, item.unit);
-                        }
+                    if (unitCost <= 0 && med) {
+                        unitCost = Store.getMedicineUnitCost(med, item.unit);
                     }
                     totalCost += (unitCost * rawQty);
                 });
