@@ -1,3 +1,7 @@
+param(
+    [switch]$WithCurrentData
+)
+
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================================" -ForegroundColor Green
@@ -75,25 +79,37 @@ foreach ($d in $dirsToCopy) {
     }
 }
 
-# Chuan bi thu muc data sach (Template mau) cho bo cai (TUYET DOI KHONG DONG GOI DU LIEU KINH DOANH THAT)
+# Chuan bi thu muc data cho bo cai dat
 $stagingData = Join-Path $stagingDir "data"
 New-Item -ItemType Directory -Path $stagingData -Force | Out-Null
 
-$templateSource = Join-Path $root "templates\data"
-if (Test-Path $templateSource) {
-    Copy-Item -Path "$templateSource\*" -Destination $stagingData -Recurse -Force
+if ($WithCurrentData) {
+    Write-Host "  -> [Phuong an 1] Dong goi TOAN BO DU LIEU THAT HIEN TAI vao bo cai dat..." -ForegroundColor Yellow
+    # Copy cac file .json database that, license.key, remote_domain.txt (khong copy file .bak hoac thu muc backups)
+    Get-ChildItem -Path "$root\data" -File | Where-Object { 
+        ($_.Extension -eq ".json" -and !$_.Name.EndsWith(".bak")) -or $_.Name -in @("license.key", "remote_domain.txt") 
+    } | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination $stagingData -Force
+        Write-Host "     + $($_.Name) ($([Math]::Round($_.Length/1KB, 1)) KB)" -ForegroundColor DarkGray
+    }
 } else {
-    # Du phong neu chua co thu muc template
-    Set-Content -Path (Join-Path $stagingData "settings.json") -Value '{"pharmacyName":"Nha Thuoc Chuan GPP","printFormat":"k80"}' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "medicines.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "suppliers.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "orders_2026.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "stockin_2026.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "vouchers_2026.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "returns_2026.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "customers.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "audit_log.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $stagingData "settings_history.json") -Value '[]' -Encoding UTF8
+    Write-Host "  -> [Phuong an 2] Dong goi DU LIEU MAU TRANG vao bo cai dat..." -ForegroundColor Cyan
+    $templateSource = Join-Path $root "templates\data"
+    if (Test-Path $templateSource) {
+        Copy-Item -Path "$templateSource\*" -Destination $stagingData -Recurse -Force
+    } else {
+        # Du phong neu chua co thu muc template
+        Set-Content -Path (Join-Path $stagingData "settings.json") -Value '{"pharmacyName":"Nha Thuoc Chuan GPP","printFormat":"k80"}' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "medicines.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "suppliers.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "orders_2026.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "stockin_2026.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "vouchers_2026.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "returns_2026.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "customers.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "audit_log.json") -Value '[]' -Encoding UTF8
+        Set-Content -Path (Join-Path $stagingData "settings_history.json") -Value '[]' -Encoding UTF8
+    }
 }
 
 # Copy tools (ngrok.exe)

@@ -61,16 +61,23 @@ const CustomersModule = {
 
         // Lắng nghe sự kiện cập nhật khách hàng & đơn hàng từ Store
         if (window.Store && typeof Store.on === 'function' && !this._storeListening) {
+            const isTabActive = () => {
+                const sec = document.getElementById('section-customers');
+                return sec && !sec.classList.contains('hidden');
+            };
+
             Store.on('customers:changed', () => {
-                this.renderSummaryCards();
-                this.renderCustomersTable();
+                if (isTabActive()) {
+                    this.renderSummaryCards();
+                    this.renderCustomersTable();
+                }
             });
             Store.on('orders:changed', () => {
-                if (typeof Store.syncCustomerOrdersStats === 'function') {
-                    Store.syncCustomerOrdersStats();
+                // Không chạy syncCustomerOrdersStats() tại đây (Store.addOrder đã cập nhật O(1) cho khách mua đơn)
+                if (isTabActive()) {
+                    this.renderSummaryCards();
+                    this.renderCustomersTable();
                 }
-                this.renderSummaryCards();
-                this.renderCustomersTable();
             });
             this._storeListening = true;
         }

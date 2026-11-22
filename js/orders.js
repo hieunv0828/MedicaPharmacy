@@ -24,8 +24,11 @@ const OrdersModule = {
         this.updateTabSummaryCards();
 
         Store.on('orders:changed', () => {
-            this.renderOrdersTable();
-            this.updateTabSummaryCards();
+            const sec = document.getElementById('section-orders');
+            if (sec && !sec.classList.contains('hidden')) {
+                this.renderOrdersTable();
+                this.updateTabSummaryCards();
+            }
         });
     },
 

@@ -28,7 +28,7 @@ data/backups/
 data/db_counts.json
 
 # Excel imports dropped by user
-imports/*.xlsx
-imports/*.xls
-imports/old/
+imports/
+*.xlsx
+*.xls
 

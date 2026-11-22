@@ -38,12 +38,21 @@ const ReportsModule = {
         // Nạp dữ liệu mặc định
         this.loadMonthlyReport();
 
+        const isReportsActive = () => {
+            const sec = document.getElementById('section-reports');
+            return sec && !sec.classList.contains('hidden');
+        };
+
         Store.on('orders:changed', () => {
-            this.refreshCurrentSubTab();
+            if (isReportsActive()) {
+                this.refreshCurrentSubTab();
+            }
         });
 
         Store.on('vouchers:changed', () => {
-            this.refreshCurrentSubTab();
+            if (isReportsActive()) {
+                this.refreshCurrentSubTab();
+            }
         });
 
         Store.on('stockin:changed', () => {

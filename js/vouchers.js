@@ -43,17 +43,28 @@ const VouchersModule = {
         this.renderSummaryCards();
         this.renderVouchersTable();
 
+        const isVouchersActive = () => {
+            const sec = document.getElementById('section-vouchers');
+            return sec && !sec.classList.contains('hidden');
+        };
+
         Store.on('vouchers:changed', () => {
-            this.renderSummaryCards();
-            this.renderVouchersTable();
+            if (isVouchersActive()) {
+                this.renderSummaryCards();
+                this.renderVouchersTable();
+            }
         });
 
         Store.on('orders:changed', () => {
-            this.renderSummaryCards();
+            if (isVouchersActive()) {
+                this.renderSummaryCards();
+            }
         });
 
         Store.on('stockin:changed', () => {
-            this.renderSummaryCards();
+            if (isVouchersActive()) {
+                this.renderSummaryCards();
+            }
         });
     },
 
