@@ -18,7 +18,40 @@ namespace MedicaPharmacy.Installer
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // Tự động nâng quyền Quản trị viên (Administrator) ngay từ đầu để có quyền tắt server cũ và thiết lập hệ thống
+            if (!IsAdministrator())
+            {
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = Application.ExecutablePath,
+                        Arguments = "--elevated",
+                        UseShellExecute = true,
+                        Verb = "runas"
+                    };
+                    Process.Start(psi);
+                    return;
+                }
+                catch
+                {
+                    // Người dùng bấm No trên UAC -> Tiếp tục chạy với quyền hiện tại
+                }
+            }
+
             Application.Run(new InstallerForm());
+        }
+
+        public static bool IsAdministrator()
+        {
+            try
+            {
+                WindowsIdentity identity = WindowsIdentity.GetCurrent();
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+            catch { return false; }
         }
     }
 
@@ -30,6 +63,7 @@ namespace MedicaPharmacy.Installer
         private CheckBox chkStartMenuShortcut;
         private CheckBox chkConfigureHosts;
         private CheckBox chkConfigureFirewall;
+        private CheckBox chkUpdateDatabase;
         private CheckBox chkLaunchAfterInstall;
         private ProgressBar progressBar;
         private Label lblStatus;
@@ -44,7 +78,7 @@ namespace MedicaPharmacy.Installer
         private void InitializeComponent()
         {
             this.Text = "Cài Đặt Phần Mềm Quản Lý Nhà Thuốc - MedicaPharmacy GPP";
-            this.Size = new Size(580, 440);
+            this.Size = new Size(580, 465);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -118,7 +152,7 @@ namespace MedicaPharmacy.Installer
             {
                 Text = " Tùy chọn thiết lập hệ thống ",
                 Location = new Point(25, 150),
-                Size = new Size(515, 132),
+                Size = new Size(515, 156),
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular),
                 ForeColor = Color.FromArgb(71, 85, 105)
             };
@@ -163,11 +197,21 @@ namespace MedicaPharmacy.Installer
                 ForeColor = Color.FromArgb(15, 23, 42)
             };
 
+            chkUpdateDatabase = new CheckBox
+            {
+                Text = "Nạp cơ sở dữ liệu thật từ bộ cài (Tự động sao lưu dữ liệu cũ)",
+                Checked = true,
+                Location = new Point(20, 108),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(180, 83, 9)
+            };
+
             chkLaunchAfterInstall = new CheckBox
             {
                 Text = "Khởi chạy phần mềm và mở trình duyệt ngay sau khi cài xong",
                 Checked = true,
-                Location = new Point(20, 108),
+                Location = new Point(20, 130),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42)
@@ -177,6 +221,7 @@ namespace MedicaPharmacy.Installer
             grpOptions.Controls.Add(chkStartMenuShortcut);
             grpOptions.Controls.Add(chkConfigureHosts);
             grpOptions.Controls.Add(chkConfigureFirewall);
+            grpOptions.Controls.Add(chkUpdateDatabase);
             grpOptions.Controls.Add(chkLaunchAfterInstall);
             this.Controls.Add(grpOptions);
 
@@ -184,7 +229,7 @@ namespace MedicaPharmacy.Installer
             lblStatus = new Label
             {
                 Text = "Sẵn sàng cài đặt. Nhấn 'Bắt Đầu Cài Đặt' để tiến hành.",
-                Location = new Point(25, 292),
+                Location = new Point(25, 318),
                 Size = new Size(515, 18),
                 ForeColor = Color.FromArgb(100, 116, 139),
                 Font = new Font("Segoe UI", 8.5F)
@@ -193,7 +238,7 @@ namespace MedicaPharmacy.Installer
 
             progressBar = new ProgressBar
             {
-                Location = new Point(25, 314),
+                Location = new Point(25, 340),
                 Size = new Size(515, 16),
                 Style = ProgressBarStyle.Blocks,
                 Value = 0
@@ -204,7 +249,7 @@ namespace MedicaPharmacy.Installer
             btnCancel = new Button
             {
                 Text = "Thoát",
-                Location = new Point(345, 342),
+                Location = new Point(345, 370),
                 Size = new Size(90, 32),
                 BackColor = Color.FromArgb(241, 245, 249),
                 FlatStyle = FlatStyle.System
@@ -218,7 +263,7 @@ namespace MedicaPharmacy.Installer
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(5, 150, 105),
-                Location = new Point(445, 342),
+                Location = new Point(445, 370),
                 Size = new Size(95, 32),
                 FlatStyle = FlatStyle.Flat,
                 Enabled = true
@@ -274,6 +319,38 @@ namespace MedicaPharmacy.Installer
 
         private void StopRunningServers()
         {
+            // 1. Cưỡng chế dừng dứt điểm cả cây tiến trình bằng taskkill
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = "taskkill.exe",
+                    Arguments = "/F /T /IM MedicaServer.exe",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                Process p = Process.Start(psi);
+                if (p != null) p.WaitForExit(3000);
+            }
+            catch { }
+
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = "taskkill.exe",
+                    Arguments = "/F /T /IM ngrok.exe",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                Process p = Process.Start(psi);
+                if (p != null) p.WaitForExit(3000);
+            }
+            catch { }
+
+            // 2. Dự phòng bằng Process.GetProcessesByName
             string[] procNames = new string[] { "MedicaServer", "ngrok" };
             foreach (string name in procNames)
             {
@@ -287,7 +364,7 @@ namespace MedicaPharmacy.Installer
                             try
                             {
                                 p.Kill();
-                                p.WaitForExit(3000);
+                                p.WaitForExit(2000);
                             }
                             catch { }
                         }
@@ -295,7 +372,7 @@ namespace MedicaPharmacy.Installer
                 }
                 catch { }
             }
-            Thread.Sleep(600); // Đảm bảo hệ điều hành giải phóng hoàn toàn file handles
+            Thread.Sleep(800); // Đảm bảo hệ điều hành giải phóng hoàn toàn file handles và socket cổng 80
         }
 
         private void BtnInstall_Click(object sender, EventArgs e)
@@ -485,29 +562,32 @@ namespace MedicaPharmacy.Installer
 
                         string normalized = entry.FullName.Replace('\\', '/');
 
-                        // BẢO VỆ DỮ LIỆU KHI NÂNG CẤP: Nếu máy đích đã có cơ sở dữ liệu data/,
-                        // TUYỆT ĐỐI KHÔNG GIẢI NÉN BẤT KỲ FILE DATA NÀO TỪ BỘ CÀI VÀO THƯ MỤC DATA CỦA NGƯỜI DÙNG!
-                        if (isUpgrade && normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
-
                         // BẢO VỆ DỮ LIỆU BACKUP: Giữ nguyên thư mục data/backups, không ghi đè bất kỳ file backup cũ nào
-                        if (normalized.Contains("data/backups/") && File.Exists(destPath))
+                        if (normalized.Contains("data/backups/"))
                         {
                             continue;
                         }
 
-                        // BẢO VỆ DỮ LIỆU KINH DOANH KHI CÀI MỚI: Không ghi đè file data đã tồn tại
-                        if (normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase) && File.Exists(destPath))
+                        // Nếu không chọn nạp database mới và máy đích đã có data cũ: giữ nguyên data cũ
+                        if (!chkUpdateDatabase.Checked && isUpgrade && normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
                         {
                             continue;
                         }
 
-                        // Cho phép ghi đè các file chương trình khác (exe, html, js, css...)
+                        // Cho phép ghi đè các file chương trình và dữ liệu (toàn bộ data cũ đã được sao lưu tự động vào data/backups trước đó)
                         entry.ExtractToFile(destPath, true);
                         int p = 10 + (int)((count / (float)total) * 45);
                         UpdateStatus("Đang giải nén: " + entry.Name, p);
+                    }
+
+                    // Dọn dẹp database.json cũ (định dạng monolithic cũ) nếu có để tránh nạp dữ liệu cũ
+                    if (chkUpdateDatabase.Checked)
+                    {
+                        string oldMonolith = Path.Combine(targetDir, "data", "database.json");
+                        if (File.Exists(oldMonolith))
+                        {
+                            try { File.Delete(oldMonolith); } catch { }
+                        }
                     }
                 }
             }
