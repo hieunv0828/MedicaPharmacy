@@ -1,0 +1,16 @@
+﻿{
+    "soundEnabled":  true,
+    "accountName":  "",
+    "receiptThankYou":  "Chúc Quý Khách Mau Bình Phục Sức Khỏe!",
+    "receiptNote":  "Thuốc đã mua vui lòng kiểm tra kỹ trước khi rời quầy. Nhà thuốc thực hiện theo đúng quy định GPP của Bộ Y Tế.",
+    "pharmacist":  "Dược sĩ phụ trách",
+    "printFormat":  "k80",
+    "bankCode":  "",
+    "gppCert":  "Đạt chuẩn Thực hành tốt nhà thuốc GPP - Bộ Y Tế",
+    "pharmacyName":  "Nhà Thuốc Chuẩn GPP",
+    "bankName":  "",
+    "phone":  "0900000000",
+    "accountNo":  "",
+    "bankBin":  "",
+    "address":  "123 Đường Y Dược, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh"
+}

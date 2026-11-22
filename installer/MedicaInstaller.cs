@@ -468,6 +468,7 @@ namespace MedicaPharmacy.Installer
                 {
                     int total = archive.Entries.Count;
                     int count = 0;
+                    bool isUpgrade = Directory.Exists(existingDataDir) && Directory.GetFiles(existingDataDir, "*.json").Length > 0;
 
                     foreach (ZipArchiveEntry entry in archive.Entries)
                     {
@@ -484,13 +485,26 @@ namespace MedicaPharmacy.Installer
 
                         string normalized = entry.FullName.Replace('\\', '/');
 
+                        // BẢO VỆ DỮ LIỆU KHI NÂNG CẤP: Nếu máy đích đã có cơ sở dữ liệu data/,
+                        // TUYỆT ĐỐI KHÔNG GIẢI NÉN BẤT KỲ FILE DATA NÀO TỪ BỘ CÀI VÀO THƯ MỤC DATA CỦA NGƯỜI DÙNG!
+                        if (isUpgrade && normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
                         // BẢO VỆ DỮ LIỆU BACKUP: Giữ nguyên thư mục data/backups, không ghi đè bất kỳ file backup cũ nào
                         if (normalized.Contains("data/backups/") && File.Exists(destPath))
                         {
                             continue;
                         }
 
-                        // Cho phép ghi đè các file khác (kể cả thư mục data)
+                        // BẢO VỆ DỮ LIỆU KINH DOANH KHI CÀI MỚI: Không ghi đè file data đã tồn tại
+                        if (normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase) && File.Exists(destPath))
+                        {
+                            continue;
+                        }
+
+                        // Cho phép ghi đè các file chương trình khác (exe, html, js, css...)
                         entry.ExtractToFile(destPath, true);
                         int p = 10 + (int)((count / (float)total) * 45);
                         UpdateStatus("Đang giải nén: " + entry.Name, p);

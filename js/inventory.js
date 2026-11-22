@@ -84,6 +84,9 @@ const InventoryModule = {
         this.renderDisposalSummaryCards();
         this.bindEvents();
 
+        // Khôi phục phiếu nhập chờ từ hàng đợi bền vững khi mở lại trang (Batch 10: Issue 3)
+        this._restorePendingStockInRecord();
+
         // Lắng nghe sự kiện thay đổi dữ liệu từ Store
         Store.on('all:changed', () => {
             this.renderCategoryFilter();
@@ -887,7 +890,24 @@ const InventoryModule = {
             suppliers.map(s => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${s.name} ${s.phone ? `(${s.phone})` : ''}</option>`).join('');
     },
 
-    openStockInModal() {
+    _restorePendingStockInRecord() {
+        if (!this.pendingStockInRecord && window.Store) {
+            const queue = (typeof Store._getPendingQueue === 'function') ? Store._getPendingQueue() : [];
+            const pendingQ = queue.find(q => q.type === 'stockin' && q.data && !q.data.isCancelled);
+            if (pendingQ && pendingQ.data) {
+                this.pendingStockInRecord = pendingQ.data;
+            } else {
+                const stockIns = (typeof Store.getStockInOrders === 'function') ? Store.getStockInOrders() : [];
+                const pendingLocal = stockIns.find(s => s && (s._isLocalPending || (Store._pendingLocalStockInIds && Store._pendingLocalStockInIds.has(s.id))) && !s.isCancelled);
+                if (pendingLocal) {
+                    this.pendingStockInRecord = pendingLocal;
+                }
+            }
+        }
+        return this.pendingStockInRecord;
+    },
+
+    async openStockInModal() {
         if (window.AuthModule && !AuthModule.canAccessTab('stockin')) {
             if (window.AppUtils && AppUtils.showToast) {
                 AppUtils.showToast('Bạn không có quyền lập phiếu nhập kho. Chỉ Quản trị viên (Admin) mới được phép!', 'warning');
@@ -895,6 +915,55 @@ const InventoryModule = {
                 alert('Chỉ Admin mới có quyền lập phiếu nhập kho!');
             }
             return;
+        }
+
+        // Khôi phục giao dịch phiếu nhập chờ từ hàng đợi bền vững nếu trong RAM chưa có (Batch 10: Issue 3)
+        this._restorePendingStockInRecord();
+
+        // Nếu có phiếu nhập đang chờ lưu máy chủ, hỏi người dùng muốn tiếp tục hay hủy bỏ an toàn (Batch 8: Issue 4 & Batch 9: Issue 2 & Batch 10: Issue 3)
+        if (this.pendingStockInRecord) {
+            const rec = this.pendingStockInRecord;
+            const resumePending = confirm(
+                `Hệ thống phát hiện phiếu nhập kho [${rec.id}] trước đó chưa hoàn tất lưu lên máy chủ.\n\n` +
+                `Bạn có muốn mở lại phiếu này để tiếp tục thử lưu lại không?\n` +
+                `- Bấm [OK]: Mở lại phiếu [${rec.id}] đang chờ để tiếp tục lưu.\n` +
+                `- Bấm [Cancel]: Hủy bỏ phiếu cũ này khỏi bộ nhớ và lập phiếu mới hoàn toàn.`
+            );
+            if (resumePending) {
+                this.editingStockInId = null;
+                this.stockInDraft = {
+                    supplierId: rec.supplierId || '',
+                    note: rec.note || '',
+                    paymentMethod: rec.paymentMethod || 'cash',
+                    items: JSON.parse(JSON.stringify(rec.items || []))
+                };
+                this.setStockInDraftPaymentMethod(rec.paymentMethod || 'cash');
+                this.renderStockInDraftTable();
+                this.populateStockInMedicineSelector();
+                this.renderSuppliersDropdown(rec.supplierId || '');
+                const selSup = document.getElementById('stockin-supplier');
+                if (selSup) selSup.value = rec.supplierId || '';
+                const txtNote = document.getElementById('stockin-note');
+                if (txtNote) txtNote.value = rec.note || '';
+
+                const titleEl = document.getElementById('modal-stockin-title');
+                if (titleEl) titleEl.innerHTML = `<i data-lucide="truck" class="w-5 h-5 text-amber-600"></i> Phiếu nhập chờ lưu máy chủ: <span class="font-mono text-amber-700">${rec.id}</span>`;
+                const saveBtnText = document.getElementById('stockin-btn-save-text');
+                if (saveBtnText) saveBtnText.innerText = 'Thử lưu lại máy chủ';
+
+                document.getElementById('modal-stockin').classList.remove('hidden');
+                if (window.lucide) lucide.createIcons();
+                return;
+            } else {
+                if (window.Store && typeof Store.rollbackPendingStockInOrder === 'function') {
+                    const res = await Store.rollbackPendingStockInOrder(rec);
+                    if (!res || !res.success) {
+                        alert(res && res.message ? res.message : 'Chưa thể hủy phiếu nhập đang chờ lưu lên máy chủ. Vui lòng thử lại!');
+                        return; // Giữ nguyên pendingStockInRecord để không mất trạng thái chờ!
+                    }
+                }
+                this.pendingStockInRecord = null;
+            }
         }
 
         this.editingStockInId = null;
@@ -993,8 +1062,30 @@ const InventoryModule = {
         }
     },
 
-    closeStockInModal() {
+    closeStockInModal(force = false) {
+        if (!force && this.isProcessingStockIn) {
+            alert('Hệ thống đang lưu phiếu nhập lên máy chủ, vui lòng đợi...');
+            return;
+        }
+        if (!force && this.pendingStockInRecord) {
+            const confirmed = confirm(
+                `Phiếu nhập kho [${this.pendingStockInRecord.id}] đã được tạo tạm trên máy nhưng chưa hoàn tất lưu lên máy chủ.\n\n` +
+                `Bạn có muốn tiếp tục ở lại để thử lưu lại không?\n` +
+                `- Bấm [OK]: Tiếp tục ở lại cửa sổ để thử lưu lại.\n` +
+                `- Bấm [Cancel]: Đóng cửa sổ (phiếu nhập vẫn được lưu tạm trên máy).`
+            );
+            if (confirmed) return;
+        }
         this.editingStockInId = null;
+        if (force) {
+            this.pendingStockInRecord = null;
+        }
+        this.isProcessingStockIn = false;
+        const confirmBtn = document.getElementById('btn-confirm-stockin') || document.querySelector('button[onclick*="saveStockInOrder"]');
+        if (confirmBtn && confirmBtn.dataset.origText) {
+            confirmBtn.innerText = confirmBtn.dataset.origText;
+            confirmBtn.disabled = false;
+        }
         document.getElementById('modal-stockin').classList.add('hidden');
     },
 
@@ -1279,72 +1370,132 @@ const InventoryModule = {
         if (window.lucide) lucide.createIcons();
     },
 
-    saveStockInOrder() {
+    async saveStockInOrder() {
+        if (this.isProcessingStockIn) return;
+
         if (this.stockInDraft.items.length === 0) {
             alert('Vui lòng thêm ít nhất một mặt hàng thuốc vào phiếu nhập!');
             return;
         }
 
-        const supplierId = document.getElementById('stockin-supplier').value;
-        const suppliers = Store.getSuppliers();
-        const sup = suppliers.find(s => s.id === supplierId);
-        const supplierName = sup ? sup.name : 'Nhà cung cấp tự do';
-        const note = document.getElementById('stockin-note').value.trim();
-        const settings = Store.getSettings();
-        const paymentMethod = this.stockInDraft.paymentMethod || 'cash';
+        const confirmBtn = document.getElementById('btn-confirm-stockin') || document.querySelector('button[onclick*="saveStockInOrder"]');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            if (!confirmBtn.dataset.origText) confirmBtn.dataset.origText = confirmBtn.innerText;
+            confirmBtn.innerText = 'Đang lưu máy chủ...';
+        }
+        this.isProcessingStockIn = true;
 
-        const totalAmount = this.stockInDraft.items.reduce((sum, item) => sum + item.total, 0);
+        try {
+            const supplierId = document.getElementById('stockin-supplier').value;
+            const suppliers = Store.getSuppliers();
+            const sup = suppliers.find(s => s.id === supplierId);
+            const supplierName = sup ? sup.name : 'Nhà cung cấp tự do';
+            const note = document.getElementById('stockin-note').value.trim();
+            const settings = Store.getSettings();
+            const paymentMethod = this.stockInDraft.paymentMethod || 'cash';
 
-        if (this.editingStockInId) {
-            const updatedRecord = {
-                id: this.editingStockInId,
-                supplierId: supplierId,
-                supplierName: supplierName,
-                paymentMethod: paymentMethod,
-                items: this.stockInDraft.items,
-                totalAmount: totalAmount,
-                pharmacist: settings.pharmacist || 'DS. Nguyễn Thanh Dung',
-                note: note
-            };
+            const totalAmount = this.stockInDraft.items.reduce((sum, item) => sum + item.total, 0);
 
-            Store.updateStockInOrder(updatedRecord);
-            AppUtils.playBeepSound('success');
-            this.closeStockInModal();
-            this.stockInCurrentPage = 1;
-            this.renderStockInHistory();
-            this.renderStockInSummaryCards();
-            this.renderInventoryTable();
-            App.showToast(`Đã cập nhật thành công phiếu nhập kho ${updatedRecord.id}! Tồn kho và Sổ Quỹ đã được điều chỉnh.`, 'success');
-        } else {
-            const stockInRecord = {
-                supplierId: supplierId,
-                supplierName: supplierName,
-                paymentMethod: paymentMethod,
-                items: this.stockInDraft.items,
-                totalAmount: totalAmount,
-                pharmacist: settings.pharmacist || 'DS. Nguyễn Thanh Dung',
-                note: note
-            };
+            if (this.editingStockInId) {
+                const updatedRecord = {
+                    id: this.editingStockInId,
+                    supplierId: supplierId,
+                    supplierName: supplierName,
+                    paymentMethod: paymentMethod,
+                    items: this.stockInDraft.items,
+                    totalAmount: totalAmount,
+                    pharmacist: settings.pharmacist || 'DS. Nguyễn Thanh Dung',
+                    note: note
+                };
 
-            // Đặt lại trang 1 và xóa ô tìm kiếm để người dùng thấy ngay phiếu vừa nhập
-            this.stockInCurrentPage = 1;
-            this.stockInSearchKeyword = '';
-            const searchInput = document.getElementById('stockin-search-input') || document.getElementById('stockin-search');
-            if (searchInput) searchInput.value = '';
+                Store.updateStockInOrder(updatedRecord);
+                const saveSuccess = await Store.persistImmediately();
+                if (saveSuccess === false) {
+                    alert(`⚠️ CẢNH BÁO: Cập nhật phiếu nhập [${updatedRecord.id}] chưa lưu được lên máy chủ!\n\nVui lòng bấm [Thử lưu lại máy chủ] sau khi kiểm tra kết nối mạng.`);
+                    if (confirmBtn) confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                    return;
+                }
 
-            const saved = Store.addStockInOrder(stockInRecord);
-            AppUtils.playBeepSound('success');
-            this.closeStockInModal();
-            this.renderStockInHistory();
-            this.renderStockInSummaryCards();
-            this.renderInventoryTable();
-            App.showToast(`Đã hoàn tất nhập kho phiếu ${saved.id} (${paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})! Tồn kho đã tự động cộng dồn.`, 'success');
+                AppUtils.playBeepSound('success');
+                this.isProcessingStockIn = false;
+                this.closeStockInModal(true);
+                this.stockInCurrentPage = 1;
+                this.renderStockInHistory();
+                this.renderStockInSummaryCards();
+                this.renderInventoryTable();
+                App.showToast(`Đã cập nhật thành công phiếu nhập kho ${updatedRecord.id}! Tồn kho và Sổ Quỹ đã được điều chỉnh.`, 'success');
+            } else {
+                if (!this.pendingStockInRecord) {
+                    const clientTxId = 'tx_si_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                    const stockInRecord = {
+                        clientTxId: clientTxId,
+                        supplierId: supplierId,
+                        supplierName: supplierName,
+                        paymentMethod: paymentMethod,
+                        items: this.stockInDraft.items,
+                        totalAmount: totalAmount,
+                        pharmacist: settings.pharmacist || 'DS. Nguyễn Thanh Dung',
+                        note: note
+                    };
+                    const saved = Store.addStockInOrder(stockInRecord);
+                    this.pendingStockInRecord = saved;
+                }
 
-            // Tự động hỏi / mở in tem mã vạch dán hộp cho các mặt hàng vừa nhập
-            if (window.BarcodePrinterModule) {
-                setTimeout(() => {
-                    BarcodePrinterModule.promptPrintAfterStockIn(saved);
-                }, 400);
+                const currentSaved = this.pendingStockInRecord;
+
+                // Chờ lưu lên máy chủ và xác nhận kết quả (Issue 4)
+                let saveSuccess = true;
+                if (window.Store && typeof Store.persistImmediately === 'function') {
+                    saveSuccess = await Store.persistImmediately();
+                }
+
+                if (saveSuccess === false) {
+                    alert(`⚠️ CẢNH BÁO: Phiếu nhập kho [${currentSaved.id}] chưa lưu được lên máy chủ!\n\nLý do: Mất kết nối mạng hoặc máy chủ từ chối. Dữ liệu đã được lưu tạm trên máy.\nBạn hãy bấm [Thử lưu lại máy chủ] để thử lại.`);
+                    if (confirmBtn) confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                    return;
+                }
+
+                // Xác minh phiếu nhập thực sự tồn tại trong Store sau khi lưu máy chủ
+                const currentStockIns = (Store.getStockInOrders && Store.getStockInOrders()) || [];
+                const verified = currentStockIns.some(s => (currentSaved.clientTxId ? s.clientTxId === currentSaved.clientTxId : s.id === currentSaved.id));
+                if (!verified) {
+                    alert(`⚠️ Lỗi xung đột: Phiếu nhập [${currentSaved.id}] chưa được ghi nhận sau khi đồng bộ máy chủ. Vui lòng bấm [Thử lưu lại máy chủ] để áp dụng lại.`);
+                    if (confirmBtn) confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                    return;
+                }
+
+                const finalRecord = currentSaved;
+                this.pendingStockInRecord = null;
+
+                // Đặt lại trang 1 và xóa ô tìm kiếm để người dùng thấy ngay phiếu vừa nhập
+                this.stockInCurrentPage = 1;
+                this.stockInSearchKeyword = '';
+                const searchInput = document.getElementById('stockin-search-input') || document.getElementById('stockin-search');
+                if (searchInput) searchInput.value = '';
+
+                AppUtils.playBeepSound('success');
+                this.isProcessingStockIn = false;
+                this.closeStockInModal(true);
+                this.renderStockInHistory();
+                this.renderStockInSummaryCards();
+                this.renderInventoryTable();
+                App.showToast(`Đã hoàn tất nhập kho phiếu ${finalRecord.id} (${paymentMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})! Tồn kho đã tự động cộng dồn.`, 'success');
+
+                // Tự động hỏi / mở in tem mã vạch dán hộp cho các mặt hàng vừa nhập
+                if (window.BarcodePrinterModule) {
+                    setTimeout(() => {
+                        BarcodePrinterModule.promptPrintAfterStockIn(finalRecord);
+                    }, 400);
+                }
+            }
+        } finally {
+            this.isProcessingStockIn = false;
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                if (!this.pendingStockInRecord && confirmBtn.dataset.origText) {
+                    confirmBtn.innerText = confirmBtn.dataset.origText;
+                }
             }
         }
     },
@@ -1761,11 +1912,13 @@ const InventoryModule = {
             });
         }
 
-        const cashOrders = filtered.filter(o => (o.paymentMethod || 'cash') === 'cash');
-        const transferOrders = filtered.filter(o => o.paymentMethod === 'transfer');
-        const returnedOrders = filtered.filter(o => o.returnStatus || (o.returns && o.returns.length > 0));
+        // Loại bỏ phiếu nhập đã hủy khỏi các thẻ thống kê tổng tiền và số lượng hiệu lực (Batch 10: Issue 4)
+        const activeOrders = filtered.filter(o => !o.isCancelled);
+        const cashOrders = activeOrders.filter(o => (o.paymentMethod || 'cash') === 'cash');
+        const transferOrders = activeOrders.filter(o => o.paymentMethod === 'transfer');
+        const returnedOrders = activeOrders.filter(o => o.returnStatus || (o.returns && o.returns.length > 0));
 
-        const totalAll = filtered.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        const totalAll = activeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         const totalCash = cashOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         const totalTransfer = transferOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
@@ -1782,7 +1935,7 @@ const InventoryModule = {
         const badgeTransfer = document.getElementById('badge-stockin-transfer');
         const badgeReturned = document.getElementById('badge-stockin-returned');
 
-        if (badgeAll) badgeAll.innerText = filtered.length;
+        if (badgeAll) badgeAll.innerText = activeOrders.length;
         if (badgeCash) badgeCash.innerText = cashOrders.length;
         if (badgeTransfer) badgeTransfer.innerText = transferOrders.length;
         if (badgeReturned) badgeReturned.innerText = returnedOrders.length;

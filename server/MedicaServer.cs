@@ -105,8 +105,10 @@ namespace MedicaPharmacy
         private byte[] _dbCacheBytes = null;
         private DateTime _dbCacheTime = DateTime.MinValue;
         private static readonly TimeSpan _dbCacheTtl = TimeSpan.FromSeconds(2);
-        private static long _dbVersion = 1;
+        private static readonly string _serverInstanceId = Guid.NewGuid().ToString("N").Substring(0, 8);
+        private static long _dbVersion = (long)(DateTime.UtcNow.Subtract(new DateTime(2026, 1, 1))).TotalSeconds;
         private static string _dbLastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        private static bool _recoveryBlocked = false;
 
         public MedicaTrayApplicationContext(string[] args = null)
         {
@@ -161,8 +163,8 @@ namespace MedicaPharmacy
             CheckLicenseStatus();
 
             InitDatabaseIfEmpty();
-            // Nạp sẵn số bản ghi đã biết ở nền để guard chống ghi đè hoạt động ngay từ đơn đầu tiên
-            ThreadPool.QueueUserWorkItem((s) => { try { EnsureKnownCounts(); } catch { } });
+            // Nạp sẵn số bản ghi và phiên bản cơ sở dữ liệu đồng bộ để guard chống ghi đè hoạt động ngay từ đơn đầu tiên
+            try { EnsureKnownCounts(); } catch { }
             StartServer();
             StartAutoBackupEngine();
             StartNgrokTunnel();
@@ -644,7 +646,8 @@ namespace MedicaPharmacy
                         // API kiểm tra trạng thái cơ sở dữ liệu siêu nhẹ (chỉ ~70 bytes thay vì tải toàn bộ database 17MB)
                         if (rawUrl.Equals("/api/database/status", StringComparison.OrdinalIgnoreCase))
                         {
-                            string statusJson = string.Format("{{\"status\":\"online\",\"version\":{0},\"lastUpdated\":\"{1}\"}}", _dbVersion, _dbLastUpdated);
+                            EnsureKnownCounts();
+                            string statusJson = string.Format("{{\"status\":\"online\",\"version\":{0},\"lastUpdated\":\"{1}\",\"instanceId\":\"{2}\"}}", _dbVersion, _dbLastUpdated, _serverInstanceId);
                             SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(statusJson));
                             return;
                         }
@@ -692,25 +695,21 @@ namespace MedicaPharmacy
                             else if (method == "POST")
                             {
                                 bool forceShrink = rawHeader.IndexOf("X-Force-Shrink: true", StringComparison.OrdinalIgnoreCase) >= 0;
+                                bool forceVersion = rawHeader.IndexOf("X-Force-Version: true", StringComparison.OrdinalIgnoreCase) >= 0 || forceShrink;
                                 string blockError;
-                                bool saved = SaveFullDatabase(body, forceShrink, out blockError);
+                                long newVersion;
+                                string newLastUpdated;
+                                bool saved = SaveFullDatabase(body, forceShrink, forceVersion, out blockError, out newVersion, out newLastUpdated);
                                 if (saved)
                                 {
-                                    // Invalidate cache on save & increment DB version
-                                    lock (_dbLock)
-                                    {
-                                        _dbVersion++;
-                                        _dbLastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
-                                        _dbCache = null;
-                                        _dbCacheBytes = null;
-                                    }
-                                    string ok = string.Format("{{\"success\":true,\"version\":{0},\"lastUpdated\":\"{1}\",\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}}", _dbVersion, _dbLastUpdated);
+                                    string ok = string.Format("{{\"success\":true,\"version\":{0},\"lastUpdated\":\"{1}\",\"message\":\"Lưu dữ liệu máy chủ thành công (Phân vùng JSON tối ưu)\"}}", newVersion, newLastUpdated);
                                     SendResponse(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(ok));
                                 }
                                 else if (!string.IsNullOrEmpty(blockError))
                                 {
-                                    // Bị guard chặn: trả 409 để client biết phải tải lại dữ liệu
-                                    SendResponse(stream, 409, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(blockError));
+                                    // Bị guard chặn (data_shrink_blocked, version_conflict, missing_version): trả 409 để client biết tải lại; lỗi khác trả 500
+                                    int statusCode = (blockError.Contains("data_shrink_blocked") || blockError.Contains("version_conflict") || blockError.Contains("missing_version") || blockError.Contains("GUARD")) ? 409 : 500;
+                                    SendResponse(stream, statusCode, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(blockError));
                                 }
                                 else
                                 {
@@ -841,6 +840,7 @@ namespace MedicaPharmacy
         {
             lock (_dbLock)
             {
+                RecoverInterruptedTransactions();
                 MigrateSingleDatabaseIfPresent();
                 string medFile = Path.Combine(_dataDir, "medicines.json");
                 if (!File.Exists(medFile) || new FileInfo(medFile).Length == 0)
@@ -913,6 +913,204 @@ namespace MedicaPharmacy
                 {
                     try { File.AppendAllText(Path.Combine(_webRoot, "migrate_err.txt"), ex.ToString()); } catch { }
                 }
+            }
+        }
+
+        private void RecoverInterruptedTransactions()
+        {
+            try
+            {
+                if (!Directory.Exists(_dataDir)) return;
+
+                string journalPath = Path.Combine(_dataDir, ".tx_journal");
+                string[] txbakFiles = Directory.GetFiles(_dataDir, "*.txbak");
+                string[] tmpFiles = Directory.GetFiles(_dataDir, "*.tmp");
+
+                if (File.Exists(journalPath))
+                {
+                    string journalText = "";
+                    try { journalText = File.ReadAllText(journalPath, Encoding.UTF8); } catch { }
+
+                    if (journalText.Contains("\"status\":\"committed\""))
+                    {
+                        // Giao dịch trước đó đã thay thế thành công toàn bộ file đích trước khi mất điện.
+                        // KHÔNG ĐƯỢC ROLLBACK vì các file đích đều là dữ liệu mới nhất đồng bộ.
+                        AppendLimitedErrorLog("save_err.txt", "Khởi động: Giao dịch trước đó đã commit thành công trước khi tắt máy. Dọn dẹp file tạm...");
+                        bool allCleaned = true;
+                        foreach (string txbak in txbakFiles)
+                        {
+                            try { File.Delete(txbak); }
+                            catch (Exception delEx)
+                            {
+                                allCleaned = false;
+                                AppendLimitedErrorLog("save_err.txt", string.Format("Khởi động: Không thể xóa file backup dọn dẹp {0}: {1}", txbak, delEx.Message));
+                            }
+                        }
+                        foreach (string tmp in tmpFiles)
+                        {
+                            try { File.Delete(tmp); }
+                            catch (Exception tmpEx)
+                            {
+                                allCleaned = false;
+                                AppendLimitedErrorLog("save_err.txt", string.Format("Khởi động: Không thể xóa file tạm {0}: {1}", tmp, tmpEx.Message));
+                            }
+                        }
+
+                        // CHỈ XÓA JOURNAL KHI TẤT CẢ FILE .txbak VÀ .tmp ĐÃ ĐƯỢC DỌN DẸP SẠCH SẼ!
+                        // Nếu còn file .txbak bị khóa, GIỮ NGUYÊN journal committed để lần khởi động sau không rollback nhầm dữ liệu mới!
+                        if (allCleaned)
+                        {
+                            try { File.Delete(journalPath); } catch { }
+                        }
+                        else
+                        {
+                            AppendLimitedErrorLog("save_err.txt", "Cảnh báo an toàn: Vẫn còn file backup .txbak chưa xóa được, GIỮ LẠI .tx_journal trạng thái committed.");
+                        }
+                        return;
+                    }
+
+                    // Journal tồn tại nhưng không committed: Giao dịch bị ngắt quãng giữa chừng khi chưa hoàn tất.
+                    // Đọc danh sách file để hoàn nguyên file cũ và xóa file mới tạo
+                    try
+                    {
+                        var serializer = new JavaScriptSerializer();
+                        var jData = serializer.Deserialize<Dictionary<string, object>>(journalText);
+                        if (jData != null)
+                        {
+                            var preExisting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            if (jData.ContainsKey("preExisting") && jData["preExisting"] is ArrayList)
+                            {
+                                foreach (var p in (ArrayList)jData["preExisting"])
+                                {
+                                    if (p != null) preExisting.Add(p.ToString());
+                                }
+                            }
+
+                            bool allFilesRestored = true;
+
+                            // 1. Phục hồi các file đã tồn tại trước đó từ .txbak
+                            foreach (string txbak in txbakFiles)
+                            {
+                                try
+                                {
+                                    string liveFile = txbak.Substring(0, txbak.Length - ".txbak".Length);
+                                    File.Copy(txbak, liveFile, true);
+                                    File.Delete(txbak);
+                                    AppendLimitedErrorLog("save_err.txt", string.Format("Đã hoàn nguyên: {0} từ {1}", liveFile, txbak));
+                                }
+                                catch (Exception ex)
+                                {
+                                    allFilesRestored = false;
+                                    AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi hoàn nguyên file {0}: {1}", txbak, ex.Message));
+                                }
+                            }
+
+                            // 2. Xóa các file mới tạo trong giao dịch dở dang (có trong targets nhưng không có trong preExisting)
+                            if (jData.ContainsKey("targets") && jData["targets"] is ArrayList)
+                            {
+                                foreach (var t in (ArrayList)jData["targets"])
+                                {
+                                    if (t != null)
+                                    {
+                                        string tPath = t.ToString();
+                                        if (!preExisting.Contains(tPath) && File.Exists(tPath))
+                                        {
+                                            try
+                                            {
+                                                File.Delete(tPath);
+                                                AppendLimitedErrorLog("save_err.txt", string.Format("Đã xóa file mới tạo trong giao dịch dở dang: {0}", tPath));
+                                            }
+                                            catch (Exception delEx)
+                                            {
+                                                allFilesRestored = false;
+                                                AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi xóa file mới {0}: {1}", tPath, delEx.Message));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Dọn dẹp các file .tmp còn dang dở trong thư mục data
+                            foreach (string tmp in tmpFiles) { try { File.Delete(tmp); } catch { } }
+
+                            // CHỈ XÓA JOURNAL KHI TẤT CẢ FILE ĐÃ ĐƯỢC PHỤC HỒI / DỌN DẸP THÀNH CÔNG 100%!
+                            if (allFilesRestored)
+                            {
+                                try { File.Delete(journalPath); } catch { }
+                                _recoveryBlocked = false;
+                            }
+                            else
+                            {
+                                _recoveryBlocked = true;
+                                AppendLimitedErrorLog("save_err.txt", "Cảnh báo an toàn: Phục hồi chưa hoàn tất 100%. GIỮ LẠI .tx_journal và các file .txbak; khóa ghi hệ thống đến khi phục hồi thành công.");
+                            }
+                            return;
+                        }
+                    }
+                    catch (Exception jEx)
+                    {
+                        AppendLimitedErrorLog("save_err.txt", "Lỗi phân tích journal: " + jEx.Message);
+                    }
+                }
+
+                // Nếu không có journal nhưng còn file .txbak mồ côi:
+                if (txbakFiles.Length > 0)
+                {
+                    AppendLimitedErrorLog("save_err.txt", string.Format("Khởi động: Phát hiện {0} file .txbak mồ côi. Đang kiểm tra để xử lý an toàn...", txbakFiles.Length));
+                    bool allOrphansHandled = true;
+                    foreach (string txbak in txbakFiles)
+                    {
+                        try
+                        {
+                            string liveFile = txbak.Substring(0, txbak.Length - ".txbak".Length);
+                            if (File.Exists(liveFile))
+                            {
+                                DateTime liveTime = File.GetLastWriteTimeUtc(liveFile);
+                                DateTime bakTime = File.GetLastWriteTimeUtc(txbak);
+                                // Nếu file sống mới hơn hoặc bằng file backup: đây là backup còn sót của giao dịch đã commit thành công!
+                                // TUYỆT ĐỐI KHÔNG GHI ĐÈ LÊN FILE SỐNG! Chỉ xóa bỏ file .txbak mồ côi
+                                if (liveTime >= bakTime)
+                                {
+                                    AppendLimitedErrorLog("save_err.txt", string.Format("Bỏ qua rollback file {0} vì file sống mới hơn hoặc bằng file backup. Đang xóa .txbak mồ côi...", liveFile));
+                                    try { File.Delete(txbak); } catch { allOrphansHandled = false; }
+                                    continue;
+                                }
+                            }
+
+                            // Chỉ khôi phục khi file sống không tồn tại hoặc cũ hơn file backup dang dở
+                            File.Copy(txbak, liveFile, true);
+                            File.Delete(txbak);
+                            AppendLimitedErrorLog("save_err.txt", string.Format("Đã hoàn nguyên: {0} từ {1}", liveFile, txbak));
+                        }
+                        catch (Exception ex)
+                        {
+                            allOrphansHandled = false;
+                            AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi xử lý file {0}: {1}", txbak, ex.Message));
+                        }
+                    }
+                    if (!allOrphansHandled)
+                    {
+                        _recoveryBlocked = true;
+                    }
+                }
+
+                // Dọn dẹp các file .tmp còn dang dở trong thư mục data
+                foreach (string tmp in tmpFiles)
+                {
+                    try { File.Delete(tmp); } catch { }
+                }
+                try { if (File.Exists(journalPath)) File.Delete(journalPath); } catch { }
+
+                // Kiểm tra lại trạng thái sau khi dọn dẹp: nếu không còn journal và không còn file .txbak thì giải phóng cờ khóa ghi (Item 7)
+                string[] remainingTxbak = Directory.GetFiles(_dataDir, "*.txbak");
+                if (!File.Exists(journalPath) && remainingTxbak.Length == 0)
+                {
+                    _recoveryBlocked = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLimitedErrorLog("save_err.txt", "Lỗi RecoverInterruptedTransactions: " + ex.Message);
             }
         }
 
@@ -994,7 +1192,8 @@ namespace MedicaPharmacy
                   .Append(",\"vouchers\":").Append(vouchersJson)
                   .Append(",\"purchaseReturns\":").Append(returnsJson)
                   .Append(",\"version\":").Append(_dbVersion)
-                  .Append(",\"lastUpdated\":\"").Append(_dbLastUpdated).Append("\"}");
+                  .Append(",\"lastUpdated\":\"").Append(_dbLastUpdated).Append("\"")
+                  .Append(",\"instanceId\":\"").Append(_serverInstanceId).Append("\"}");
 
                 _dbCache = sb.ToString();
                 _dbCacheTime = DateTime.UtcNow;
@@ -1023,16 +1222,61 @@ namespace MedicaPharmacy
             catch { return DateTime.UtcNow; }
         }
 
-        private bool SaveFullDatabase(string body, bool forceShrink, out string blockError)
+        private bool SaveFullDatabase(string body, bool forceShrink, bool forceVersion, out string blockError, out long newVersion, out string newLastUpdated)
         {
             blockError = null;
+            newVersion = 0;
+            newLastUpdated = null;
             if (string.IsNullOrEmpty(body) || !body.Trim().StartsWith("{")) return false;
             var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
             Dictionary<string, object> dict = null;
             try { dict = serializer.Deserialize<Dictionary<string, object>>(body); }
             catch { }
+            if (dict == null) return false;
+
             lock (_dbLock)
             {
+                if (_recoveryBlocked)
+                {
+                    RecoverInterruptedTransactions();
+                    if (_recoveryBlocked)
+                    {
+                        blockError = "{\"success\":false,\"error\":\"recovery_in_progress\",\"message\":\"Hệ thống chưa hoàn tất khôi phục giao dịch dở dang sau sự cố. Tạm thời khóa ghi để bảo vệ dữ liệu.\"}";
+                        AppendLimitedErrorLog("save_err.txt", "Chặn ghi: Phục hồi chưa hoàn tất, _recoveryBlocked = true");
+                        return false;
+                    }
+                }
+
+                // Kiểm tra phiên bản (Optimistic Concurrency Control) trong cùng khóa _dbLock
+                if (!forceVersion && _dbVersion > 0)
+                {
+                    long clientVersion = -1;
+                    if (dict.ContainsKey("baseVersion") && dict["baseVersion"] != null)
+                    {
+                        try { clientVersion = Convert.ToInt64(dict["baseVersion"]); } catch { }
+                    }
+                    else if (dict.ContainsKey("version") && dict["version"] != null)
+                    {
+                        try { clientVersion = Convert.ToInt64(dict["version"]); } catch { }
+                    }
+
+                    if (clientVersion <= 0)
+                    {
+                        blockError = "{\"success\":false,\"error\":\"missing_version\",\"message\":\"Yêu cầu ghi bị từ chối do thiếu phiên bản dữ liệu cơ sở (baseVersion). Hãy làm mới trang.\"}";
+                        AppendLimitedErrorLog("save_err.txt", "Chặn ghi đè: Thiếu phiên bản cơ sở (missing_version)");
+                        return false;
+                    }
+
+                    if (clientVersion != _dbVersion)
+                    {
+                        blockError = string.Format(
+                            "{{\"success\":false,\"error\":\"version_conflict\",\"serverVersion\":{0},\"clientVersion\":{1},\"message\":\"Dữ liệu trên máy chủ đã được cập nhật bởi phiên khác (V{0} so với V{1}). Vui lòng tải lại dữ liệu mới.\"}}",
+                            _dbVersion, clientVersion);
+                        AppendLimitedErrorLog("save_err.txt", string.Format("Chặn ghi đè: Xung đột phiên bản V{0} (server) != V{1} (client)", _dbVersion, clientVersion));
+                        return false;
+                    }
+                }
+
                 if (!forceShrink)
                 {
                     string guardError = CheckCountGuard(dict);
@@ -1044,7 +1288,20 @@ namespace MedicaPharmacy
                     }
                 }
                 bool ok = SaveFullDatabaseInternal(dict);
-                if (ok) UpdateKnownCountsFromDict(dict);
+                if (!ok && string.IsNullOrEmpty(blockError))
+                {
+                    blockError = "{\"success\":false,\"error\":\"Lỗi ghi file cơ sở dữ liệu trên máy chủ\"}";
+                }
+                if (ok)
+                {
+                    _dbVersion++;
+                    _dbLastUpdated = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                    _dbCache = null;
+                    _dbCacheBytes = null;
+                    newVersion = _dbVersion;
+                    newLastUpdated = _dbLastUpdated;
+                    UpdateKnownCountsFromDict(dict);
+                }
                 return ok;
             }
         }
@@ -1068,6 +1325,11 @@ namespace MedicaPharmacy
                             _knownVouchers = ToLong(d, "vouchers");
                             _knownStockIns = ToLong(d, "stockIns");
                             _knownCustomers = ToLong(d, "customers");
+                            if (d.ContainsKey("version"))
+                            {
+                                long savedVer = ToLong(d, "version");
+                                if (savedVer >= _dbVersion) _dbVersion = savedVer + 1;
+                            }
                             _knownCountsLoaded = true;
                             return;
                         }
@@ -1125,8 +1387,8 @@ namespace MedicaPharmacy
             try
             {
                 string json = string.Format(
-                    "{{\"medicines\":{0},\"orders\":{1},\"vouchers\":{2},\"stockIns\":{3},\"customers\":{4},\"updatedAt\":\"{5}\"}}",
-                    _knownMedicines, _knownOrders, _knownVouchers, _knownStockIns, _knownCustomers,
+                    "{{\"version\":{0},\"medicines\":{1},\"orders\":{2},\"vouchers\":{3},\"stockIns\":{4},\"customers\":{5},\"updatedAt\":\"{6}\"}}",
+                    _dbVersion, _knownMedicines, _knownOrders, _knownVouchers, _knownStockIns, _knownCustomers,
                     DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
                 WriteAtomicJson(_countsFile, json);
             }
@@ -1218,38 +1480,54 @@ namespace MedicaPharmacy
         {
             try
             {
-                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
                 if (dict == null) return false;
+
+                // Kiểm tra xem có file backup .txbak hoặc journal chưa dọn dẹp không (chặn ghi nếu chưa dọn dẹp an toàn)
+                string[] pendingTxbak = Directory.GetFiles(_dataDir, "*.txbak");
+                if (pendingTxbak.Length > 0 || File.Exists(Path.Combine(_dataDir, ".tx_journal")))
+                {
+                    RecoverInterruptedTransactions();
+                    pendingTxbak = Directory.GetFiles(_dataDir, "*.txbak");
+                    if (pendingTxbak.Length > 0)
+                    {
+                        AppendLimitedErrorLog("save_err.txt", "Chặn ghi: Thư mục dữ liệu đang còn file backup .txbak chưa dọn dẹp hoặc bị khóa!");
+                        return false;
+                    }
+                }
+
+                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+
+                var filesToWrite = new Dictionary<string, string>();
 
                 // 1. Danh mục & cài đặt thường trực
                 if (dict.ContainsKey("settings") && dict["settings"] != null)
                 {
-                    WriteAtomicJson(Path.Combine(_dataDir, "settings.json"), serializer.Serialize(dict["settings"]));
+                    filesToWrite[Path.Combine(_dataDir, "settings.json")] = serializer.Serialize(dict["settings"]);
                 }
 
                 if (dict.ContainsKey("medicines") && dict["medicines"] != null)
                 {
-                    WriteAtomicJson(Path.Combine(_dataDir, "medicines.json"), serializer.Serialize(dict["medicines"]));
+                    filesToWrite[Path.Combine(_dataDir, "medicines.json")] = serializer.Serialize(dict["medicines"]);
                 }
 
                 if (dict.ContainsKey("suppliers") && dict["suppliers"] != null)
                 {
-                    WriteAtomicJson(Path.Combine(_dataDir, "suppliers.json"), serializer.Serialize(dict["suppliers"]));
+                    filesToWrite[Path.Combine(_dataDir, "suppliers.json")] = serializer.Serialize(dict["suppliers"]);
                 }
 
                 if (dict.ContainsKey("customers") && dict["customers"] != null)
                 {
-                    WriteAtomicJson(Path.Combine(_dataDir, "customers.json"), serializer.Serialize(dict["customers"]));
+                    filesToWrite[Path.Combine(_dataDir, "customers.json")] = serializer.Serialize(dict["customers"]);
                 }
 
                 if (dict.ContainsKey("settingsHistory") && dict["settingsHistory"] != null)
                 {
-                    WriteAtomicJson(Path.Combine(_dataDir, "settings_history.json"), serializer.Serialize(dict["settingsHistory"]));
+                    filesToWrite[Path.Combine(_dataDir, "settings_history.json")] = serializer.Serialize(dict["settingsHistory"]);
                 }
 
                 if (dict.ContainsKey("auditLog") && dict["auditLog"] != null)
                 {
-                    WriteAtomicJson(Path.Combine(_dataDir, "audit_log.json"), serializer.Serialize(dict["auditLog"]));
+                    filesToWrite[Path.Combine(_dataDir, "audit_log.json")] = serializer.Serialize(dict["auditLog"]);
                 }
 
                 string curYear = DateTime.Now.Year.ToString();
@@ -1278,7 +1556,7 @@ namespace MedicaPharmacy
                     foreach (var kvp in byYear)
                     {
                         string fPath = Path.Combine(_dataDir, string.Format("orders_{0}.json", kvp.Key));
-                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                        filesToWrite[fPath] = serializer.Serialize(kvp.Value);
                     }
                 }
 
@@ -1306,7 +1584,7 @@ namespace MedicaPharmacy
                     foreach (var kvp in byYear)
                     {
                         string fPath = Path.Combine(_dataDir, string.Format("stockin_{0}.json", kvp.Key));
-                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                        filesToWrite[fPath] = serializer.Serialize(kvp.Value);
                     }
                 }
 
@@ -1334,7 +1612,7 @@ namespace MedicaPharmacy
                     foreach (var kvp in byYear)
                     {
                         string fPath = Path.Combine(_dataDir, string.Format("vouchers_{0}.json", kvp.Key));
-                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                        filesToWrite[fPath] = serializer.Serialize(kvp.Value);
                     }
                 }
 
@@ -1362,19 +1640,219 @@ namespace MedicaPharmacy
                     foreach (var kvp in byYear)
                     {
                         string fPath = Path.Combine(_dataDir, string.Format("returns_{0}.json", kvp.Key));
-                        WriteAtomicJson(fPath, serializer.Serialize(kvp.Value));
+                        filesToWrite[fPath] = serializer.Serialize(kvp.Value);
                     }
+                }
+
+                return CommitAllFilesTransactionally(filesToWrite);
+            }
+            catch (Exception ex)
+            {
+                AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi SaveFullDatabaseInternal: {0}\r\nStack: {1}", ex.Message, ex.StackTrace));
+                return false;
+            }
+        }
+
+        private bool CommitAllFilesTransactionally(Dictionary<string, string> filesToWrite)
+        {
+            if (filesToWrite == null || filesToWrite.Count == 0) return true;
+
+            var stagedTmpFiles = new List<string>();
+            var backupsCreated = new Dictionary<string, string>(); // livePath -> rollbackPath
+            var preExistingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var newlyCreatedFiles = new List<string>();
+            string journalPath = Path.Combine(_dataDir, ".tx_journal");
+
+            try
+            {
+                // Phase 1: Ghi toàn bộ nội dung ra file tạm .tmp và kiểm tra tính toàn vẹn
+                foreach (var kvp in filesToWrite)
+                {
+                    string targetPath = kvp.Key;
+                    string content = kvp.Value;
+                    string tmpPath = targetPath + ".tmp";
+
+                    File.WriteAllText(tmpPath, content, Encoding.UTF8);
+                    var fi = new FileInfo(tmpPath);
+                    if (!fi.Exists || fi.Length == 0)
+                    {
+                        throw new IOException("Ghi file tạm thất bại hoặc 0 byte: " + tmpPath);
+                    }
+                    stagedTmpFiles.Add(tmpPath);
+                }
+
+                // Phase 2: Xác định file nào đã tồn tại, file nào là mới, và tạo bản sao rollback .txbak cho các file đã tồn tại
+                foreach (var kvp in filesToWrite)
+                {
+                    string targetPath = kvp.Key;
+                    if (File.Exists(targetPath))
+                    {
+                        preExistingFiles.Add(targetPath);
+                        string rollbackPath = targetPath + ".txbak";
+                        File.Copy(targetPath, rollbackPath, true);
+                        backupsCreated[targetPath] = rollbackPath;
+                    }
+                }
+
+                // Ghi nhật ký bắt đầu thay thế file sống (BẮT BUỘC: nếu ghi journal lỗi thì abort ngay trước khi đụng file sống)
+                var journalObj = new Dictionary<string, object>
+                {
+                    { "status", "in_progress" },
+                    { "time", DateTime.UtcNow.ToString("o") },
+                    { "targets", new List<string>(filesToWrite.Keys) },
+                    { "preExisting", new List<string>(preExistingFiles) }
+                };
+                string journalJson = new JavaScriptSerializer().Serialize(journalObj);
+                File.WriteAllText(journalPath, journalJson, Encoding.UTF8);
+
+                // Phase 3: Commit tất cả file tạm sang file sống
+                foreach (var kvp in filesToWrite)
+                {
+                    string targetPath = kvp.Key;
+                    string tmpPath = targetPath + ".tmp";
+
+                    bool copyOk = false;
+                    for (int retry = 0; retry < 10; retry++)
+                    {
+                        try
+                        {
+                            File.Copy(tmpPath, targetPath, true);
+                            copyOk = true;
+                            break;
+                        }
+                        catch (IOException)
+                        {
+                            Thread.Sleep(50 * (retry + 1));
+                        }
+                    }
+
+                    if (!copyOk)
+                    {
+                        if (File.Exists(targetPath) && File.Exists(tmpPath))
+                        {
+                            try
+                            {
+                                File.Replace(tmpPath, targetPath, null, true);
+                                copyOk = true;
+                            }
+                            catch { }
+                        }
+                    }
+
+                    if (!copyOk)
+                    {
+                        throw new IOException("Không thể ghi đè file đích sau 10 lần thử: " + targetPath);
+                    }
+
+                    try { File.SetLastWriteTimeUtc(targetPath, DateTime.UtcNow); } catch { }
+
+                    if (!preExistingFiles.Contains(targetPath))
+                    {
+                        newlyCreatedFiles.Add(targetPath);
+                    }
+                }
+
+                // Toàn bộ file đích đã được cập nhật thành công! Đánh dấu committed trong journal
+                File.WriteAllText(journalPath, "{\"status\":\"committed\",\"time\":\"" + DateTime.UtcNow.ToString("o") + "\"}", Encoding.UTF8);
+
+                // Phase 4: CHỈ CẬP NHẬT .bak KHI TOÀN BỘ GIAO DỊCH ĐÃ HOÀN TẤT THÀNH CÔNG!
+                // Đồng thời dọn dẹp các file tạm .tmp và .txbak
+                foreach (var kvp in filesToWrite)
+                {
+                    string targetPath = kvp.Key;
+                    string bakPath = targetPath + ".bak";
+                    try { File.Copy(targetPath, bakPath, true); } catch { }
+                }
+
+                foreach (var tmp in stagedTmpFiles)
+                {
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+                }
+                bool allBackupsDeleted = true;
+                foreach (var kvp in backupsCreated)
+                {
+                    try
+                    {
+                        if (File.Exists(kvp.Value)) File.Delete(kvp.Value);
+                    }
+                    catch (Exception delEx)
+                    {
+                        allBackupsDeleted = false;
+                        AppendLimitedErrorLog("save_err.txt", string.Format("Không thể dọn file backup {0}: {1}", kvp.Value, delEx.Message));
+                    }
+                }
+
+                // CHỈ XÓA JOURNAL KHI TẤT CẢ FILE .txbak ĐÃ ĐƯỢC XÓA SẠCH!
+                // Nếu còn file .txbak chưa xóa được, GIỮ LẠI journal committed để khi khởi động lại, server biết giao dịch này ĐÃ COMMIT THÀNH CÔNG và không rollback nhầm!
+                if (allBackupsDeleted)
+                {
+                    try { if (File.Exists(journalPath)) File.Delete(journalPath); } catch { }
+                }
+                else
+                {
+                    AppendLimitedErrorLog("save_err.txt", "Cảnh báo: Còn file backup .txbak chưa xóa được, GIỮ LẠI .tx_journal trạng thái committed.");
                 }
 
                 return true;
             }
             catch (Exception ex)
             {
-                try {
-                    string msg = string.Format("[{0}] Lỗi lưu DB: {1}\r\nStack: {2}\r\n", 
-                        DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), ex.Message, ex.StackTrace);
-                    File.AppendAllText(Path.Combine(_webRoot, "save_err.txt"), msg);
-                } catch { }
+                AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi CommitAllFilesTransactionally, bắt đầu rollback: {0}", ex.Message));
+
+                // 1. Khôi phục lại các file sống từ bản sao rollback .txbak
+                var successfullyRestored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kvp in backupsCreated)
+                {
+                    string targetPath = kvp.Key;
+                    string rollbackPath = kvp.Value;
+                    try
+                    {
+                        if (File.Exists(rollbackPath))
+                        {
+                            File.Copy(rollbackPath, targetPath, true);
+                            successfullyRestored.Add(rollbackPath);
+                        }
+                    }
+                    catch (Exception rbEx)
+                    {
+                        AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi rollback file {0}: {1}", targetPath, rbEx.Message));
+                    }
+                }
+
+                // 2. Xóa các file mới được tạo ở Phase 3 (vì trước đó chúng không hề tồn tại)
+                foreach (var newFile in newlyCreatedFiles)
+                {
+                    try
+                    {
+                        if (File.Exists(newFile)) File.Delete(newFile);
+                    }
+                    catch (Exception delEx)
+                    {
+                        AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi xóa file mới khi rollback {0}: {1}", newFile, delEx.Message));
+                    }
+                }
+
+                // 3. Dọn dẹp file tạm
+                foreach (var tmp in stagedTmpFiles)
+                {
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+                }
+
+                // CHỈ XÓA .txbak NẾU ĐÃ KHÔI PHỤC THÀNH CÔNG! Nếu khôi phục thất bại, giữ nguyên .txbak làm cứu cánh dữ liệu
+                foreach (var rollbackPath in successfullyRestored)
+                {
+                    try { if (File.Exists(rollbackPath)) File.Delete(rollbackPath); } catch { }
+                }
+
+                if (successfullyRestored.Count == backupsCreated.Count)
+                {
+                    try { if (File.Exists(journalPath)) File.Delete(journalPath); } catch { }
+                }
+                else
+                {
+                    AppendLimitedErrorLog("save_err.txt", "Cảnh báo an toàn: Rollback không hoàn tất 100%, GIỮ LẠI .tx_journal để khôi phục khi khởi động lại.");
+                }
+
                 return false;
             }
         }
@@ -1418,9 +1896,9 @@ namespace MedicaPharmacy
             catch { }
         }
 
-        private void WriteAtomicJson(string path, string json)
+        private bool WriteAtomicJson(string path, string json)
         {
-            if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(json)) return;
+            if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(json)) return false;
 
             string temp = path + ".tmp";
             string backup = path + ".bak";
@@ -1430,7 +1908,7 @@ namespace MedicaPharmacy
                 File.WriteAllText(temp, json, Encoding.UTF8);
 
                 FileInfo fiTemp = new FileInfo(temp);
-                if (!fiTemp.Exists || fiTemp.Length == 0) return;
+                if (!fiTemp.Exists || fiTemp.Length == 0) return false;
 
                 // Bước 2: Tạo/Cập nhật file .bak từ file hiện tại (giữ .bak làm lớp dự phòng vĩnh viễn)
                 if (File.Exists(path))
@@ -1445,7 +1923,7 @@ namespace MedicaPharmacy
                     {
                         File.Copy(temp, path, true);
                         try { File.Delete(temp); } catch { }
-                        return;
+                        return true;
                     }
                     catch (IOException)
                     {
@@ -1459,10 +1937,13 @@ namespace MedicaPharmacy
                     try
                     {
                         File.Replace(temp, path, backup, true);
-                        return;
+                        return true;
                     }
                     catch { }
                 }
+
+                AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi WriteAtomicJson không thể ghi đè sau 10 lần retry: {0}", path));
+                return false;
             }
             catch (Exception ex)
             {
@@ -1477,6 +1958,7 @@ namespace MedicaPharmacy
                 catch { }
 
                 AppendLimitedErrorLog("save_err.txt", string.Format("Lỗi WriteAtomicJson ({0}): {1}", path, ex.Message));
+                return false;
             }
         }
 

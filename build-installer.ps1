@@ -66,8 +66,8 @@ foreach ($f in $filesToCopy) {
 # Copy MedicaServer.exe moi nhat vao staging
 Copy-Item -Path $serverBinaryToCopy -Destination (Join-Path $stagingDir "MedicaServer.exe") -Force
 
-# Copy cac thu muc
-$dirsToCopy = @("css", "js", "vendor", "data", "server")
+# Copy cac thu muc ung dung
+$dirsToCopy = @("css", "js", "vendor", "server")
 foreach ($d in $dirsToCopy) {
     $srcDir = Join-Path $root $d
     if (Test-Path $srcDir) {
@@ -75,9 +75,26 @@ foreach ($d in $dirsToCopy) {
     }
 }
 
-# Loai bo cac file backup khoi goi cai dat de goi cai nhe va gon gang
-Get-ChildItem -Path (Join-Path $stagingDir "data\backup_*") -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
-Get-ChildItem -Path (Join-Path $stagingDir "data\backups") -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+# Chuan bi thu muc data sach (Template mau) cho bo cai (TUYET DOI KHONG DONG GOI DU LIEU KINH DOANH THAT)
+$stagingData = Join-Path $stagingDir "data"
+New-Item -ItemType Directory -Path $stagingData -Force | Out-Null
+
+$templateSource = Join-Path $root "templates\data"
+if (Test-Path $templateSource) {
+    Copy-Item -Path "$templateSource\*" -Destination $stagingData -Recurse -Force
+} else {
+    # Du phong neu chua co thu muc template
+    Set-Content -Path (Join-Path $stagingData "settings.json") -Value '{"pharmacyName":"Nha Thuoc Chuan GPP","printFormat":"k80"}' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "medicines.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "suppliers.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "orders_2026.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "stockin_2026.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "vouchers_2026.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "returns_2026.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "customers.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "audit_log.json") -Value '[]' -Encoding UTF8
+    Set-Content -Path (Join-Path $stagingData "settings_history.json") -Value '[]' -Encoding UTF8
+}
 
 # Copy tools (ngrok.exe)
 $stagingTools = Join-Path $stagingDir "tools"

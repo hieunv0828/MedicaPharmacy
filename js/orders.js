@@ -322,27 +322,47 @@ const OrdersModule = {
         if (order.isReturn || order.orderType === 'return') {
             return Math.round(order.totalCost || 0);
         }
+
+        const lineReturnedMap = {};
+        const legacyReturnedTracker = {};
+        (order.returns || []).forEach(r => {
+            (r.items || []).forEach(ri => {
+                if (typeof ri.lineIndex === 'number' && ri.lineIndex >= 0) {
+                    lineReturnedMap[ri.lineIndex] = (lineReturnedMap[ri.lineIndex] || 0) + (parseFloat(ri.quantity) || 0);
+                } else {
+                    const key = `${ri.medicineId || ri.medicineCode}_${ri.unit}`;
+                    legacyReturnedTracker[key] = (legacyReturnedTracker[key] || 0) + (parseFloat(ri.quantity) || 0);
+                }
+            });
+        });
+
         let totalCost = 0;
-        (order.items || []).forEach(item => {
-            const returnedQty = (order.returns || []).reduce((sum, r) => {
-                const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
-                return sum + (ri ? ri.quantity : 0);
-            }, 0);
-            
+        (order.items || []).forEach((item, idx) => {
             let rawQty = (typeof item.quantity === 'number') ? item.quantity : Number(item.quantity);
             const lineVal = (typeof item.total === 'number') ? item.total : (item.lineTotal || 0);
             if (isNaN(rawQty) || (rawQty <= 0 && lineVal > 0 && item.price > 0)) {
                 rawQty = item.price > 0 ? (lineVal / item.price) : 0;
             }
+
+            let returnedQty = lineReturnedMap[idx] || 0;
+            const key = `${item.medicineId || item.medicineCode}_${item.unit}`;
+            const legacyAvail = legacyReturnedTracker[key] || 0;
+            if (legacyAvail > 0 && returnedQty < rawQty) {
+                const need = Math.max(0, rawQty - returnedQty);
+                const take = Math.min(need, legacyAvail);
+                returnedQty += take;
+                legacyReturnedTracker[key] = Math.max(0, legacyAvail - take);
+            }
+
             const netQty = Math.max(0, rawQty - returnedQty);
 
-            // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice) để không làm sai lệch lợi nhuận quá khứ khi giá nhập thay đổi
-            let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-            if (unitCost <= 0) {
+            // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice, bao gồm cả giá vốn 0đ hợp lệ)
+            let unitCost = null;
+            if (typeof item.costPrice === 'number' && !isNaN(item.costPrice)) {
+                unitCost = item.costPrice;
+            } else {
                 const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                if (med) {
-                    unitCost = Store.getMedicineUnitCost(med, item.unit);
-                }
+                unitCost = med ? Store.getMedicineUnitCost(med, item.unit) : 0;
             }
             totalCost += unitCost * netQty;
         });
@@ -647,12 +667,30 @@ const OrdersModule = {
         const profitMargin = (netRevenue > 0 && !order.isCancelled) ? ((profit / netRevenue) * 100).toFixed(1) : 0;
 
         let itemsHtml = '';
+        const lineReturnedMap = {};
+        const legacyReturnedTracker = {};
+        (order.returns || []).forEach(r => {
+            (r.items || []).forEach(ri => {
+                if (typeof ri.lineIndex === 'number' && ri.lineIndex >= 0) {
+                    lineReturnedMap[ri.lineIndex] = (lineReturnedMap[ri.lineIndex] || 0) + (parseFloat(ri.quantity) || 0);
+                } else {
+                    const key = `${ri.medicineId || ri.medicineCode}_${ri.unit}`;
+                    legacyReturnedTracker[key] = (legacyReturnedTracker[key] || 0) + (parseFloat(ri.quantity) || 0);
+                }
+            });
+        });
+
         (order.items || []).forEach((item, i) => {
-            // Tính số lượng đã trả của món này nếu có
-            const returnedQty = (order.returns || []).reduce((sum, r) => {
-                const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
-                return sum + (ri ? ri.quantity : 0);
-            }, 0);
+            const rawQty = (typeof item.quantity === 'number') ? item.quantity : (parseFloat(item.quantity) || 0);
+            let returnedQty = lineReturnedMap[i] || 0;
+            const key = `${item.medicineId || item.medicineCode}_${item.unit}`;
+            const legacyAvail = legacyReturnedTracker[key] || 0;
+            if (legacyAvail > 0 && returnedQty < rawQty) {
+                const need = Math.max(0, rawQty - returnedQty);
+                const take = Math.min(need, legacyAvail);
+                returnedQty += take;
+                legacyReturnedTracker[key] = Math.max(0, legacyAvail - take);
+            }
 
             const med = Store.getMedicineById(item.medicineId) || Store.getMedicines().find(m => m.name === item.medicineName);
             const medId = med ? med.id : item.medicineId;
@@ -760,6 +798,9 @@ const OrdersModule = {
                         <p class="font-bold ${isCash ? 'text-amber-700' : 'text-blue-700'}">
                             ${isCash ? 'TIỀN MẶT' : 'CHUYỂN KHOẢN (VietQR)'}
                         </p>
+                        ${isCash && ((typeof order.customerCash === 'number' && order.customerCash > 0) || order.cashGiven) ? `
+                            <p class="text-slate-500 mt-1">Khách đưa: <span class="font-mono font-bold text-slate-700">${AppUtils.formatVND(order.customerCash || order.cashGiven)}</span>${order.changeAmount > 0 ? ` (Thối: <span class="font-mono text-emerald-700 font-bold">${AppUtils.formatVND(order.changeAmount)}</span>)` : ''}</p>
+                        ` : ''}
                         ${order.transferCode ? `<p class="text-slate-500 mt-1">Mã GD: <span class="font-mono font-bold">${order.transferCode}</span></p>` : ''}
                         <p class="text-slate-500 mt-1">Dược sĩ: <span class="text-slate-700">${order.pharmacist}</span></p>
                     </div>
@@ -964,27 +1005,91 @@ const OrdersModule = {
         }
     },
 
-    confirmCancelOrder() {
+    async confirmCancelOrder() {
         if (!this.pendingCancelOrderId) return;
+        if (this.isProcessingCancel) return;
         const orderId = this.pendingCancelOrderId;
         const order = Store.getOrderById(orderId);
         if (!order) return;
 
-        const sel = document.getElementById('cancel-order-reason-select');
-        const custom = document.getElementById('cancel-order-reason-custom');
-        let reason = sel ? sel.value : 'Khách hủy đơn';
-        if (reason === 'other' && custom && custom.value.trim()) {
-            reason = custom.value.trim();
+        this.isProcessingCancel = true;
+        const confirmBtn = document.getElementById('btn-confirm-cancel-order') || document.querySelector('#modal-cancel-order button[onclick*="confirmCancelOrder"]');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerText = 'Đang lưu máy chủ...';
         }
 
-        Store.cancelOrder(orderId, reason);
-        this.closeCancelModal();
+        try {
+            if (!this.pendingCancelPayload || this.pendingCancelPayload.orderId !== orderId) {
+                const sel = document.getElementById('cancel-order-reason-select');
+                const custom = document.getElementById('cancel-order-reason-custom');
+                let reason = sel ? sel.value : 'Khách hủy đơn';
+                if (reason === 'other' && custom && custom.value.trim()) {
+                    reason = custom.value.trim();
+                }
+                this.pendingCancelPayload = { orderId, reason };
+            }
 
-        // Nếu đang mở xem chi tiết đơn này thì đóng lại
-        this.closeOrderDetailsModal();
+            // Kiểm tra xem đơn trong Store hiện tại đã bị hủy chưa (nếu vừa bị 409 re-sync thì isCancelled trở lại false)
+            const currentOrder = Store.getOrderById(orderId);
+            if (!currentOrder) {
+                alert('Không tìm thấy đơn hàng cần hủy trong cơ sở dữ liệu!');
+                this.pendingCancelPayload = null;
+                return;
+            }
 
-        App.showToast(`Đã hủy đơn ${orderId}, hoàn trả thuốc vào kho thành công!`, 'success');
-        AppUtils.playBeepSound('success');
+            if (!currentOrder.isCancelled) {
+                const res = Store.cancelOrder(orderId, this.pendingCancelPayload.reason);
+                if (!res) {
+                    alert('Không thể hủy đơn hàng này!');
+                    return;
+                }
+            }
+
+            // Đợi lưu lên máy chủ và xác nhận
+            let saveSuccess = true;
+            if (window.Store && typeof Store.persistImmediately === 'function') {
+                saveSuccess = await Store.persistImmediately();
+            }
+
+            if (saveSuccess === false) {
+                alert(`⚠️ CẢNH BÁO: Hủy đơn [${orderId}] chưa được lưu lên máy chủ!\n\nVui lòng bấm [Thử lưu lại] sau khi kiểm tra kết nối mạng.`);
+                if (window.App && typeof App.showToast === 'function') {
+                    App.showToast(`Lỗi lưu máy chủ khi hủy đơn ${orderId}!`, 'error');
+                }
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                }
+                return;
+            }
+
+            // Xác minh chắc chắn đơn hàng đã ở trạng thái isCancelled sau khi lưu
+            const verifiedOrder = Store.getOrderById(orderId);
+            if (!verifiedOrder || !verifiedOrder.isCancelled) {
+                alert(`⚠️ Lỗi xung đột: Đơn hàng [${orderId}] chưa được ghi nhận hủy sau khi đồng bộ máy chủ. Vui lòng bấm [Thử lưu lại] để hệ thống áp dụng lại.`);
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                }
+                return;
+            }
+
+            this.pendingCancelPayload = null;
+            this.closeCancelModal();
+
+            // Nếu đang mở xem chi tiết đơn này thì đóng lại
+            this.closeOrderDetailsModal();
+
+            App.showToast(`Đã hủy đơn ${orderId}, hoàn trả thuốc vào kho thành công!`, 'success');
+            AppUtils.playBeepSound('success');
+        } finally {
+            this.isProcessingCancel = false;
+            if (confirmBtn && (!this.pendingCancelPayload || this.pendingCancelPayload.orderId !== orderId)) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerText = 'Xác nhận hủy đơn';
+            }
+        }
     },
 
     // --- TRẢ HÀNG & HOÀN TIỀN MẶT (RETURN ITEMS MODAL) ---
@@ -1023,16 +1128,37 @@ const OrdersModule = {
             customReason.classList.add('hidden');
         }
 
+        // Xây dựng bảng theo dõi số lượng đã trả trước đó theo lineIndex và legacy key
+        const lineReturnedMap = {};
+        const legacyReturnedTracker = {};
+
+        (order.returns || []).forEach(r => {
+            (r.items || []).forEach(ri => {
+                if (typeof ri.lineIndex === 'number' && ri.lineIndex >= 0) {
+                    lineReturnedMap[ri.lineIndex] = (lineReturnedMap[ri.lineIndex] || 0) + (parseFloat(ri.quantity) || 0);
+                } else {
+                    const key = `${ri.medicineId}_${ri.unit}`;
+                    legacyReturnedTracker[key] = (legacyReturnedTracker[key] || 0) + (parseFloat(ri.quantity) || 0);
+                }
+            });
+        });
+
         // Render từng loại thuốc trong đơn để người dùng nhập số lượng trả
         let rowsHtml = '';
         (order.items || []).forEach((item, idx) => {
-            // Số lượng đã trả trước đó
-            const alreadyReturned = (order.returns || []).reduce((sum, r) => {
-                const ri = (r.items || []).find(x => x.medicineId === item.medicineId && x.unit === item.unit);
-                return sum + (ri ? ri.quantity : 0);
-            }, 0);
+            const itemQty = parseFloat(item.quantity) || 0;
+            let alreadyReturned = lineReturnedMap[idx] || 0;
 
-            const remainingQty = Math.max(0, item.quantity - alreadyReturned);
+            const key = `${item.medicineId}_${item.unit}`;
+            const legacyAvail = legacyReturnedTracker[key] || 0;
+            if (legacyAvail > 0 && alreadyReturned < itemQty) {
+                const need = Math.max(0, itemQty - alreadyReturned);
+                const take = Math.min(need, legacyAvail);
+                alreadyReturned += take;
+                legacyReturnedTracker[key] = Math.max(0, legacyAvail - take);
+            }
+
+            const remainingQty = Math.max(0, Math.round((itemQty - alreadyReturned) * 1000) / 1000);
 
             if (remainingQty > 0) {
                 const med = Store.getMedicineById(item.medicineId) || Store.getMedicines().find(m => m.name === item.medicineName);
@@ -1061,8 +1187,8 @@ const OrdersModule = {
                         <td class="p-2.5 text-center font-bold text-emerald-700">${remainingQty}</td>
                         <td class="p-2.5 text-center">
                             <div class="flex items-center justify-center gap-1">
-                                <input type="number" id="return-qty-${idx}" min="0" max="${remainingQty}" value="0"
-                                       data-idx="${idx}" data-medid="${item.medicineId}" data-medname="${item.medicineName}" data-unit="${item.unit}" data-price="${item.price}" data-max="${remainingQty}"
+                                <input type="number" id="return-qty-${idx}" min="0" max="${remainingQty}" step="any" value="0"
+                                       data-idx="${idx}" data-medid="${item.medicineId}" data-medname="${item.medicineName}" data-unit="${item.unit}" data-price="${item.price}" data-cost="${(typeof item.costPrice === 'number' && !isNaN(item.costPrice)) ? item.costPrice : ''}" data-max="${remainingQty}"
                                        oninput="OrdersModule.updateReturnCalculations()"
                                        class="w-16 px-2 py-1 text-center font-bold text-rose-700 bg-white border border-slate-300 rounded focus:ring-1 focus:ring-amber-500 outline-none" />
                                 <button type="button" onclick="OrdersModule.setReturnQtyMax(${idx}, ${remainingQty})" class="text-[10px] bg-slate-100 hover:bg-amber-100 text-slate-700 px-1.5 py-1 rounded border border-slate-200 transition" title="Trả hết số lượng">Hết</button>
@@ -1130,8 +1256,8 @@ const OrdersModule = {
 
         inputs.forEach(inp => {
             const idx = inp.dataset.idx;
-            const max = parseInt(inp.dataset.max) || 0;
-            let val = parseInt(inp.value) || 0;
+            const max = parseFloat(inp.dataset.max) || 0;
+            let val = parseFloat(inp.value) || 0;
 
             if (val < 0) val = 0;
             if (val > max) val = max;
@@ -1168,54 +1294,135 @@ const OrdersModule = {
         }
     },
 
-    confirmReturnOrder() {
+    async confirmReturnOrder() {
         if (!this.pendingReturnOrderId) return;
+        if (this.isProcessingReturn) return;
         const orderId = this.pendingReturnOrderId;
 
-        const inputs = document.querySelectorAll('input[id^="return-qty-"]');
-        const returnedItems = [];
+        this.isProcessingReturn = true;
+        const confirmBtn = document.getElementById('btn-confirm-return');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerText = 'Đang lưu máy chủ...';
+        }
 
-        inputs.forEach(inp => {
-            const qty = parseInt(inp.value) || 0;
-            if (qty > 0) {
-                returnedItems.push({
-                    medicineId: inp.dataset.medid,
-                    medicineName: inp.dataset.medname,
-                    unit: inp.dataset.unit,
-                    quantity: qty,
-                    price: parseFloat(inp.dataset.price) || 0
+        try {
+            if (!this.pendingReturnPayload || this.pendingReturnPayload.orderId !== orderId) {
+                const inputs = document.querySelectorAll('input[id^="return-qty-"]');
+                const returnedItems = [];
+
+                inputs.forEach(inp => {
+                    const qty = parseFloat(inp.value) || 0;
+                    if (qty > 0) {
+                        const rawCost = inp.dataset.cost;
+                        const costPrice = (rawCost !== undefined && rawCost !== '' && !isNaN(parseFloat(rawCost))) ? parseFloat(rawCost) : undefined;
+                        returnedItems.push({
+                            lineIndex: parseInt(inp.dataset.idx),
+                            medicineId: inp.dataset.medid,
+                            medicineName: inp.dataset.medname,
+                            unit: inp.dataset.unit,
+                            quantity: qty,
+                            price: parseFloat(inp.dataset.price) || 0,
+                            costPrice: costPrice
+                        });
+                    }
                 });
+
+                if (returnedItems.length === 0) {
+                    alert('Vui lòng nhập số lượng thuốc khách muốn trả lại!');
+                    return;
+                }
+
+                const sel = document.getElementById('return-reason-select');
+                const custom = document.getElementById('return-reason-custom');
+                let reason = sel ? sel.value : 'Khách trả hàng';
+                if (reason === 'other' && custom && custom.value.trim()) {
+                    reason = custom.value.trim();
+                }
+
+                const methodSelect = document.getElementById('return-payment-method');
+                const refundMethod = methodSelect ? methodSelect.value : 'cash';
+
+                // Sinh returnId duy nhất toàn hệ thống để đảm bảo idempotent khi thử lại và tuyệt đối không trùng với lần trả trước
+                const dateStr = (Store && typeof Store.formatLocalISO === 'function') ? Store.formatLocalISO().slice(2, 10).replace(/-/g, '') : new Date().toISOString().slice(2, 10).replace(/-/g, '');
+                const existingReturnIds = new Set();
+                (Store.getOrders() || []).forEach(o => (o.returns || []).forEach(r => { if (r && r.id) existingReturnIds.add(r.id); }));
+                let retSuffix = 1;
+                let returnId = `TH${dateStr}-${String(retSuffix).padStart(3, '0')}_${Date.now().toString(36).slice(-4)}`;
+                while (existingReturnIds.has(returnId)) {
+                    retSuffix++;
+                    returnId = `TH${dateStr}-${String(retSuffix).padStart(3, '0')}_${Date.now().toString(36).slice(-4)}`;
+                }
+
+                this.pendingReturnPayload = { orderId, returnedItems, reason, refundMethod, returnId, res: null };
             }
-        });
 
-        if (returnedItems.length === 0) {
-            alert('Vui lòng nhập số lượng thuốc khách muốn trả lại!');
-            return;
+            const payload = this.pendingReturnPayload;
+            const currentOrder = Store.getOrderById(orderId);
+            if (!currentOrder) {
+                alert('Không tìm thấy đơn hàng trong cơ sở dữ liệu!');
+                this.pendingReturnPayload = null;
+                return;
+            }
+
+            // Kiểm tra xem returnId này đã tồn tại trong order.returns chưa (nếu vừa bị 409 re-sync thì cần áp dụng lại)
+            const alreadyApplied = (currentOrder.returns || []).some(r => r.id === payload.returnId);
+            let res = payload.res;
+            if (!alreadyApplied) {
+                res = Store.returnOrderItems(orderId, payload.returnedItems, payload.reason, payload.refundMethod, payload.returnId);
+                if (!res) {
+                    alert('Có lỗi xảy ra khi thực hiện trả hàng.');
+                    return;
+                }
+                payload.res = res;
+            }
+
+            // Đợi lưu lên máy chủ và xác nhận
+            let saveSuccess = true;
+            if (window.Store && typeof Store.persistImmediately === 'function') {
+                saveSuccess = await Store.persistImmediately();
+            }
+
+            if (saveSuccess === false) {
+                alert(`⚠️ CẢNH BÁO: Phiếu trả hàng cho đơn [${orderId}] chưa được lưu lên máy chủ!\n\nVui lòng bấm [Thử lưu lại] sau khi kiểm tra kết nối mạng.`);
+                if (window.App && typeof App.showToast === 'function') {
+                    App.showToast(`Lỗi lưu máy chủ khi trả hàng đơn ${orderId}!`, 'error');
+                }
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                }
+                return;
+            }
+
+            // Xác minh chắc chắn phiếu trả hàng đã tồn tại trong Store sau khi lưu
+            const verifiedOrder = Store.getOrderById(orderId);
+            const returnVerified = (verifiedOrder?.returns || []).some(r => r.id === payload.returnId);
+            if (!returnVerified) {
+                alert(`⚠️ Lỗi xung đột: Phiếu trả hàng cho đơn [${orderId}] chưa được ghi nhận sau khi đồng bộ máy chủ. Vui lòng bấm [Thử lưu lại] để hệ thống áp dụng lại.`);
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Thử lưu lại máy chủ';
+                }
+                return;
+            }
+
+            const refundTotal = (res && res.returnRecord) ? res.returnRecord.refundTotal : (verifiedOrder.returns.find(r => r.id === payload.returnId)?.refundTotal || 0);
+            this.pendingReturnPayload = null;
+            this.closeReturnModal();
+            // Cập nhật lại modal chi tiết nếu đang mở
+            this.openOrderDetails(orderId);
+
+            const methodLabel = payload.refundMethod === 'transfer' ? 'tài khoản ngân hàng' : 'quỹ tiền mặt';
+            App.showToast(`Đã trả hàng thành công! Đã trừ ${AppUtils.formatVND(refundTotal)} (${methodLabel}) và hoàn kho thuốc.`, 'success');
+            AppUtils.playBeepSound('success');
+        } finally {
+            this.isProcessingReturn = false;
+            if (confirmBtn && (!this.pendingReturnPayload || this.pendingReturnPayload.orderId !== orderId)) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerText = 'Xác nhận trả hàng';
+            }
         }
-
-        const sel = document.getElementById('return-reason-select');
-        const custom = document.getElementById('return-reason-custom');
-        let reason = sel ? sel.value : 'Khách trả hàng';
-        if (reason === 'other' && custom && custom.value.trim()) {
-            reason = custom.value.trim();
-        }
-
-        const methodSelect = document.getElementById('return-payment-method');
-        const refundMethod = methodSelect ? methodSelect.value : 'cash';
-
-        const res = Store.returnOrderItems(orderId, returnedItems, reason, refundMethod);
-        if (!res) {
-            alert('Có lỗi xảy ra khi thực hiện trả hàng.');
-            return;
-        }
-
-        this.closeReturnModal();
-        // Cập nhật lại modal chi tiết nếu đang mở
-        this.openOrderDetails(orderId);
-
-        const methodLabel = refundMethod === 'transfer' ? 'tài khoản ngân hàng' : 'quỹ tiền mặt';
-        App.showToast(`Đã trả hàng thành công! Đã trừ ${AppUtils.formatVND(res.returnRecord.refundTotal)} (${methodLabel}) và hoàn kho thuốc.`, 'success');
-        AppUtils.playBeepSound('success');
     },
 
     // ========================================================
@@ -1262,7 +1469,7 @@ const OrdersModule = {
         const elTransferCode = document.getElementById('edit-transfer-code');
         const elCashGiven = document.getElementById('edit-cash-given');
         if (elTransferCode) elTransferCode.value = order.transferCode || '';
-        if (elCashGiven) elCashGiven.value = order.cashGiven || order.totalAmount || 0;
+        if (elCashGiven) elCashGiven.value = (typeof order.customerCash === 'number' && order.customerCash > 0) ? order.customerCash : (order.cashGiven || order.totalAmount || 0);
         this.calculateEditChangeDue();
 
         // Khách hàng & ghi chú
@@ -1340,6 +1547,7 @@ const OrdersModule = {
         const newMethod = (radioTransfer && radioTransfer.checked) ? 'transfer' : 'cash';
         const transferCode = document.getElementById('edit-transfer-code')?.value.trim() || '';
         const cashGiven = parseFloat(document.getElementById('edit-cash-given')?.value) || order.totalAmount;
+        const customerCash = (newMethod === 'cash') ? cashGiven : 0;
         const customerName = document.getElementById('edit-customer-name')?.value.trim() || 'Khách vãng lai';
         const customerPhone = document.getElementById('edit-customer-phone')?.value.trim() || '';
         const note = document.getElementById('edit-order-note')?.value.trim() || '';
@@ -1349,7 +1557,8 @@ const OrdersModule = {
         const updateData = {
             paymentMethod: newMethod,
             transferCode: (newMethod === 'transfer') ? transferCode : '',
-            cashGiven: (newMethod === 'cash') ? cashGiven : 0,
+            customerCash: customerCash,
+            cashGiven: customerCash,
             changeAmount: changeAmount,
             customerName: customerName,
             customerPhone: customerPhone,
@@ -1395,7 +1604,6 @@ const OrdersModule = {
             return;
         }
 
-        this.aggregateReturnCart = [];
         const modal = document.getElementById('modal-aggregate-return');
         if (!modal) return;
 
@@ -1410,24 +1618,42 @@ const OrdersModule = {
         const noteInp = document.getElementById('agg-return-note');
         const chkRestock = document.getElementById('agg-return-opt-restock');
         const chkVoucher = document.getElementById('agg-return-opt-voucher');
+        const btnNormal = document.getElementById('btn-confirm-agg-return');
+        const btnPrint = document.getElementById('btn-confirm-agg-return-print');
 
-        if (nameInp) nameInp.value = 'Khách lẻ';
-        if (phoneInp) phoneInp.value = '';
-        if (methodSel) methodSel.value = 'cash';
-        if (searchInp) searchInp.value = '';
-        if (reasonSel) reasonSel.value = 'Khách dùng không hết / dư thuốc';
-        if (reasonCustom) { reasonCustom.value = ''; reasonCustom.classList.add('hidden'); }
-        if (noteInp) noteInp.value = '';
-        if (chkRestock) chkRestock.checked = true;
-        if (chkVoucher) chkVoucher.checked = true;
+        // Nếu có đơn trả chờ lưu lại từ trước: Khôi phục lại giao dịch này để người dùng thử lưu tiếp (Issue 5)
+        if (this.pendingAggregateReturnPayload && this.pendingAggregateReturnPayload.returnData) {
+            const retData = this.pendingAggregateReturnPayload.returnData;
+            if (nameInp) nameInp.value = retData.customerName || 'Khách lẻ';
+            if (phoneInp) phoneInp.value = retData.customerPhone || '';
+            if (methodSel) methodSel.value = retData.paymentMethod || 'cash';
+            if (noteInp) noteInp.value = retData.note || '';
+            if (chkRestock) chkRestock.checked = retData.shouldRestock !== false;
+            if (chkVoucher) chkVoucher.checked = retData.shouldCreateVoucher !== false;
+            this.aggregateReturnCart = (retData.items || []).map(it => ({ ...it }));
+            if (btnNormal) btnNormal.innerText = 'Thử lưu lại máy chủ';
+        } else {
+            this.aggregateReturnCart = [];
+            if (nameInp) nameInp.value = 'Khách lẻ';
+            if (phoneInp) phoneInp.value = '';
+            if (methodSel) methodSel.value = 'cash';
+            if (searchInp) searchInp.value = '';
+            if (reasonSel) reasonSel.value = 'Khách dùng không hết / dư thuốc';
+            if (reasonCustom) { reasonCustom.value = ''; reasonCustom.classList.add('hidden'); }
+            if (noteInp) noteInp.value = '';
+            if (chkRestock) chkRestock.checked = true;
+            if (chkVoucher) chkVoucher.checked = true;
 
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        if (dtInp) dtInp.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            if (dtInp) dtInp.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+            if (btnNormal && btnNormal.dataset.origText) btnNormal.innerText = btnNormal.dataset.origText;
+        }
 
         document.getElementById('agg-return-search-results')?.classList.add('hidden');
         document.getElementById('agg-return-customer-dropdown')?.classList.add('hidden');
@@ -1453,9 +1679,49 @@ const OrdersModule = {
         if (window.lucide) lucide.createIcons();
     },
 
-    closeAggregateReturnModal() {
+    async closeAggregateReturnModal(force = false) {
+        if (!force && this.isProcessingAggregateReturn) {
+            alert('Hệ thống đang lưu giao dịch trả hàng lên máy chủ, vui lòng đợi...');
+            return;
+        }
+
+        // Nếu giao dịch trả hàng đã được tạo tạm trong Store nhưng chưa lưu thành công máy chủ (Issue 5)
+        if (!force && this.pendingAggregateReturnPayload && this.pendingAggregateReturnPayload.returnData) {
+            const retData = this.pendingAggregateReturnPayload.returnData;
+            const confirmRollback = confirm(
+                `Giao dịch trả hàng [${retData.id}] đã được tạo tạm trên máy nhưng chưa lưu thành công lên máy chủ.\n\n` +
+                `Bạn có muốn HỦY BỎ HOÀN TOÀN giao dịch này không?\n` +
+                `- Bấm [OK]: Hệ thống sẽ hoàn nguyên kho và hủy bỏ giao dịch trả hàng này.\n` +
+                `- Bấm [Cancel]: Giữ lại giao dịch để bạn tiếp tục kiểm tra và thử lưu lại.`
+            );
+            if (!confirmRollback) {
+                return;
+            }
+            // Người dùng đồng ý hủy bỏ: Hoàn nguyên an toàn kho, phiếu chi và đơn hàng (Batch 8: Issue 2)
+            if (window.Store && typeof Store.rollbackPendingReturnOrder === 'function') {
+                const res = await Store.rollbackPendingReturnOrder(retData);
+                if (!res || res.success === false) {
+                    alert(`⚠️ Không thể lưu trạng thái hủy bỏ cho giao dịch trả hàng [${retData.id}] lên máy chủ!\n\nLý do: Mất kết nối mạng hoặc máy chủ từ chối. Giao dịch vẫn được giữ lại để bạn thử lại.`);
+                    return;
+                }
+            }
+        }
+
         document.getElementById('modal-aggregate-return')?.classList.add('hidden');
         this.aggregateReturnCart = [];
+        this.pendingAggregateReturnPayload = null;
+        this.isProcessingAggregateReturn = false;
+        const btnNormal = document.getElementById('btn-confirm-agg-return');
+        const btnPrint = document.getElementById('btn-confirm-agg-return-print');
+        if (btnNormal) {
+            btnNormal.disabled = false;
+            if (btnNormal.dataset.origText) {
+                btnNormal.innerText = btnNormal.dataset.origText;
+            }
+        }
+        if (btnPrint) {
+            btnPrint.disabled = false;
+        }
     },
 
     handleCustomerInput(val) {
@@ -1830,65 +2096,158 @@ const OrdersModule = {
         }
     },
 
-    confirmAggregateReturn(andPrint = false) {
-        if (this.aggregateReturnCart.length === 0) {
-            App.showToast('Vui lòng thêm ít nhất một mặt hàng khách trả lại!', 'warning');
-            return;
+    async confirmAggregateReturn(andPrint = false) {
+        if (this.isProcessingAggregateReturn) return;
+
+        const btnNormal = document.getElementById('btn-confirm-agg-return');
+        const btnPrint = document.getElementById('btn-confirm-agg-return-print');
+
+        // 1. Chuẩn bị dữ liệu nếu chưa có payload chờ thử lại
+        if (!this.pendingAggregateReturnPayload) {
+            if (this.aggregateReturnCart.length === 0) {
+                App.showToast('Vui lòng thêm ít nhất một mặt hàng khách trả lại!', 'warning');
+                return;
+            }
+
+            const nameInp = document.getElementById('agg-return-customer-name');
+            const phoneInp = document.getElementById('agg-return-customer-phone');
+            const methodSel = document.getElementById('agg-return-payment-method');
+            const dtInp = document.getElementById('agg-return-datetime');
+            const reasonSel = document.getElementById('agg-return-reason-select');
+            const reasonCustom = document.getElementById('agg-return-reason-custom');
+            const noteInp = document.getElementById('agg-return-note');
+            const chkRestock = document.getElementById('agg-return-opt-restock');
+            const chkVoucher = document.getElementById('agg-return-opt-voucher');
+
+            let reason = reasonSel ? reasonSel.value : 'Khách trả hàng';
+            if (reason === 'other' && reasonCustom && reasonCustom.value.trim()) {
+                reason = reasonCustom.value.trim();
+            }
+
+            const clientTxId = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+            const dateStr = (Store && typeof Store.formatLocalISO === 'function') ? Store.formatLocalISO().slice(2, 10).replace(/-/g, '') : new Date().toISOString().slice(2, 10).replace(/-/g, '');
+            const existingOrderIds = new Set((Store.getOrders() || []).map(o => o.id));
+            let retSeq = 1;
+            let returnId = `TH${dateStr}-${String(retSeq).padStart(3, '0')}_${Date.now().toString(36).slice(-4)}`;
+            while (existingOrderIds.has(returnId)) {
+                retSeq++;
+                returnId = `TH${dateStr}-${String(retSeq).padStart(3, '0')}_${Date.now().toString(36).slice(-4)}`;
+            }
+
+            const returnData = {
+                id: returnId,
+                clientTxId: clientTxId,
+                customerName: (nameInp && nameInp.value.trim()) || 'Khách lẻ',
+                customerPhone: (phoneInp && phoneInp.value.trim()) || '',
+                paymentMethod: methodSel ? methodSel.value : 'cash',
+                createdAt: (dtInp && dtInp.value) ? new Date(dtInp.value).toISOString() : ((Store && typeof Store.formatLocalISO === 'function') ? Store.formatLocalISO() : new Date().toISOString()),
+                reason: reason,
+                note: (noteInp && noteInp.value.trim()) || '',
+                shouldRestock: chkRestock ? chkRestock.checked : true,
+                shouldCreateVoucher: chkVoucher ? chkVoucher.checked : true,
+                items: this.aggregateReturnCart.map(it => ({
+                    medicineId: it.medicineId,
+                    medicineCode: it.medicineCode,
+                    medicineName: it.medicineName,
+                    unit: it.unit,
+                    quantity: it.quantity,
+                    price: it.price,
+                    costPrice: it.costPrice,
+                    lineTotal: it.lineTotal,
+                    totalCost: it.totalCost,
+                    orderId: it.orderId || ''
+                }))
+            };
+
+            this.pendingAggregateReturnPayload = { returnData, res: null };
         }
 
-        const nameInp = document.getElementById('agg-return-customer-name');
-        const phoneInp = document.getElementById('agg-return-customer-phone');
-        const methodSel = document.getElementById('agg-return-payment-method');
-        const dtInp = document.getElementById('agg-return-datetime');
-        const reasonSel = document.getElementById('agg-return-reason-select');
-        const reasonCustom = document.getElementById('agg-return-reason-custom');
-        const noteInp = document.getElementById('agg-return-note');
-        const chkRestock = document.getElementById('agg-return-opt-restock');
-        const chkVoucher = document.getElementById('agg-return-opt-voucher');
+        const payload = this.pendingAggregateReturnPayload;
+        this.isProcessingAggregateReturn = true;
 
-        let reason = reasonSel ? reasonSel.value : 'Khách trả hàng';
-        if (reason === 'other' && reasonCustom && reasonCustom.value.trim()) {
-            reason = reasonCustom.value.trim();
+        if (btnNormal) {
+            btnNormal.disabled = true;
+            if (!btnNormal.dataset.origText) btnNormal.dataset.origText = btnNormal.innerText;
+            btnNormal.innerText = 'Đang lưu máy chủ...';
+        }
+        if (btnPrint) {
+            btnPrint.disabled = true;
         }
 
-        const returnData = {
-            customerName: (nameInp && nameInp.value.trim()) || 'Khách lẻ',
-            customerPhone: (phoneInp && phoneInp.value.trim()) || '',
-            paymentMethod: methodSel ? methodSel.value : 'cash',
-            createdAt: (dtInp && dtInp.value) ? new Date(dtInp.value).toISOString() : new Date().toISOString(),
-            reason: reason,
-            note: (noteInp && noteInp.value.trim()) || '',
-            shouldRestock: chkRestock ? chkRestock.checked : true,
-            shouldCreateVoucher: chkVoucher ? chkVoucher.checked : true,
-            items: this.aggregateReturnCart.map(it => ({
-                medicineId: it.medicineId,
-                medicineCode: it.medicineCode,
-                medicineName: it.medicineName,
-                unit: it.unit,
-                quantity: it.quantity,
-                price: it.price,
-                costPrice: it.costPrice,
-                lineTotal: it.lineTotal,
-                totalCost: it.totalCost,
-                orderId: it.orderId || ''
-            }))
-        };
+        try {
+            // Kiểm tra xem đơn trả tổng hợp đã được tạo trong Store chưa (tránh tạo 2 lần và trừ/cộng kho 2 lần khi thử lại)
+            const currentOrders = (Store && typeof Store.getOrders === 'function') ? Store.getOrders() : [];
+            const existingReturn = currentOrders.find(o => 
+                (payload.returnData.clientTxId && o.clientTxId === payload.returnData.clientTxId) || 
+                o.id === payload.returnData.id
+            );
 
-        const res = Store.createAggregateReturn(returnData);
-        if (!res || !res.success) {
-            App.showToast(res ? res.message : 'Có lỗi xảy ra khi tạo phiếu trả hàng!', 'error');
-            return;
-        }
+            let res = payload.res;
+            if (!existingReturn) {
+                res = Store.createAggregateReturn(payload.returnData);
+                if (!res || !res.success) {
+                    alert(res ? res.message : 'Có lỗi xảy ra khi tạo phiếu trả hàng!');
+                    this.pendingAggregateReturnPayload = null;
+                    return;
+                }
+                payload.res = res;
+            }
 
-        this.closeAggregateReturnModal();
-        this.renderOrdersTable();
-        this.updateTabSummaryCards();
+            // Chờ lưu lên máy chủ và xác nhận kết quả
+            let saveSuccess = true;
+            if (window.Store && typeof Store.persistImmediately === 'function') {
+                saveSuccess = await Store.persistImmediately();
+            }
 
-        App.showToast(`Đã tạo thành công Phiếu trả hàng tổng hợp ${res.returnOrder.id}!`, 'success');
-        AppUtils.playBeepSound('success');
+            if (saveSuccess === false) {
+                alert(`⚠️ CẢNH BÁO: Phiếu trả hàng tổng hợp [${payload.returnData.id}] chưa được lưu lên máy chủ!\n\nLý do: Máy chủ từ chối hoặc mất kết nối mạng. Giao dịch đã được lưu tạm trên máy này.\nVui lòng kiểm tra kết nối mạng và bấm [Thử lưu lại máy chủ].`);
+                if (window.App && typeof App.showToast === 'function') {
+                    App.showToast(`Lỗi lưu máy chủ khi tạo phiếu trả hàng ${payload.returnData.id}!`, 'error');
+                }
+                if (btnNormal) {
+                    btnNormal.innerText = 'Thử lưu lại máy chủ';
+                }
+                return;
+            }
 
-        if (andPrint && res.returnOrder) {
-            this.printReturnOrder(res.returnOrder.id);
+            // Xác minh chắc chắn phiếu trả hàng tổng hợp đã tồn tại trong Store sau khi lưu máy chủ
+            const verifiedOrders = (Store && typeof Store.getOrders === 'function') ? Store.getOrders() : [];
+            const verifiedReturn = verifiedOrders.find(o => 
+                (payload.returnData.clientTxId && o.clientTxId === payload.returnData.clientTxId) || 
+                o.id === payload.returnData.id
+            );
+            if (!verifiedReturn) {
+                alert(`⚠️ Lỗi xung đột: Phiếu trả hàng [${payload.returnData.id}] chưa được ghi nhận sau khi đồng bộ máy chủ. Vui lòng bấm [Thử lưu lại máy chủ] để áp dụng lại.`);
+                if (btnNormal) {
+                    btnNormal.innerText = 'Thử lưu lại máy chủ';
+                }
+                return;
+            }
+
+            const returnOrderId = verifiedReturn.id;
+            this.pendingAggregateReturnPayload = null;
+            this.isProcessingAggregateReturn = false;
+            this.closeAggregateReturnModal(true);
+            this.renderOrdersTable();
+            this.updateTabSummaryCards();
+
+            App.showToast(`Đã tạo thành công Phiếu trả hàng tổng hợp ${returnOrderId}!`, 'success');
+            AppUtils.playBeepSound('success');
+
+            if (andPrint) {
+                this.printReturnOrder(returnOrderId);
+            }
+        } finally {
+            this.isProcessingAggregateReturn = false;
+            if (btnNormal) {
+                btnNormal.disabled = false;
+                if (!this.pendingAggregateReturnPayload && btnNormal.dataset.origText) {
+                    btnNormal.innerText = btnNormal.dataset.origText;
+                }
+            }
+            if (btnPrint) {
+                btnPrint.disabled = false;
+            }
         }
     },
 

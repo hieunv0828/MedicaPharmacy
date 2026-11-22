@@ -1,0 +1,37 @@
+﻿[
+    {
+        "debt":  0,
+        "name":  "Công ty Cổ phần Dược Hậu Giang (DHG Pharma)",
+        "id":  "NCC001",
+        "phone":  "0292 3891 433",
+        "address":  "Cần Thơ"
+    },
+    {
+        "debt":  0,
+        "name":  "Công ty Traphaco",
+        "id":  "NCC002",
+        "phone":  "028 3971 7890",
+        "address":  "Hà Nội"
+    },
+    {
+        "debt":  0,
+        "name":  "Công ty TNHH Sanofi-Aventis Việt Nam",
+        "id":  "NCC003",
+        "phone":  "028 3829 8526",
+        "address":  "TP. Hồ Chí Minh"
+    },
+    {
+        "debt":  0,
+        "name":  "Công ty Dược phẩm Trung Ương 1 (Pharbaco)",
+        "id":  "NCC004",
+        "phone":  "024 3845 4561",
+        "address":  "Hà Nội"
+    },
+    {
+        "debt":  0,
+        "name":  "Công ty Cổ phần Dược Boston Pharma",
+        "id":  "NCC005",
+        "phone":  "0274 3769 606",
+        "address":  "Bình Dương"
+    }
+]

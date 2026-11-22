@@ -22,6 +22,18 @@ const POSModule = {
     selectedCustomerId: '',
     medicineSearchResultsList: [],
     medicineSearchHighlightedIndex: -1,
+    pendingCheckoutOrder: null,
+
+    cancelPendingCheckoutOrderIfAny() {
+        if (this.pendingCheckoutOrder && this.pendingCheckoutOrder.id) {
+            try {
+                Store.cancelOrder(this.pendingCheckoutOrder.id, 'Hủy đơn do thu ngân thay đổi giỏ hàng sau khi lưu máy chủ thất bại');
+            } catch (e) {
+                console.error('Lỗi hoàn nguyên pendingCheckoutOrder:', e);
+            }
+            this.pendingCheckoutOrder = null;
+        }
+    },
 
     init() {
         this.bindEvents();
@@ -64,6 +76,8 @@ const POSModule = {
         const cashInput = document.getElementById('pos-cash-received');
         if (cashInput) {
             cashInput.addEventListener('input', (e) => {
+                if (this.isCheckingOut) return;
+                this.cancelPendingCheckoutOrderIfAny();
                 const val = parseFloat(e.target.value.replace(/[^0-9]/g, '')) || 0;
                 this.customerCash = val;
                 this.calculateChange();
@@ -74,6 +88,8 @@ const POSModule = {
         const discountInput = document.getElementById('pos-discount-input');
         if (discountInput) {
             discountInput.addEventListener('input', (e) => {
+                if (this.isCheckingOut) return;
+                this.cancelPendingCheckoutOrderIfAny();
                 const val = parseFloat(e.target.value.replace(/[^0-9]/g, '')) || 0;
                 this.discount = val;
                 this.updateTotals();
@@ -84,6 +100,8 @@ const POSModule = {
         const pointsUsedInput = document.getElementById('pos-points-used-input');
         if (pointsUsedInput) {
             pointsUsedInput.addEventListener('input', (e) => {
+                if (this.isCheckingOut) return;
+                this.cancelPendingCheckoutOrderIfAny();
                 this.handlePointsUsedChange(e.target.value);
             });
         }
@@ -95,6 +113,8 @@ const POSModule = {
         const clearCustBtn = document.getElementById('pos-clear-customer-btn');
 
         const triggerCustomerSearch = (val, searchType) => {
+            if (this.isCheckingOut) return;
+            this.cancelPendingCheckoutOrderIfAny();
             const query = (val || '').trim();
             if (query.length > 0) {
                 if (clearCustBtn) clearCustBtn.classList.remove('hidden');
@@ -358,6 +378,8 @@ const POSModule = {
 
     // Thêm thuốc vào giỏ hàng
     addToCart(medicineId, defaultUnit = null) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const med = Store.getMedicineById(medicineId);
         if (!med) return;
 
@@ -430,6 +452,8 @@ const POSModule = {
 
     // Thay đổi đơn vị bán của dòng thuốc (Hộp / Vỉ / Viên)
     changeItemUnit(index, newUnit) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const item = this.cart[index];
         const med = Store.getMedicineById(item.medicineId);
         if (!item || !med) return;
@@ -457,6 +481,8 @@ const POSModule = {
 
     // Tăng giảm số lượng
     changeItemQty(index, delta) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const item = this.cart[index];
         if (!item) return;
 
@@ -487,6 +513,8 @@ const POSModule = {
 
     // Nhập trực tiếp số lượng (hỗ trợ cả số lẻ như 0.5 vỉ, 0.4 hộp...)
     setItemQty(index, val) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const item = this.cart[index];
         if (!item) return;
 
@@ -520,14 +548,18 @@ const POSModule = {
 
     // Xóa khỏi giỏ
     removeItem(index) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         this.cart.splice(index, 1);
         this.renderCart();
     },
 
     // Xóa trắng toàn bộ giỏ hàng
     clearCart() {
+        if (this.isCheckingOut) return;
         if (this.cart.length === 0) return;
         if (confirm('Bạn có muốn xóa toàn bộ giỏ hàng hiện tại?')) {
+            this.cancelPendingCheckoutOrderIfAny();
             this.cart = [];
             this.discount = 0;
             this.customerCash = 0;
@@ -542,6 +574,8 @@ const POSModule = {
 
     // Chọn phương thức thanh toán: Tiền mặt vs Chuyển khoản
     selectPaymentMethod(method) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         this.paymentMethod = method;
 
         const btnCash = document.getElementById('pos-btn-cash');
@@ -575,6 +609,8 @@ const POSModule = {
 
     // Điền nhanh mệnh giá tiền khách đưa
     setQuickCash(amount) {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const total = this.calculateTotalAmount();
         let targetAmount = amount;
         if (amount === 'exact') {
@@ -1137,13 +1173,16 @@ const POSModule = {
     },
 
     selectCustomerByIndex(idx) {
+        if (this.isCheckingOut) return;
         if (!this.customerSearchResultsList || !this.customerSearchResultsList[idx]) return;
         const cust = this.customerSearchResultsList[idx];
         this.applySelectedCustomer(cust);
     },
 
     applySelectedCustomer(cust) {
+        if (this.isCheckingOut) return;
         if (!cust) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const phoneInput = document.getElementById('pos-customer-phone');
         const nameInput = document.getElementById('pos-customer-name');
         const clearBtn = document.getElementById('pos-clear-customer-btn');
@@ -1165,6 +1204,8 @@ const POSModule = {
     },
 
     clearCustomer() {
+        if (this.isCheckingOut) return;
+        this.cancelPendingCheckoutOrderIfAny();
         const phoneInput = document.getElementById('pos-customer-phone');
         const nameInput = document.getElementById('pos-customer-name');
         const noteInput = document.getElementById('pos-customer-note');
@@ -1186,6 +1227,10 @@ const POSModule = {
     },
 
     handleCustomerKeydown(e) {
+        if (this.isCheckingOut) {
+            e.preventDefault();
+            return;
+        }
         const resultsEl = document.getElementById('pos-customer-search-results');
         if (!resultsEl || resultsEl.classList.contains('hidden') || this.customerSearchResultsList.length === 0) {
             return;
@@ -1241,8 +1286,63 @@ const POSModule = {
         this.updatePointsPreview();
     },
 
+    setCustomerFieldsDisabled(disabled) {
+        ['pos-customer-phone', 'pos-customer-name', 'pos-customer-note', 'pos-clear-customer-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = disabled;
+        });
+    },
+
     // --- THANH TOÁN & IN HÓA ĐƠN ---
-    checkout(shouldPrint = true) {
+    async checkout(shouldPrint = true) {
+        if (this.isCheckingOut) return;
+
+        // 1. Nếu đang có đơn hàng chờ lưu lại từ lần trước thất bại -> Chỉ thử gửi lưu lại đơn này (không kiểm tra tồn lại vì tồn đã trừ khi tạo đơn)
+        if (this.pendingCheckoutOrder && this.pendingCheckoutOrder.id) {
+            const savedOrder = this.pendingCheckoutOrder;
+            this.isCheckingOut = true;
+            this.setCustomerFieldsDisabled(true);
+            try {
+                let saveSuccess = true;
+                if (window.Store && typeof Store.persistImmediately === 'function') {
+                    saveSuccess = await Store.persistImmediately();
+                }
+
+                if (saveSuccess === false) {
+                    if (window.App && typeof App.showToast === 'function') {
+                        App.showToast('Lỗi lưu đơn hàng lên máy chủ! Đang giữ đơn chờ thử lại.', 'error');
+                    }
+                    alert(`⚠️ CẢNH BÁO: Đơn hàng [${savedOrder.id}] vẫn chưa lưu được lên máy chủ!\n\nLý do: Máy chủ từ chối hoặc mất kết nối mạng. Giỏ hàng và mã đơn đã được giữ lại.\nBạn có thể bấm [Thanh toán] lần nữa để thử lưu lại.`);
+                    return;
+                }
+
+                // Xác minh đơn hàng thực sự tồn tại trong Store bằng clientTxId (hoặc id) trước khi báo thành công
+                const currentOrders = (Store && typeof Store.getOrders === 'function') ? Store.getOrders() : [];
+                const orderPersisted = currentOrders.some(o => (savedOrder.clientTxId ? o.clientTxId === savedOrder.clientTxId : o.id === savedOrder.id) && !o.isCancelled);
+                if (!orderPersisted) {
+                    alert(`⚠️ Đơn hàng [${savedOrder.id}] không còn trong cơ sở dữ liệu. Hệ thống sẽ tạo lại đơn mới từ giỏ hàng hiện tại.`);
+                    this.pendingCheckoutOrder = null;
+                    return;
+                }
+
+                this.pendingCheckoutOrder = null;
+                Store.logAction('Hóa đơn', `Tạo hóa đơn: ${savedOrder.id}, bảng giá: Bảng giá chung, Thuế: Tắt thuế, giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}, khách hàng: ${savedOrder.customerName || 'Khách vãng lai'}`, savedOrder.pharmacist || 'ADMIN', 'create');
+                Store.logAction('Phiếu thu', `Tạo phiếu thu: TTHD${savedOrder.id.replace('HD','')}, cho hóa đơn: ${savedOrder.id}, với giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}`, savedOrder.pharmacist || 'ADMIN', 'create');
+
+                AppUtils.playBeepSound('success');
+                if (shouldPrint) {
+                    this.showReceiptPreview(savedOrder);
+                } else {
+                    alert(`Đã lưu thành công đơn hàng: ${savedOrder.id}\nPhương thức: ${savedOrder.paymentMethod === 'cash' ? 'TIỀN MẶT' : 'CHUYỂN KHOẢN (VietQR)'}`);
+                }
+                this.resetAfterCheckout();
+                return;
+            } finally {
+                this.isCheckingOut = false;
+                this.setCustomerFieldsDisabled(false);
+            }
+        }
+
         if (this.cart.length === 0) {
             alert('Giỏ hàng đang trống! Vui lòng chọn ít nhất một loại thuốc để thanh toán.');
             return;
@@ -1296,7 +1396,7 @@ const POSModule = {
                 unit: i.unit,
                 quantity: i.quantity,
                 price: i.price,
-                costPrice: i.costPrice || 0,
+                costPrice: (typeof i.costPrice === 'number' && !isNaN(i.costPrice)) ? i.costPrice : (parseFloat(i.costPrice) || 0),
                 usage: i.usage || ''
             })),
             subTotal: subTotal,
@@ -1310,34 +1410,68 @@ const POSModule = {
             pharmacist: (window.AuthModule ? AuthModule.getCurrentUser()?.fullName : null) || settings.pharmacist || 'Dược sĩ bán hàng'
         };
 
-        const savedOrder = Store.addOrder(newOrder);
+        // Sinh clientTxId duy nhất cho phiên thanh toán đơn này để chống trùng đơn và đối chiếu chính xác
+        newOrder.clientTxId = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
 
-        // Lưu tức thì lên máy chủ, không chờ debounce
-        if (window.Store && typeof Store.persistImmediately === 'function') {
-            Store.persistImmediately();
+        this.isCheckingOut = true;
+        this.setCustomerFieldsDisabled(true);
+        try {
+            const savedOrder = Store.addOrder(newOrder);
+            this.pendingCheckoutOrder = savedOrder;
+
+            // Lưu tức thì lên máy chủ và chờ kết quả
+            let saveSuccess = true;
+            if (window.Store && typeof Store.persistImmediately === 'function') {
+                saveSuccess = await Store.persistImmediately();
+            }
+
+            if (saveSuccess === false) {
+                // Nếu lưu máy chủ thất bại: KHÔNG xóa giỏ hàng, giữ pendingCheckoutOrder để khi bấm thanh toán lại không tạo đơn trùng
+                if (window.App && typeof App.showToast === 'function') {
+                    App.showToast('Lỗi lưu đơn hàng lên máy chủ! Giỏ hàng đã được giữ nguyên để bạn thử lại.', 'error');
+                }
+                alert(`⚠️ CẢNH BÁO: Đơn hàng [${savedOrder.id}] chưa lưu được lên máy chủ!\n\nLý do: Máy chủ từ chối hoặc mất kết nối mạng. Giỏ hàng và mã đơn đã được giữ lại.\nBạn có thể bấm [Thanh toán] lần nữa để thử lưu lại.`);
+                return;
+            }
+
+            // Xác minh đơn hàng thực sự tồn tại trong Store bằng clientTxId trước khi báo thành công
+            const currentOrders = (Store && typeof Store.getOrders === 'function') ? Store.getOrders() : [];
+            const orderPersisted = currentOrders.some(o => (savedOrder.clientTxId ? o.clientTxId === savedOrder.clientTxId : o.id === savedOrder.id) && !o.isCancelled);
+            if (!orderPersisted) {
+                alert(`⚠️ Đơn hàng [${savedOrder.id}] không còn trong cơ sở dữ liệu. Hệ thống sẽ tạo lại đơn mới từ giỏ hàng hiện tại.`);
+                this.pendingCheckoutOrder = null;
+                return;
+            }
+
+            // Lưu máy chủ thành công -> Xóa cờ pendingCheckoutOrder
+            this.pendingCheckoutOrder = null;
+
+            // Ghi nhận vào Lịch Sử Thao Tác (Audit Log)
+            Store.logAction('Hóa đơn', `Tạo hóa đơn: ${savedOrder.id}, bảng giá: Bảng giá chung, Thuế: Tắt thuế, giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}, khách hàng: ${savedOrder.customerName || 'Khách vãng lai'}`, savedOrder.pharmacist || 'ADMIN', 'create');
+            Store.logAction('Phiếu thu', `Tạo phiếu thu: TTHD${savedOrder.id.replace('HD','')}, cho hóa đơn: ${savedOrder.id}, với giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}`, savedOrder.pharmacist || 'ADMIN', 'create');
+
+            AppUtils.playBeepSound('success');
+
+            if (shouldPrint) {
+                this.showReceiptPreview(savedOrder);
+            } else {
+                alert(`Đã lưu thành công đơn hàng: ${savedOrder.id}\nPhương thức: ${this.paymentMethod === 'cash' ? 'TIỀN MẶT' : 'CHUYỂN KHOẢN (VietQR)'}`);
+            }
+
+            // Reset lại form bán hàng cho lượt khách kế tiếp
+            this.resetAfterCheckout();
+        } finally {
+            this.isCheckingOut = false;
+            this.setCustomerFieldsDisabled(false);
         }
-
-        // Ghi nhận vào Lịch Sử Thao Tác (Audit Log)
-        Store.logAction('Hóa đơn', `Tạo hóa đơn: ${savedOrder.id}, bảng giá: Bảng giá chung, Thuế: Tắt thuế, giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}, khách hàng: ${savedOrder.customerName || 'Khách vãng lai'}`, savedOrder.pharmacist || 'ADMIN', 'create');
-        Store.logAction('Phiếu thu', `Tạo phiếu thu: TTHD${savedOrder.id.replace('HD','')}, cho hóa đơn: ${savedOrder.id}, với giá trị: ${AppUtils.formatVND(savedOrder.totalAmount)}`, savedOrder.pharmacist || 'ADMIN', 'create');
-
-        AppUtils.playBeepSound('success');
-
-        if (shouldPrint) {
-            this.showReceiptPreview(savedOrder);
-        } else {
-            alert(`Đã lưu thành công đơn hàng: ${savedOrder.id}\nPhương thức: ${this.paymentMethod === 'cash' ? 'TIỀN MẶT' : 'CHUYỂN KHOẢN (VietQR)'}`);
-        }
-
-        // Reset lại form bán hàng cho lượt khách kế tiếp
-        this.resetAfterCheckout();
     },
 
-    checkoutAndPrint() {
-        this.checkout(true);
+    async checkoutAndPrint() {
+        await this.checkout(true);
     },
 
     resetAfterCheckout() {
+        this.pendingCheckoutOrder = null;
         this.cart = [];
         this.discount = 0;
         this.pointsUsed = 0;
@@ -1475,7 +1609,7 @@ const POSModule = {
                     ${!isTransfer ? `
                     <div class="flex justify-between text-[11px] text-slate-600">
                         <span>Tiền khách đưa:</span>
-                        <span>${AppUtils.formatVND(order.customerCash)}</span>
+                        <span>${AppUtils.formatVND((typeof order.customerCash === 'number' && order.customerCash > 0) ? order.customerCash : (order.cashGiven || order.totalAmount || 0))}</span>
                     </div>
                     <div class="flex justify-between text-[11px] font-bold text-slate-800">
                         <span>Tiền thừa trả khách:</span>

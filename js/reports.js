@@ -191,12 +191,14 @@ const ReportsModule = {
             const med = (typeof Store.getMedicineById === 'function'
                 ? Store.getMedicineById(it.medicineId)
                 : null) || (Store._medicineMap ? (Store._medicineMap[it.medicineCode] || Store._medicineMap[it.medicineId]) : null);
-            // Ưu tiên giá vốn đã chốt tại thời điểm bán/trả
-            let unitCost = (typeof it.costPrice === 'number' && it.costPrice > 0) ? it.costPrice : 0;
-            if (unitCost <= 0) {
-                if (med && typeof Store.getMedicineUnitCost === 'function') {
-                    unitCost = Store.getMedicineUnitCost(med, it.unit);
-                }
+            // Ưu tiên giá vốn đã chốt tại thời điểm bán/trả (bao gồm cả giá vốn 0đ hợp lệ)
+            let unitCost = null;
+            if (typeof it.costPrice === 'number' && !isNaN(it.costPrice)) {
+                unitCost = it.costPrice;
+            } else if (med && typeof Store.getMedicineUnitCost === 'function') {
+                unitCost = Store.getMedicineUnitCost(med, it.unit);
+            } else {
+                unitCost = 0;
             }
             sum += unitCost * (Number(it.quantity) || 0);
         });
@@ -387,10 +389,14 @@ const ReportsModule = {
                     if (rawQty <= 0) return;
 
                     const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                    // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice)
-                    let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-                    if (unitCost <= 0 && med) {
+                    // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice, bao gồm cả 0đ hợp lệ)
+                    let unitCost = null;
+                    if (typeof item.costPrice === 'number' && !isNaN(item.costPrice)) {
+                        unitCost = item.costPrice;
+                    } else if (med) {
                         unitCost = Store.getMedicineUnitCost(med, item.unit);
+                    } else {
+                        unitCost = 0;
                     }
                     const lineCost = unitCost * rawQty;
                     orderCost += lineCost;
@@ -660,10 +666,14 @@ const ReportsModule = {
                 const netQty = Math.max(0, rawQty - returnedQty);
 
                 const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice)
-                let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-                if (unitCost <= 0 && med) {
+                // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice, bao gồm cả 0đ hợp lệ)
+                let unitCost = null;
+                if (typeof item.costPrice === 'number' && !isNaN(item.costPrice)) {
+                    unitCost = item.costPrice;
+                } else if (med) {
                     unitCost = Store.getMedicineUnitCost(med, item.unit);
+                } else {
+                    unitCost = 0;
                 }
                 const lineCost = unitCost * netQty;
                 orderCost += lineCost;
@@ -1581,10 +1591,14 @@ const ReportsModule = {
                     }
 
                     const med = Store.getMedicineById(item.medicineId) || (Store._medicineMap ? (Store._medicineMap[item.medicineCode] || Store._medicineMap[item.medicineId]) : null);
-                    // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice)
-                    let unitCost = (typeof item.costPrice === 'number' && item.costPrice > 0) ? item.costPrice : 0;
-                    if (unitCost <= 0 && med) {
+                    // Ưu tiên giá vốn chốt tại thời điểm bán (order.items[].costPrice, bao gồm cả 0đ hợp lệ)
+                    let unitCost = null;
+                    if (typeof item.costPrice === 'number' && !isNaN(item.costPrice)) {
+                        unitCost = item.costPrice;
+                    } else if (med) {
                         unitCost = Store.getMedicineUnitCost(med, item.unit);
+                    } else {
+                        unitCost = 0;
                     }
                     totalCost += (unitCost * rawQty);
                 });
