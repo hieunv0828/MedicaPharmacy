@@ -426,8 +426,8 @@ const VouchersModule = {
                     <td class="py-3.5 px-3 text-center">${typeBadge}</td>
                     <td class="py-3.5 px-3">${methodBadge}</td>
                     <td class="py-3.5 px-3">
-                        <div class="font-medium text-slate-900 text-[13px]">${v.category || '---'}</div>
-                        ${v.note ? `<div class="text-xs text-slate-600 line-clamp-1 mt-0.5" title="${v.note}">${v.note}</div>` : ''}
+                        <div class="font-medium text-slate-900 text-[13px]">${AppUtils.escapeHtml(v.category || '---')}</div>
+                        ${v.note ? `<div class="text-xs text-slate-600 line-clamp-1 mt-0.5" title="${AppUtils.escapeHtml(v.note)}">${AppUtils.escapeHtml(v.note)}</div>` : ''}
                     </td>
                     <td class="py-3.5 px-3">
                         <div class="font-medium text-slate-900 text-[13px]">${escapedTargetName}</div>
@@ -985,9 +985,9 @@ const VouchersModule = {
         container.innerHTML = `
             <div class="receipt-paper k80-width bg-white text-slate-900 mx-auto p-4 shadow-lg font-sans text-xs">
                 <div class="text-center pb-2 border-b border-dashed border-slate-300">
-                    <div class="font-extrabold text-sm uppercase">${settings.pharmacyName || 'MEDICA PHARMACY'}</div>
-                    <div class="text-[10px] text-slate-500">${settings.address || ''}</div>
-                    <div class="text-[10px] text-slate-500">Hotline: ${settings.phone || ''}</div>
+                    <div class="font-extrabold text-sm uppercase">${AppUtils.escapeHtml(settings.pharmacyName || 'MEDICA PHARMACY')}</div>
+                    <div class="text-[10px] text-slate-500">${AppUtils.escapeHtml(settings.address || '')}</div>
+                    <div class="text-[10px] text-slate-500">Hotline: ${AppUtils.escapeHtml(settings.phone || '')}</div>
                 </div>
 
                 <div class="text-center my-3">
@@ -1003,7 +1003,7 @@ const VouchersModule = {
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Đối tượng:</span>
-                        <span>${targetInfo.typeLabel}</span>
+                        <span>${AppUtils.escapeHtml(targetInfo.typeLabel || '')}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Hình thức:</span>
@@ -1011,11 +1011,11 @@ const VouchersModule = {
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Lý do ${isReceipt ? 'thu' : 'chi'}:</span>
-                        <span class="font-medium text-right">${v.category}</span>
+                        <span class="font-medium text-right">${AppUtils.escapeHtml(v.category || '')}</span>
                     </div>
                     ${v.note ? `
                     <div class="text-[11px] text-slate-600 italic">
-                        Ghi chú: ${v.note}
+                        Ghi chú: ${AppUtils.escapeHtml(v.note)}
                     </div>` : ''}
                     <div class="flex justify-between items-baseline pt-2 border-t border-slate-200">
                         <span class="font-extrabold text-slate-800">SỐ TIỀN:</span>
@@ -1034,7 +1034,7 @@ const VouchersModule = {
                         <p class="font-bold uppercase">Người lập phiếu</p>
                         <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
                         <div class="h-10"></div>
-                        <p class="font-semibold">${v.pharmacist || ''}</p>
+                        <p class="font-semibold">${AppUtils.escapeHtml(v.pharmacist || '')}</p>
                     </div>
                 </div>
             </div>

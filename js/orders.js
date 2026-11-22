@@ -448,10 +448,10 @@ const OrdersModule = {
                                 onclick="CustomersModule.openCustomerOrdersModal('${safeCustLookup}')"
                                 class="font-semibold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1 group"
                                 title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
-                            <span>${custName || 'Khách hàng'}</span>
+                            <span>${AppUtils.escapeHtml(custName || 'Khách hàng')}</span>
                             <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-600 opacity-60 group-hover:opacity-100"></i>
                         </button>
-                        ${custPhone ? `<div class="text-xs text-slate-500 font-mono mt-0.5">${custPhone}</div>` : ''}
+                        ${custPhone ? `<div class="text-xs text-slate-500 font-mono mt-0.5">${AppUtils.escapeHtml(custPhone)}</div>` : ''}
                     `;
                 } else {
                     customerCellHtml = `<div class="font-semibold text-slate-500">Khách lẻ</div>`;
@@ -477,8 +477,8 @@ const OrdersModule = {
                             ${customerCellHtml}
                         </td>
                         <td class="py-3 px-3">
-                            <div class="text-xs text-slate-600 line-clamp-1 max-w-xs" title="${itemsSummary}">${itemsSummary}</div>
-                            <div class="text-[11px] text-slate-400 mt-0.5">Dược sĩ: ${o.pharmacist || 'admin'} • Lý do: ${o.reason || 'Trả hàng'}</div>
+                            <div class="text-xs text-slate-600 line-clamp-1 max-w-xs" title="${AppUtils.escapeHtml(itemsSummary)}">${AppUtils.escapeHtml(itemsSummary)}</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">Dược sĩ: ${AppUtils.escapeHtml(o.pharmacist || 'admin')} • Lý do: ${AppUtils.escapeHtml(o.reason || 'Trả hàng')}</div>
                         </td>
                         <td class="py-3 px-3 text-right">
                             <div class="font-bold text-rose-600 text-sm font-mono">-${AppUtils.formatVND(totalRefund)}</div>
@@ -556,10 +556,10 @@ const OrdersModule = {
                             onclick="CustomersModule.openCustomerOrdersModal('${safeCustLookup}')"
                             class="font-medium text-slate-900 hover:text-emerald-700 hover:underline cursor-pointer text-left transition flex items-center gap-1 group text-[13px]"
                             title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
-                        <span>${custName || 'Khách hàng'}</span>
+                        <span>${AppUtils.escapeHtml(custName || 'Khách hàng')}</span>
                         <i data-lucide="user-check" class="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 opacity-60 group-hover:opacity-100 transition"></i>
                     </button>
-                    ${custPhone ? `<div class="text-xs text-slate-600 mt-0.5">${custPhone}</div>` : ''}
+                    ${custPhone ? `<div class="text-xs text-slate-600 mt-0.5">${AppUtils.escapeHtml(custPhone)}</div>` : ''}
                     ${o.pointsEarned ? `<div class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200/70 px-1.5 py-0.2 rounded-md mt-0.5">⭐ +${o.pointsEarned}đ</div>` : ''}
                 `;
             } else {
@@ -577,14 +577,14 @@ const OrdersModule = {
                     </td>
                     <td class="py-3.5 px-3">
                         ${methodBadge}
-                        ${o.transferCode ? `<div class="text-xs text-slate-600 mt-1">Mã GD: ${o.transferCode}</div>` : ''}
+                        ${o.transferCode ? `<div class="text-xs text-slate-600 mt-1">Mã GD: ${AppUtils.escapeHtml(o.transferCode)}</div>` : ''}
                     </td>
                     <td class="py-3.5 px-3">
                         ${customerCellHtml}
                     </td>
                     <td class="py-3.5 px-3">
-                        <div class="text-[13px] text-slate-900 line-clamp-1 max-w-xs" title="${itemsSummary}">${itemsSummary}</div>
-                        <div class="text-xs text-slate-600 mt-0.5">Dược sĩ: ${o.pharmacist || '---'}</div>
+                        <div class="text-[13px] text-slate-900 line-clamp-1 max-w-xs" title="${AppUtils.escapeHtml(itemsSummary)}">${AppUtils.escapeHtml(itemsSummary)}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">Dược sĩ: ${AppUtils.escapeHtml(o.pharmacist || '---')}</div>
                     </td>
                     <td class="py-3.5 px-3 text-right">
                         <div class="font-semibold text-slate-900 text-[13px] tabular-nums">${AppUtils.formatVND(o.totalAmount)}</div>
@@ -749,8 +749,8 @@ const OrdersModule = {
                                         <span>#${rIdx + 1} • ${AppUtils.formatDateTime(ret.createdAt)}</span>
                                         <span class="text-rose-700 font-bold">-${AppUtils.formatVND(ret.refundTotal)} (Trừ quỹ tiền mặt)</span>
                                     </div>
-                                    <div class="text-[11px] text-slate-600 mt-0.5">Thuốc trả: ${rItems}</div>
-                                    <div class="text-[11px] text-slate-500 italic">Lý do: ${ret.reason || 'Khách trả hàng'} • Dược sĩ: ${ret.pharmacist || '---'}</div>
+                                    <div class="text-[11px] text-slate-600 mt-0.5">Thuốc trả: ${AppUtils.escapeHtml(rItems)}</div>
+                                    <div class="text-[11px] text-slate-500 italic">Lý do: ${AppUtils.escapeHtml(ret.reason || 'Khách trả hàng')} • Dược sĩ: ${AppUtils.escapeHtml(ret.pharmacist || '---')}</div>
                                 </div>
                             `;
                         }).join('')}
@@ -785,11 +785,11 @@ const OrdersModule = {
                                     onclick="CustomersModule.openCustomerOrdersModal('${(order.customerPhone || order.customerId || order.customerName).replace(/'/g, "\\'")}');" 
                                     class="font-bold text-slate-800 hover:text-emerald-700 hover:underline cursor-pointer text-left flex items-center gap-1 mt-0.5" 
                                     title="Bấm để xem hồ sơ và lịch sử đơn hàng của khách">
-                                <span>${order.customerName || 'Khách hàng'}</span>
+                                <span>${AppUtils.escapeHtml(order.customerName || 'Khách hàng')}</span>
                                 <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-600"></i>
                             </button>
-                        ` : `<p class="font-bold text-slate-800 mt-0.5">${order.customerName || 'Khách vãng lai'}</p>`}
-                        <p class="text-slate-500 mt-1">Số điện thoại: <span class="font-mono text-slate-700">${order.customerPhone || '---'}</span></p>
+                        ` : `<p class="font-bold text-slate-800 mt-0.5">${AppUtils.escapeHtml(order.customerName || 'Khách vãng lai')}</p>`}
+                        <p class="text-slate-500 mt-1">Số điện thoại: <span class="font-mono text-slate-700">${AppUtils.escapeHtml(order.customerPhone || '---')}</span></p>
                         ${order.pointsEarned ? `<p class="mt-1"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">⭐ Tích lũy đơn: +${order.pointsEarned} điểm</span></p>` : ''}
                         ${order.pointsUsed ? `<p class="mt-0.5"><span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-full">⭐ Đã dùng: -${order.pointsUsed} điểm (-${AppUtils.formatVND(order.pointsDiscount || order.pointsUsed * 1000)})</span></p>` : ''}
                     </div>
@@ -801,8 +801,8 @@ const OrdersModule = {
                         ${isCash && ((typeof order.customerCash === 'number' && order.customerCash > 0) || order.cashGiven) ? `
                             <p class="text-slate-500 mt-1">Khách đưa: <span class="font-mono font-bold text-slate-700">${AppUtils.formatVND(order.customerCash || order.cashGiven)}</span>${order.changeAmount > 0 ? ` (Thối: <span class="font-mono text-emerald-700 font-bold">${AppUtils.formatVND(order.changeAmount)}</span>)` : ''}</p>
                         ` : ''}
-                        ${order.transferCode ? `<p class="text-slate-500 mt-1">Mã GD: <span class="font-mono font-bold">${order.transferCode}</span></p>` : ''}
-                        <p class="text-slate-500 mt-1">Dược sĩ: <span class="text-slate-700">${order.pharmacist}</span></p>
+                        ${order.transferCode ? `<p class="text-slate-500 mt-1">Mã GD: <span class="font-mono font-bold">${AppUtils.escapeHtml(order.transferCode)}</span></p>` : ''}
+                        <p class="text-slate-500 mt-1">Dược sĩ: <span class="text-slate-700">${AppUtils.escapeHtml(order.pharmacist || '---')}</span></p>
                     </div>
                 </div>
 
@@ -2312,8 +2312,8 @@ const OrdersModule = {
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
                 <div>
                     <span class="text-slate-400 block text-[11px]">Khách Hàng:</span>
-                    <span class="font-bold text-slate-800">${order.customerName || 'Khách lẻ'}</span>
-                    ${order.customerPhone ? `<div class="text-slate-500 font-mono text-[11px]">${order.customerPhone}</div>` : ''}
+                    <span class="font-bold text-slate-800">${AppUtils.escapeHtml(order.customerName || 'Khách lẻ')}</span>
+                    ${order.customerPhone ? `<div class="text-slate-500 font-mono text-[11px]">${AppUtils.escapeHtml(order.customerPhone)}</div>` : ''}
                 </div>
                 <div>
                     <span class="text-slate-400 block text-[11px]">Hình Thức Hoàn:</span>
@@ -2323,11 +2323,11 @@ const OrdersModule = {
                 </div>
                 <div>
                     <span class="text-slate-400 block text-[11px]">Lý Do Trả:</span>
-                    <span class="font-medium text-slate-800">${order.reason || 'Khách trả hàng'}</span>
+                    <span class="font-medium text-slate-800">${AppUtils.escapeHtml(order.reason || 'Khách trả hàng')}</span>
                 </div>
                 <div>
                     <span class="text-slate-400 block text-[11px]">Dược Sĩ Lập:</span>
-                    <span class="font-medium text-slate-800">${order.pharmacist || 'admin'}</span>
+                    <span class="font-medium text-slate-800">${AppUtils.escapeHtml(order.pharmacist || 'admin')}</span>
                 </div>
             </div>
 
@@ -2418,12 +2418,12 @@ const OrdersModule = {
                 <div class="space-y-1 border-t border-b border-dashed border-slate-300 py-2 text-xs">
                     <div class="flex justify-between">
                         <span class="text-slate-500">Khách hàng:</span>
-                        <span class="font-bold text-slate-800">${order.customerName || 'Khách lẻ'}</span>
+                        <span class="font-bold text-slate-800">${AppUtils.escapeHtml(order.customerName || 'Khách lẻ')}</span>
                     </div>
                     ${order.customerPhone ? `
                     <div class="flex justify-between">
                         <span class="text-slate-500">Số điện thoại:</span>
-                        <span class="font-mono">${order.customerPhone}</span>
+                        <span class="font-mono">${AppUtils.escapeHtml(order.customerPhone)}</span>
                     </div>` : ''}
                     <div class="flex justify-between">
                         <span class="text-slate-500">Hình thức hoàn:</span>
@@ -2431,7 +2431,7 @@ const OrdersModule = {
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Lý do trả:</span>
-                        <span class="font-medium text-slate-700">${order.reason || 'Khách trả hàng'}</span>
+                        <span class="font-medium text-slate-700">${AppUtils.escapeHtml(order.reason || 'Khách trả hàng')}</span>
                     </div>
                 </div>
 
@@ -2465,13 +2465,13 @@ const OrdersModule = {
                         <p class="font-bold uppercase">Người trả hàng</p>
                         <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
                         <div class="h-10"></div>
-                        <p class="font-semibold">${order.customerName || ''}</p>
+                        <p class="font-semibold">${AppUtils.escapeHtml(order.customerName || '')}</p>
                     </div>
                     <div>
                         <p class="font-bold uppercase">Người lập phiếu</p>
                         <p class="italic text-[9px] text-slate-400">(Ký, họ tên)</p>
                         <div class="h-10"></div>
-                        <p class="font-semibold">${order.pharmacist || ''}</p>
+                        <p class="font-semibold">${AppUtils.escapeHtml(order.pharmacist || '')}</p>
                     </div>
                 </div>
             </div>

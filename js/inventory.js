@@ -2196,7 +2196,7 @@ const InventoryModule = {
 
         let itemsHtml = '';
         (o.items || []).forEach((item, i) => {
-            const med = Store.getMedicineById(item.medicineId) || Store.getMedicines().find(m => m.name === item.medicineName);
+            const med = Store.getMedicineById(item.medicineId) || Store.getMedicineByName(item.medicineName);
             const medId = med ? med.id : item.medicineId;
 
             const returnedQty = (o.returns || []).reduce((sum, r) => {
@@ -2205,7 +2205,7 @@ const InventoryModule = {
             }, 0);
 
             itemsHtml += `
-                <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition">
+                <tr class="border-b border-slate-100 text-xs hover:bg-slate-50 transition-colors">
                     <td class="p-2 text-center text-slate-400 font-mono">${i + 1}</td>
                     <td class="p-2 font-mono font-bold text-emerald-800">${item.medicineId || '---'}</td>
                     <td class="p-2">
@@ -2389,7 +2389,7 @@ const InventoryModule = {
                 }
             };
         }
-        if (window.lucide) lucide.createIcons();
+        if (window.lucide) lucide.createIcons({ root: modal });
     },
 
     closeStockInDetailModal() {
@@ -3738,7 +3738,7 @@ const InventoryModule = {
         if (btnJump) {
             btnJump.onclick = () => this.jumpToInventoryMedicine(medicineId);
         }
-        if (window.lucide) lucide.createIcons();
+        if (window.lucide) lucide.createIcons({ root: modal });
     },
 
     closeMedicineHistoryModal() {
@@ -3788,7 +3788,6 @@ const InventoryModule = {
             viewSales?.classList.remove('hidden');
             viewStockIn?.classList.add('hidden');
         }
-        if (window.lucide) lucide.createIcons();
     },
 
     renderMedicineHistoryViews(med) {
@@ -3908,7 +3907,8 @@ const InventoryModule = {
             }
         }
 
-        if (window.lucide) lucide.createIcons();
+        const modalHist = document.getElementById('modal-medicine-history');
+        if (window.lucide && modalHist) lucide.createIcons({ root: modalHist });
     },
 
     // =========================================================

@@ -871,14 +871,13 @@
         }
 
         window.addEventListener("DOMContentLoaded", async () => {
-            let waitCount = 0;
-            while (Store.syncInProgress && waitCount < 50) {
-                await new Promise(r => setTimeout(r, 50));
-                waitCount++;
-            }
-            if (Store.getMedicines().length === 0) {
-                await Store.syncWithServer();
-            }
+            Store.loadInitialSampleData();
+            Store._cachedMedicines = null;
+            Store._cachedOrders = null;
+            Store._cachedStockIns = null;
+            Store._cachedCustomers = null;
+            Store._cachedVouchers = null;
+            Store.ready = true;
             runAllTests();
         });
     </script>

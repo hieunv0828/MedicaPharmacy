@@ -39,6 +39,7 @@ class DataStore {
         this._cachedAuditLog = null;
         this._pendingLocalOrderIds = new Set(); // Tập hợp mã đơn hàng cục bộ đang chờ commit máy chủ
         this._pendingLocalStockInIds = new Set(); // Tập hợp mã phiếu nhập kho cục bộ đang chờ commit máy chủ
+        this._pendingLocalReturnIds = new Set(); // Tập hợp mã trả hàng lẻ cục bộ đang chờ commit máy chủ
         this._activeUploadPromise = null;
 
         // Phục hồi hàng đợi chờ từ LocalStorage nếu có
@@ -48,6 +49,7 @@ class DataStore {
                 queue.forEach(q => {
                     if (q.type === 'order' && q.id) this._pendingLocalOrderIds.add(q.id);
                     if (q.type === 'stockin' && q.id) this._pendingLocalStockInIds.add(q.id);
+                    if (q.type === 'order_return' && q.id) this._pendingLocalReturnIds.add(q.id);
                 });
             }
         } catch(e) {}
@@ -81,8 +83,22 @@ class DataStore {
                     this.loadInitialSampleData();
                 }
             }
-            this.syncOrdersAndStockInsToVouchers();
-            this.syncCustomerOrdersStats();
+            const settings = this.getSettings() || {};
+            let settingsUpdated = false;
+            // Chỉ chạy migration khi chưa đánh dấu đã migrate, và khi đã có dữ liệu hợp lệ từ server
+            if (!settings.vouchersMigrated && (!this.isServerMode || this._loadedFromServer)) {
+                this.syncOrdersAndStockInsToVouchers();
+                settings.vouchersMigrated = true;
+                settingsUpdated = true;
+            }
+            if (!settings.customerStatsMigrated && (!this.isServerMode || this._loadedFromServer)) {
+                this.syncCustomerOrdersStats();
+                settings.customerStatsMigrated = true;
+                settingsUpdated = true;
+            }
+            if (settingsUpdated) {
+                this.saveSettings(settings, false);
+            }
         } catch (e) {
             console.error('Lỗi khởi tạo dữ liệu:', e);
         } finally {
@@ -351,7 +367,24 @@ class DataStore {
                 }
 
                 this.saveToLocalCache(data);
-                this.syncCustomerOrdersStats();
+
+                // Migration chỉ chạy một lần duy nhất nếu chưa migrate
+                const s = this.getSettings() || {};
+                let sChanged = false;
+                if (!s.customerStatsMigrated) {
+                    this.syncCustomerOrdersStats();
+                    s.customerStatsMigrated = true;
+                    sChanged = true;
+                }
+                if (!s.vouchersMigrated) {
+                    this.syncOrdersAndStockInsToVouchers();
+                    s.vouchersMigrated = true;
+                    sChanged = true;
+                }
+                if (sChanged) {
+                    this.saveSettings(s, false);
+                }
+
                 this.lastServerSyncTime = Date.now();
                 this.updateServerStatusBadge(true);
                 this.emit('all:changed');
@@ -633,12 +666,14 @@ class DataStore {
             }
 
             // 1. Xác định các giao dịch cục bộ chưa đồng bộ lên server (giữ nguyên đơn chờ và đơn mới)
+            this._stockInHistoryCache = null;
+            this._salesHistoryCache = null;
+            const pendingQueue = this._getPendingQueue();
             let pendingOrders = [];
             const renamedOrderMap = new Map();
             const renamedStockInMap = new Map();
             if (db.orders) {
                 const localOrders = (this._cachedOrders && Array.isArray(this._cachedOrders)) ? this._cachedOrders : this.getOrders();
-                const pendingQueue = this._getPendingQueue();
                 const queueOrders = pendingQueue.filter(q => q.type === 'order' && q.data).map(q => q.data);
 
                 // localOrders (có trạng thái mới nhất bao gồm isCancelled) phải được ưu tiên hàng đầu! (Issue 1)
@@ -732,6 +767,38 @@ class DataStore {
                     });
                     db.orders = [...pendingOrders, ...db.orders];
                 }
+
+                // Tái hợp nhất các lần trả hàng lẻ (order_return) còn đang chờ lưu (Batch P1: Issue 5)
+                const pendingOrderReturns = pendingQueue.filter(q => q.type === 'order_return' && q.data);
+                if (pendingOrderReturns.length > 0) {
+                    const currentOrdersMap = new Map();
+                    db.orders.forEach(o => { if (o && o.id) currentOrdersMap.set(o.id, o); });
+
+                    pendingOrderReturns.forEach(pr => {
+                        const targetOrder = currentOrdersMap.get(pr.orderId);
+                        if (targetOrder) {
+                            if (!targetOrder.returns) targetOrder.returns = [];
+                            const isCommitted = targetOrder.returns.some(r =>
+                                r.id === pr.id || (pr.clientTxId && r.clientTxId === pr.clientTxId)
+                            );
+                            if (isCommitted) {
+                                if (this._pendingLocalReturnIds) this._pendingLocalReturnIds.delete(pr.id);
+                                this._removeFromPendingQueue(pr.id, pr.clientTxId);
+                            } else {
+                                targetOrder.returns.push(pr.data);
+                                targetOrder.totalRefunded = (targetOrder.totalRefunded || 0) + (pr.data.refundTotal || 0);
+                                const allReturned = (targetOrder.items || []).every(it => {
+                                    const retQty = targetOrder.returns.reduce((sum, r) => {
+                                        const matched = (r.items || []).filter(ri => ri.medicineId === it.medicineId && ri.unit === it.unit);
+                                        return sum + matched.reduce((mSum, mi) => mSum + (Number(mi.quantity) || 0), 0);
+                                    }, 0);
+                                    return retQty >= (Number(it.quantity) || 0);
+                                });
+                                targetOrder.returnStatus = allReturned ? 'fully_returned' : 'partially_returned';
+                            }
+                        }
+                    });
+                }
                 this._cachedOrders = db.orders;
                 safeSet(STORAGE_KEYS.ORDERS, db.orders, 100);
             }
@@ -739,7 +806,6 @@ class DataStore {
             let pendingStockIns = [];
             if (db.stockInOrders) {
                 const localStockIns = (this._cachedStockIns && Array.isArray(this._cachedStockIns)) ? this._cachedStockIns : this.getStockInOrders();
-                const pendingQueue = this._getPendingQueue();
                 const queueStockIns = pendingQueue.filter(q => q.type === 'stockin' && q.data).map(q => q.data);
 
                 // localStockIns phải được ưu tiên trước; gộp theo clientTxId để không bị mất phiếu mới khi trùng mã (Batch 8: Issue 1)
@@ -863,6 +929,21 @@ class DataStore {
                     });
                 });
 
+                // Tái áp dụng thay đổi tồn kho cho các lần trả hàng lẻ (order_return) chưa đồng bộ (Batch P1: Issue 5)
+                const pendingReturnsForStock = pendingQueue.filter(q => q.type === 'order_return' && q.data);
+                pendingReturnsForStock.forEach(pr => {
+                    const r = pr.data;
+                    (r.items || []).forEach(it => {
+                        const m = medMap[it.medicineId];
+                        if (m) {
+                            let units = parseFloat(it.quantity) || 0;
+                            if (it.unit === m.packUnit && m.packRatio > 1) units *= m.packRatio;
+                            else if (it.unit === m.subUnit && m.subRatio > 1) units *= m.subRatio;
+                            m.stockUnits = Math.round(((m.stockUnits || 0) + units) * 1000) / 1000;
+                        }
+                    });
+                });
+
                 // Tái áp dụng đầy đủ nghiệp vụ nhập kho: cộng tồn, cập nhật lô/hạn dùng và tính lại giá vốn bình quân di động (Issue 4)
                 pendingStockIns.forEach(s => {
                     (s.items || []).forEach(it => {
@@ -949,7 +1030,6 @@ class DataStore {
             if (db.vouchers) {
                 // Bảo vệ và khôi phục toàn bộ phiếu chi/thu liên quan đến đơn chờ hoặc nhập kho (Issue 3 & 4)
                 const localVouchers = (this._cachedVouchers && Array.isArray(this._cachedVouchers)) ? this._cachedVouchers : this.getVouchers();
-                const pendingQueue = this._getPendingQueue();
                 const queueVouchers = pendingQueue.map(q => q.voucher).filter(Boolean);
 
                 const candidateVouchersMap = new Map();
@@ -1041,7 +1121,7 @@ class DataStore {
                 this.lastDatabaseTimestamp = db.lastUpdated;
             }
         } catch (e) {
-            console.warn('LocalStorage quota limit reached, maintaining state in-memory:', e);
+            console.error('Lỗi trong saveToLocalCache:', e);
         }
     }
 
@@ -1193,20 +1273,29 @@ class DataStore {
         }
     }
 
-    saveSettings(settings) {
+    saveSettings(settings, persist = true) {
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-        this.schedulePersistToServer();
+        if (persist) {
+            this.schedulePersistToServer();
+        }
         this.emit('settings:changed', settings);
     }
 
     // --- Medicines (Danh mục thuốc & Tồn kho) ---
     _rebuildMedicineMap() {
         this._medicineMap = {};
+        this._medicineNameMap = {};
         if (this._cachedMedicines && Array.isArray(this._cachedMedicines)) {
             for (let i = 0; i < this._cachedMedicines.length; i++) {
                 const m = this._cachedMedicines[i];
                 if (!m) continue;
                 if (m.id) this._medicineMap[m.id] = m;
+                if (m.name && typeof m.name === 'string') {
+                    const normName = m.name.trim().toLowerCase();
+                    if (normName && !this._medicineNameMap[normName]) {
+                        this._medicineNameMap[normName] = m;
+                    }
+                }
                 if (m.barcode) {
                     const parts = m.barcode.split(/[,;\s]+/);
                     for (let j = 0; j < parts.length; j++) {
@@ -1218,6 +1307,15 @@ class DataStore {
                 }
             }
         }
+    }
+
+    getMedicineByName(name) {
+        if (!name || typeof name !== 'string') return null;
+        if (!this._medicineNameMap) {
+            this.getMedicines();
+        }
+        const norm = name.trim().toLowerCase();
+        return (this._medicineNameMap && this._medicineNameMap[norm]) ? this._medicineNameMap[norm] : null;
     }
 
     getMedicines() {
@@ -1393,6 +1491,7 @@ class DataStore {
 
     saveStockInOrders(orders) {
         this._cachedStockIns = orders;
+        this._stockInHistoryCache = null;
         try {
             localStorage.setItem(STORAGE_KEYS.STOCK_IN, JSON.stringify(orders));
         } catch(e) {
@@ -1407,12 +1506,20 @@ class DataStore {
         const localNow = this.formatLocalISO();
         if (!stockIn.id) {
             const dateStr = localNow.slice(2, 10).replace(/-/g, '');
+            const prefix = `PN${dateStr}-`;
+            let maxSuffix = 0;
+            orders.forEach(o => {
+                if (o.id && o.id.startsWith(prefix)) {
+                    const num = parseInt(o.id.slice(prefix.length), 10);
+                    if (!isNaN(num) && num > maxSuffix) maxSuffix = num;
+                }
+            });
+            let nextNum = maxSuffix + 1;
+            let candidateId = `${prefix}${String(nextNum).padStart(2, '0')}`;
             const existingIds = new Set(orders.map(o => o.id));
-            let countToday = orders.filter(o => o.createdAt && o.createdAt.startsWith(localNow.slice(0, 10))).length + 1;
-            let candidateId = `PN${dateStr}-${String(countToday).padStart(2, '0')}`;
             while (existingIds.has(candidateId)) {
-                countToday++;
-                candidateId = `PN${dateStr}-${String(countToday).padStart(2, '0')}`;
+                nextNum++;
+                candidateId = `${prefix}${String(nextNum).padStart(2, '0')}`;
             }
             stockIn.id = candidateId;
         }
@@ -1528,11 +1635,18 @@ class DataStore {
 
         const oldOrder = orders[index];
 
-        // 1. Hoàn nguyên số lượng tồn kho các mặt hàng trong phiếu cũ
+        // 1. Hoàn nguyên số lượng tồn kho và giá vốn/lô/HSD cũ của phiếu cũ (Batch P1: Issue 4)
         if (oldOrder.items && Array.isArray(oldOrder.items)) {
             oldOrder.items.forEach(oldItem => {
                 const med = this.getMedicineById(oldItem.medicineId);
                 if (med) {
+                    // Hoàn nguyên giá vốn cũ nếu có ghi nhận snapshot
+                    if (typeof oldItem.prevCostPrice === 'number' && oldItem.prevCostPrice > 0) {
+                        med.costPrice = oldItem.prevCostPrice;
+                    }
+                    if (oldItem.prevBatchNo) med.batchNo = oldItem.prevBatchNo;
+                    if (oldItem.prevExpiryDate) med.expiryDate = oldItem.prevExpiryDate;
+
                     const u = (oldItem.unit || '').trim().toLowerCase();
                     const packU = (med.packUnit || '').trim().toLowerCase();
                     const subU = (med.subUnit || '').trim().toLowerCase();
@@ -1545,7 +1659,9 @@ class DataStore {
                     } else if (u && subU && u === subU && subRatio > 1) {
                         unitsToDeduct = (Number(oldItem.quantity) || 0) * subRatio;
                     }
-                    med.stockUnits = Math.round(((med.stockUnits || 0) - unitsToDeduct) * 1000) / 1000;
+                    // Trừ tồn kho an toàn: không làm âm kho nếu hàng đã bán một phần trong lúc chờ sửa
+                    const safeUnitsToDeduct = Math.min(unitsToDeduct, Math.max(0, med.stockUnits || 0));
+                    med.stockUnits = Math.round(((med.stockUnits || 0) - safeUnitsToDeduct) * 1000) / 1000;
                     this.saveMedicine(med);
                 }
             });
@@ -1553,6 +1669,7 @@ class DataStore {
 
         // 2. Cộng tồn kho mới và cập nhật giá vốn, HSD, lô cho mặt hàng mới
         if (updatedStockIn.items && Array.isArray(updatedStockIn.items)) {
+            if (!updatedStockIn.snapshots) updatedStockIn.snapshots = {};
             updatedStockIn.items.forEach(newItem => {
                 const med = this.getMedicineById(newItem.medicineId);
                 if (med) {
@@ -1570,6 +1687,22 @@ class DataStore {
                         unitsToAdd = (Number(newItem.quantity) || 0) * subRatio;
                     }
 
+                    // Lưu snapshot trước khi cập nhật mới
+                    newItem.addedUnits = unitsToAdd;
+                    newItem.prevBatchNo = med.batchNo || '';
+                    newItem.prevExpiryDate = med.expiryDate || '';
+                    newItem.prevCostPrice = med.costPrice || 0;
+                    newItem.prevStockUnits = med.stockUnits || 0;
+
+                    updatedStockIn.snapshots[newItem.medicineId] = {
+                        prevStockUnits: med.stockUnits || 0,
+                        addedUnits: unitsToAdd,
+                        prevCostPrice: med.costPrice || 0,
+                        prevBatchNo: med.batchNo || '',
+                        prevExpiryDate: med.expiryDate || '',
+                        postStockUnits: Math.round(((med.stockUnits || 0) + unitsToAdd) * 1000) / 1000
+                    };
+
                     if (newItem.batchNo) med.batchNo = newItem.batchNo;
                     if (newItem.expiryDate) med.expiryDate = newItem.expiryDate;
                     if (newItem.costPrice && newItem.costPrice > 0) {
@@ -1580,7 +1713,7 @@ class DataStore {
                             else if (u === subU && subRatio > 0) inCostPack = newItem.costPrice * (packRatio / subRatio);
                         }
 
-                        // Bình quân gia quyền di động: (giá nhập hiện tại * số lượng nhập + giá nhập TB trước đó * số lượng tồn) / (số lượng nhập + số lượng tồn)
+                        // Bình quân gia quyền di động với giá vốn đã được hoàn nguyên
                         const prevStockUnits = Math.max(0, med.stockUnits || 0);
                         const prevCostPack = med.costPrice || 0;
 
@@ -2027,7 +2160,8 @@ class DataStore {
             returnRecord = generals[genIdx];
 
             // Điều chỉnh tồn kho tương ứng nếu phiếu có điều chỉnh kho và sửa đổi items
-            if (returnRecord.stockAdjusted === true && Array.isArray(updateFields.items)) {
+            const shouldAdjustStock = returnRecord && (returnRecord.stockAdjusted === true || returnRecord.type === 'general_return' || returnRecord.returnType === 'general_return');
+            if (shouldAdjustStock && Array.isArray(updateFields.items)) {
                 const oldUnitsByMed = new Map();
                 (returnRecord.items || []).forEach(it => {
                     const med = this.getMedicineById(it.medicineId);
@@ -2071,7 +2205,8 @@ class DataStore {
                         returnRecord = s.returns[rIdx];
                         isStockInReturn = true;
 
-                        if (returnRecord.stockAdjusted === true && Array.isArray(updateFields.items)) {
+                        const shouldAdjustStockIn = returnRecord && (returnRecord.stockAdjusted === true || returnRecord.type === 'stockin_return' || returnRecord.returnType === 'stockin_return');
+                        if (shouldAdjustStockIn && Array.isArray(updateFields.items)) {
                             const oldUnitsByMed = new Map();
                             (returnRecord.items || []).forEach(it => {
                                 const med = this.getMedicineById(it.medicineId);
@@ -2199,8 +2334,9 @@ class DataStore {
         }
 
         if (deleted) {
-            // Hoàn lại tồn kho cho các mặt hàng trong phiếu trả vừa bị xoá (chỉ hoàn nếu phiếu đó đã từng trừ kho)
-            if (returnRecord && returnRecord.stockAdjusted === true && Array.isArray(returnRecord.items)) {
+            // Hoàn lại tồn kho cho các mặt hàng trong phiếu trả vừa bị xoá (hoàn nếu phiếu có điều chỉnh kho hoặc là phiếu trả tổng hợp)
+            const wasStockAdjusted = returnRecord && (returnRecord.stockAdjusted === true || returnRecord.type === 'general_return' || returnRecord.returnType === 'general_return');
+            if (wasStockAdjusted && Array.isArray(returnRecord.items)) {
                 returnRecord.items.forEach(item => {
                     const med = this.getMedicineById(item.medicineId);
                     if (med) {
@@ -2241,9 +2377,10 @@ class DataStore {
             return { success: false, message: 'Vui lòng chọn ít nhất một mặt hàng thuốc để xuất trả!' };
         }
 
-        // 1. Kiểm tra tồn kho thực tế của từng thuốc
+        // 1. Kiểm tra tồn kho thực tế của từng thuốc (cộng dồn theo từng loại thuốc - Batch P1: Issue 1)
+        const requiredUnitsByMed = new Map();
         for (const item of returnedItems) {
-            const qtyToReturn = parseInt(item.quantity) || 0;
+            const qtyToReturn = parseFloat(item.quantity) || 0;
             if (qtyToReturn <= 0) continue;
 
             const med = this.getMedicineById(item.medicineId);
@@ -2257,24 +2394,37 @@ class DataStore {
             } else if (item.unit === med.subUnit && med.subRatio > 1) {
                 unitsToDeduct = qtyToReturn * med.subRatio;
             }
+            requiredUnitsByMed.set(med.id, (requiredUnitsByMed.get(med.id) || 0) + unitsToDeduct);
+        }
 
-            if ((med.stockUnits || 0) < unitsToDeduct) {
+        for (const [medId, neededUnits] of requiredUnitsByMed.entries()) {
+            const med = this.getMedicineById(medId);
+            if ((med.stockUnits || 0) < neededUnits) {
                 return {
                     success: false,
-                    message: `Thuốc [${med.name}] hiện trong kho chỉ còn ${med.stockUnits || 0} ${med.baseUnit}, không đủ để xuất trả ${unitsToDeduct} ${med.baseUnit}!`
+                    message: `Thuốc [${med.name}] hiện trong kho chỉ còn ${med.stockUnits || 0} ${med.baseUnit}, không đủ để xuất trả ${neededUnits} ${med.baseUnit}!`
                 };
             }
         }
 
+        // Validate tổng tiền hoàn trả TRƯỚC KHI trừ kho
         let totalRefund = 0;
-
-        // 2. Trừ kho thuốc
         returnedItems.forEach(item => {
-            const qtyToReturn = parseInt(item.quantity) || 0;
-            if (qtyToReturn <= 0) return;
+            const qtyToReturn = parseFloat(item.quantity) || 0;
+            if (qtyToReturn > 0) {
+                totalRefund += qtyToReturn * (parseFloat(item.costPrice) || 0);
+            }
+        });
 
-            const lineRefund = qtyToReturn * (parseFloat(item.costPrice) || 0);
-            totalRefund += lineRefund;
+        if (totalRefund <= 0) {
+            return { success: false, message: 'Tổng số tiền hoàn trả phải lớn hơn 0!' };
+        }
+
+        // 2. Trừ kho thuốc sau khi đã kiểm tra hợp lệ toàn bộ
+        const adjustedItems = [];
+        returnedItems.forEach(item => {
+            const qtyToReturn = parseFloat(item.quantity) || 0;
+            if (qtyToReturn <= 0) return;
 
             const med = this.getMedicineById(item.medicineId);
             if (med) {
@@ -2287,19 +2437,29 @@ class DataStore {
 
                 med.stockUnits = Math.round(((med.stockUnits || 0) - unitsToDeduct) * 1000) / 1000;
                 this.saveMedicine(med);
+                adjustedItems.push({ medicineId: med.id, unitsDeducted: unitsToDeduct });
             }
         });
 
-        if (totalRefund <= 0) {
-            return { success: false, message: 'Tổng số tiền hoàn trả phải lớn hơn 0!' };
-        }
-
-        // 3. Tạo mã phiếu trả hàng tổng hợp PTHyymmdd-xxx
+        // 3. Tạo mã phiếu trả hàng tổng hợp PTHyymmdd-xxx (dùng maxSeq+1)
         const localNow = this.formatLocalISO();
         const dateStr = localNow.slice(2, 10).replace(/-/g, '');
+        const prefix = `PTH${dateStr}-`;
         const allReturns = this.getAllPurchaseReturns();
-        const countToday = allReturns.filter(r => r.id && r.id.startsWith('PTH' + dateStr)).length + 1;
-        const returnId = `PTH${dateStr}-${String(countToday).padStart(3, '0')}`;
+        const existingIds = new Set(allReturns.map(r => r.id));
+        let maxSeq = 0;
+        allReturns.forEach(r => {
+            if (r.id && r.id.startsWith(prefix)) {
+                const num = parseInt(r.id.slice(prefix.length), 10);
+                if (!isNaN(num) && num > maxSeq) maxSeq = num;
+            }
+        });
+        let nextSeq = maxSeq + 1;
+        let returnId = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+        while (existingIds.has(returnId)) {
+            nextSeq++;
+            returnId = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+        }
 
         const returnRecord = {
             id: returnId,
@@ -2311,15 +2471,18 @@ class DataStore {
             paymentMethod: paymentMethod || 'cash',
             reason: returnReason || 'Xuất trả hàng cho nhà cung cấp (tổng hợp)',
             note: note || '',
+            stockAdjusted: true,
+            stockAdjustedAt: localNow,
+            adjustedItems: adjustedItems,
             items: returnedItems.map(i => ({
                 medicineId: i.medicineId,
                 medicineName: i.medicineName,
                 unit: i.unit,
-                quantity: parseInt(i.quantity) || 0,
+                quantity: parseFloat(i.quantity) || 0,
                 costPrice: parseFloat(i.costPrice) || 0,
                 batchNo: i.batchNo || '',
                 expiryDate: i.expiryDate || '',
-                totalRefund: (parseInt(i.quantity) || 0) * (parseFloat(i.costPrice) || 0)
+                totalRefund: (parseFloat(i.quantity) || 0) * (parseFloat(i.costPrice) || 0)
             })),
             refundTotal: totalRefund,
             pharmacist: this.getSettings().pharmacist || 'DS. Nguyễn Thanh Dung'
@@ -2421,13 +2584,21 @@ class DataStore {
         // 3. Tạo mã phiếu xuất hủy PXHyymmdd-xxx (chống trùng ID)
         const localNow = this.formatLocalISO();
         const dateStr = localNow.slice(2, 10).replace(/-/g, '');
+        const prefix = `PXH${dateStr}-`;
         const allReturns = this.getAllPurchaseReturns();
         const existingIds = new Set(allReturns.map(r => r.id));
-        let pxhSuffix = 1;
-        let disposalId = `PXH${dateStr}-${String(pxhSuffix).padStart(3, '0')}`;
+        let maxSuffix = 0;
+        allReturns.forEach(r => {
+            if (r.id && r.id.startsWith(prefix)) {
+                const num = parseInt(r.id.slice(prefix.length), 10);
+                if (!isNaN(num) && num > maxSuffix) maxSuffix = num;
+            }
+        });
+        let pxhSuffix = maxSuffix + 1;
+        let disposalId = `${prefix}${String(pxhSuffix).padStart(3, '0')}`;
         while (existingIds.has(disposalId)) {
             pxhSuffix++;
-            disposalId = `PXH${dateStr}-${String(pxhSuffix).padStart(3, '0')}`;
+            disposalId = `${prefix}${String(pxhSuffix).padStart(3, '0')}`;
         }
         const settings = this.getSettings();
 
@@ -2561,6 +2732,7 @@ class DataStore {
 
     saveOrders(orders) {
         this._cachedOrders = orders;
+        this._salesHistoryCache = null;
         try {
             localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
         } catch(e) {
@@ -2997,8 +3169,10 @@ class DataStore {
             };
         });
 
+        const clientTxId = 'tx_ret_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
         const returnRecord = {
             id: returnId,
+            clientTxId: clientTxId,
             createdAt: this.formatLocalISO(),
             items: mappedItems,
             refundTotal: finalRefundTotal,
@@ -3027,6 +3201,7 @@ class DataStore {
         }
 
         // Tự động thêm Phiếu Chi (Hoàn tiền trả hàng) vào Sổ Quỹ Thu Chi
+        let refundVoucher = null;
         if (finalRefundTotal > 0) {
             const vouchers = this.getVouchers();
             const existingRefundVoucher = vouchers.find(v => 
@@ -3043,8 +3218,9 @@ class DataStore {
                 existingRefundVoucher.returnCost = Math.round(totalReturnCost);
                 existingRefundVoucher.returnedItems = returnRecord.items;
                 this.saveVouchers(vouchers);
+                refundVoucher = existingRefundVoucher;
             } else {
-                this.addVoucher({
+                refundVoucher = this.addVoucher({
                     type: 'payment',
                     paymentMethod: refundMethod || 'cash',
                     category: 'Chi trả lại hàng bán lẻ',
@@ -3062,6 +3238,19 @@ class DataStore {
                 });
             }
         }
+
+        // Đưa trả hàng lẻ vào PENDING_QUEUE để đảm bảo tính nguyên tử qua crash/reload (Batch P1: Issue 5)
+        if (!this._pendingLocalReturnIds) this._pendingLocalReturnIds = new Set();
+        this._pendingLocalReturnIds.add(returnId);
+        this._addToPendingQueue({
+            type: 'order_return',
+            id: returnId,
+            orderId: order.id,
+            clientTxId: clientTxId,
+            data: returnRecord,
+            voucher: refundVoucher,
+            createdAt: Date.now()
+        });
 
         this._cachedOrders = orders;
         try { localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)); } catch(e){}
@@ -3407,10 +3596,28 @@ class DataStore {
         return customers.find(c => c.id === id) || null;
     }
 
+    _generateNextCustomerId(customers = this.getCustomers()) {
+        const existingIds = new Set(customers.map(c => c.id).filter(Boolean));
+        let maxSeq = 0;
+        customers.forEach(c => {
+            if (c.id && /^KH\d+$/i.test(c.id)) {
+                const num = parseInt(c.id.slice(2), 10);
+                if (!isNaN(num) && num > maxSeq) maxSeq = num;
+            }
+        });
+        let nextNum = maxSeq + 1;
+        let candidateId = 'KH' + String(nextNum).padStart(4, '0');
+        while (existingIds.has(candidateId)) {
+            nextNum++;
+            candidateId = 'KH' + String(nextNum).padStart(4, '0');
+        }
+        return candidateId;
+    }
+
     saveCustomer(cust) {
         const customers = this.getCustomers();
         const normPhone = cust.phone ? this.normalizePhone(cust.phone) : '';
-        const now = new Date().toISOString();
+        const now = this.formatLocalISO();
 
         let existingIndex = -1;
         if (cust.id) {
@@ -3437,7 +3644,7 @@ class DataStore {
             this.saveCustomers(customers);
             return customers[existingIndex];
         } else {
-            const newId = cust.id || ('KH' + (customers.length + 1).toString().padStart(4, '0'));
+            const newId = cust.id || this._generateNextCustomerId(customers);
             const newCustomer = {
                 id: newId,
                 phone: cust.phone ? cust.phone.trim() : '',
@@ -3457,9 +3664,10 @@ class DataStore {
     }
 
     deleteCustomer(id, phone = null) {
+        if (!id) return false;
         let customers = this.getCustomers();
         const initialLen = customers.length;
-        if (id === 'Cá nhân' || !id) {
+        if (id === 'Cá nhân') {
             // Bảo vệ danh bạ: Chặn xóa hàng loạt khi ID là "Cá nhân" (dùng chung cho các bản ghi import cũ)
             if (!phone) {
                 console.warn('Từ chối xóa khách hàng: Không thể xóa với ID chung "Cá nhân" mà không có số điện thoại xác thực!');
@@ -3555,7 +3763,7 @@ class DataStore {
         const customers = this.getCustomers();
         const norm = this.normalizePhone(phone);
         let cust = customers.find(c => this.normalizePhone(c.phone) === norm);
-        const now = new Date().toISOString();
+        const now = this.formatLocalISO();
 
         if (cust) {
             cust.points = (cust.points || 0) + (pointsEarned || 0);
@@ -3567,7 +3775,7 @@ class DataStore {
             }
         } else {
             cust = {
-                id: 'KH' + (customers.length + 1).toString().padStart(4, '0'),
+                id: this._generateNextCustomerId(customers),
                 phone: phone.trim(),
                 name: (name && name.trim()) || 'Khách hàng',
                 points: pointsEarned || 0,
@@ -3910,6 +4118,14 @@ class DataStore {
 
     // --- LỊCH SỬ NHẬP VÀ BÁN CỦA TỪNG LOẠI THUỐC ---
     getMedicineStockInHistory(medicineId) {
+        if (!medicineId) return [];
+        if (!this._stockInHistoryCache) {
+            this._stockInHistoryCache = new Map();
+        }
+        if (this._stockInHistoryCache.has(medicineId)) {
+            return this._stockInHistoryCache.get(medicineId);
+        }
+
         const stockIns = this.getStockInOrders();
         const history = [];
         stockIns.forEach(order => {
@@ -3931,10 +4147,20 @@ class DataStore {
                 }
             });
         });
-        return history.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        history.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        this._stockInHistoryCache.set(medicineId, history);
+        return history;
     }
 
     getMedicineSalesHistory(medicineId) {
+        if (!medicineId) return [];
+        if (!this._salesHistoryCache) {
+            this._salesHistoryCache = new Map();
+        }
+        if (this._salesHistoryCache.has(medicineId)) {
+            return this._salesHistoryCache.get(medicineId);
+        }
+
         const orders = this.getOrders();
         const history = [];
         orders.forEach(order => {
@@ -3963,7 +4189,9 @@ class DataStore {
                 }
             });
         });
-        return history.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        history.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        this._salesHistoryCache.set(medicineId, history);
+        return history;
     }
 
     // --- TỔNG KẾT DÒNG TIỀN & TỒN QUỸ ---
@@ -4076,9 +4304,30 @@ class DataStore {
     }
 
     syncOrdersAndStockInsToVouchers() {
+        if (this.isServerMode && !this._loadedFromServer) return false;
+
         const vouchers = this.getVouchers();
         const existingRefIds = new Set(vouchers.map(v => v.refId).filter(Boolean));
+        const existingVoucherIds = new Set(vouchers.map(v => v.id).filter(Boolean));
         let changed = false;
+
+        const generateVoucherId = (prefix) => {
+            let maxSuffix = 0;
+            vouchers.forEach(v => {
+                if (v.id && v.id.startsWith(prefix)) {
+                    const num = parseInt(v.id.slice(prefix.length), 10);
+                    if (!isNaN(num) && num > maxSuffix) maxSuffix = num;
+                }
+            });
+            let nextSeq = maxSuffix + 1;
+            let candidateId = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+            while (existingVoucherIds.has(candidateId)) {
+                nextSeq++;
+                candidateId = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+            }
+            existingVoucherIds.add(candidateId);
+            return candidateId;
+        };
 
         // Đếm số phiếu chi hoàn tiền đã có cho từng ĐƠN (không phụ thuộc tên category/ID)
         const ordersForRefundCount = this.getOrders();
@@ -4105,7 +4354,7 @@ class DataStore {
             if (o.totalAmount > 0 && !o.isReturn && !o.voucherDeleted && !existingRefIds.has(o.id)) {
                 const dateStr = o.createdAt || this.formatLocalISO();
                 const dCompact = dateStr.slice(2, 10).replace(/-/g, '');
-                const vId = 'PT' + dCompact + '-' + String(Math.floor(Math.random() * 900) + 100);
+                const vId = generateVoucherId('PT' + dCompact + '-');
                 vouchers.push({
                     id: vId,
                     type: 'receipt',
@@ -4143,7 +4392,7 @@ class DataStore {
                     }
 
                     const rDate = r.createdAt || o.createdAt || this.formatLocalISO();
-                    const vId = 'PC' + rDate.slice(2, 10).replace(/-/g, '') + '-' + String(Math.floor(Math.random() * 900) + 100);
+                    const vId = generateVoucherId('PC' + rDate.slice(2, 10).replace(/-/g, '') + '-');
                     const returnCost = (typeof r.returnCost === 'number') ? r.returnCost : this._calcReturnCost(r.items);
                     vouchers.push({
                         id: vId,
@@ -4174,7 +4423,7 @@ class DataStore {
             if (!s.isCancelled && s.totalAmount > 0 && !s.voucherDeleted && !existingRefIds.has(s.id)) {
                 const dateStr = s.createdAt || this.formatLocalISO();
                 const dCompact = dateStr.slice(2, 10).replace(/-/g, '');
-                const vId = 'PC' + dCompact + '-' + String(Math.floor(Math.random() * 900) + 100);
+                const vId = generateVoucherId('PC' + dCompact + '-');
                 vouchers.push({
                     id: vId,
                     type: 'payment',
@@ -4198,6 +4447,7 @@ class DataStore {
             vouchers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             this.saveVouchers(vouchers);
         }
+        return true;
     }
 }
 
